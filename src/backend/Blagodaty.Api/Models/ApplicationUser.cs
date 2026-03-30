@@ -1,0 +1,17 @@
+using Microsoft.AspNetCore.Identity;
+
+namespace Blagodaty.Api.Models;
+
+public sealed class ApplicationUser : IdentityUser<Guid>
+{
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? City { get; set; }
+    public string? ChurchName { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? LastLoginAtUtc { get; set; }
+
+    public CampRegistration? CampRegistration { get; set; }
+    public ICollection<RefreshSession> RefreshSessions { get; set; } = [];
+}

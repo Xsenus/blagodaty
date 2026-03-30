@@ -1,0 +1,13 @@
+{
+  "name": "blagodaty",
+  "private": true,
+  "scripts": {
+    "dev:api": "dotnet run --project src/backend/Blagodaty.Api/Blagodaty.Api.csproj",
+    "dev:camp": "npm run dev --prefix src/frontend/camp-web",
+    "dev:lk": "npm run dev --prefix src/frontend/lk-web",
+    "build:api": "dotnet build src/backend/Blagodaty.Api/Blagodaty.Api.csproj",
+    "build:camp": "npm run build --prefix src/frontend/camp-web",
+    "build:lk": "npm run build --prefix src/frontend/lk-web",
+    "build:web": "npm run build:camp && npm run build:lk"
+  }
+}
