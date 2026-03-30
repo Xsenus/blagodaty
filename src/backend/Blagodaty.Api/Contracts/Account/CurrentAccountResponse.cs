@@ -10,5 +10,6 @@ public sealed class CurrentAccountResponse
     public required IReadOnlyCollection<AccountRegistrationSummaryDto> Registrations { get; init; }
     public required IReadOnlyCollection<ExternalIdentityDto> ExternalIdentities { get; init; }
     public required IReadOnlyCollection<PublicExternalAuthProviderDto> AvailableExternalAuthProviders { get; init; }
+    public int UnreadNotificationsCount { get; init; }
     public bool HasPassword { get; init; }
 }

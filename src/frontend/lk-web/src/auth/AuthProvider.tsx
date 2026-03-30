@@ -166,6 +166,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       registrations: [],
       externalIdentities: [],
       availableExternalAuthProviders: [],
+      unreadNotificationsCount: 0,
       hasPassword: true,
     });
     await reloadAccount(payload.accessToken);
@@ -213,6 +214,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
             registrations: [],
             externalIdentities: [],
             availableExternalAuthProviders: [],
+            unreadNotificationsCount: 0,
             hasPassword: true,
           },
     );

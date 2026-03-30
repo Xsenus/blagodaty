@@ -6,6 +6,7 @@ import type {
   AdminEventsResponse,
   AdminOverview,
   AdminUser,
+  AccountNotificationsResponse,
   AccountRegistrationSummary,
   AuthResponse,
   CampRegistration,
@@ -202,6 +203,46 @@ export function getAccountRegistrations(accessToken: string) {
   return request<AccountRegistrationSummary[]>('/api/account/registrations', {}, accessToken);
 }
 
+export function getAccountNotifications(
+  accessToken: string,
+  params: {
+    page: number;
+    pageSize: number;
+    unreadOnly?: boolean;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+
+  if (params.unreadOnly) {
+    query.set('unreadOnly', 'true');
+  }
+
+  return request<AccountNotificationsResponse>(`/api/account/notifications?${query.toString()}`, {}, accessToken);
+}
+
+export function markAccountNotificationAsRead(accessToken: string, notificationId: string) {
+  return request<void>(
+    `/api/account/notifications/${notificationId}/read`,
+    {
+      method: 'POST',
+    },
+    accessToken,
+  );
+}
+
+export function markAllAccountNotificationsAsRead(accessToken: string) {
+  return request<{ markedCount: number }>(
+    '/api/account/notifications/read-all',
+    {
+      method: 'POST',
+    },
+    accessToken,
+  );
+}
+
 export function getPublicEvents() {
   return request<{ events: PublicEventSummary[] }>('/api/events');
 }
@@ -290,6 +331,17 @@ export function updateUserRoles(accessToken: string, userId: string, roles: stri
     {
       method: 'PUT',
       body: JSON.stringify({ roles }),
+    },
+    accessToken,
+  );
+}
+
+export function updateAdminRegistrationStatus(accessToken: string, registrationId: string, status: string) {
+  return request<AdminUser>(
+    `/api/admin/registrations/${registrationId}/status`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
     },
     accessToken,
   );

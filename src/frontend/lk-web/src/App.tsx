@@ -28,9 +28,11 @@ import {
   startTelegramAuth,
   unlinkExternalIdentity,
   updateAdminExternalAuthProvider,
+  updateAdminRegistrationStatus,
   updateUserRoles,
 } from './lib/api';
 import { AdminEventsSection } from './admin/AdminEventsSection';
+import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
 import type {
   AccommodationPreference,
@@ -65,9 +67,9 @@ import type {
 } from './types';
 
 const roleLabels: Record<AppRole, string> = {
-  Member: 'Участник',
-  CampManager: 'Координатор лагеря',
-  Admin: 'Администратор',
+  Member: '\u0423\u0447\u0430\u0441\u0442\u043d\u0438\u043a',
+  CampManager: '\u041a\u043e\u043e\u0440\u0434\u0438\u043d\u0430\u0442\u043e\u0440 \u043b\u0430\u0433\u0435\u0440\u044f',
+  Admin: '\u0410\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440',
 };
 
 function hasRole(roles: string[] | undefined, role: AppRole) {
@@ -108,40 +110,40 @@ function formatProviderLabel(provider: string) {
 }
 
 const eventKindLabels: Record<EventKind, string> = {
-  Camp: 'Лагерь',
-  Conference: 'Конференция',
-  Retreat: 'Ретрит',
-  Trip: 'Поездка',
-  Other: 'Другое',
+  Camp: '\u041b\u0430\u0433\u0435\u0440\u044c',
+  Conference: '\u041a\u043e\u043d\u0444\u0435\u0440\u0435\u043d\u0446\u0438\u044f',
+  Retreat: '\u0420\u0435\u0442\u0440\u0438\u0442',
+  Trip: '\u041f\u043e\u0435\u0437\u0434\u043a\u0430',
+  Other: '\u0414\u0440\u0443\u0433\u043e\u0435',
 };
 
 const eventStatusLabels: Record<EventEditionStatus, string> = {
-  Draft: 'Черновик',
-  Published: 'Опубликовано',
-  RegistrationOpen: 'Регистрация открыта',
-  RegistrationClosed: 'Регистрация закрыта',
-  InProgress: 'Идёт сейчас',
-  Completed: 'Завершено',
-  Archived: 'Архив',
+  Draft: '\u0427\u0435\u0440\u043d\u043e\u0432\u0438\u043a',
+  Published: '\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e',
+  RegistrationOpen: '\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f \u043e\u0442\u043a\u0440\u044b\u0442\u0430',
+  RegistrationClosed: '\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f \u0437\u0430\u043a\u0440\u044b\u0442\u0430',
+  InProgress: '\u0418\u0434\u0451\u0442 \u0441\u0435\u0439\u0447\u0430\u0441',
+  Completed: '\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u043e',
+  Archived: '\u0410\u0440\u0445\u0438\u0432',
 };
 
 const scheduleKindLabels: Record<EventScheduleItemKind, string> = {
-  Arrival: 'Заезд',
-  MainProgram: 'Основная программа',
-  Departure: 'Выезд',
-  Meeting: 'Встреча',
-  Deadline: 'Дедлайн',
-  Other: 'Другое',
+  Arrival: '\u0417\u0430\u0435\u0437\u0434',
+  MainProgram: '\u041e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0430',
+  Departure: '\u0412\u044b\u0435\u0437\u0434',
+  Meeting: '\u0412\u0441\u0442\u0440\u0435\u0447\u0430',
+  Deadline: '\u0414\u0435\u0434\u043b\u0430\u0439\u043d',
+  Other: '\u0414\u0440\u0443\u0433\u043e\u0435',
 };
 
 const contentBlockLabels: Record<EventContentBlockType, string> = {
-  Hero: 'Главный блок',
-  About: 'О мероприятии',
-  Highlight: 'Акценты',
-  WhatToBring: 'Что взять',
-  Program: 'Программа',
-  ImportantNotice: 'Важное',
-  Faq: 'Вопросы и ответы',
+  Hero: '\u0413\u043b\u0430\u0432\u043d\u044b\u0439 \u0431\u043b\u043e\u043a',
+  About: '\u041e \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0438',
+  Highlight: '\u0410\u043a\u0446\u0435\u043d\u0442\u044b',
+  WhatToBring: '\u0427\u0442\u043e \u0432\u0437\u044f\u0442\u044c',
+  Program: '\u041f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0430',
+  ImportantNotice: '\u0412\u0430\u0436\u043d\u043e\u0435',
+  Faq: '\u0412\u043e\u043f\u0440\u043e\u0441\u044b \u0438 \u043e\u0442\u0432\u0435\u0442\u044b',
 };
 
 function formatEventKind(kind: EventKind) {
@@ -162,30 +164,30 @@ function formatContentBlockType(blockType: EventContentBlockType) {
 
 function formatRoleList(roles: string[] | undefined) {
   if (!roles?.length) {
-    return 'Без роли';
+    return '\u0411\u0435\u0437 \u0440\u043e\u043b\u0438';
   }
 
-  return roles.map(formatRoleLabel).join(' • ');
+  return roles.map(formatRoleLabel).join(' \u2022 ');
 }
 
 function formatStatus(status?: RegistrationStatus | null) {
   switch (status) {
     case 'Submitted':
-      return 'Анкета отправлена';
+      return '\u0410\u043d\u043a\u0435\u0442\u0430 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0430';
     case 'Confirmed':
-      return 'Участие подтверждено';
+      return '\u0423\u0447\u0430\u0441\u0442\u0438\u0435 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u043e';
     case 'Cancelled':
-      return 'Заявка отменена';
+      return '\u0417\u0430\u044f\u0432\u043a\u0430 \u043e\u0442\u043c\u0435\u043d\u0435\u043d\u0430';
     case 'Draft':
-      return 'Черновик сохранен';
+      return '\u0427\u0435\u0440\u043d\u043e\u0432\u0438\u043a \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d';
     default:
-      return 'Заявка еще не заполнена';
+      return '\u0417\u0430\u044f\u0432\u043a\u0430 \u0435\u0449\u0435 \u043d\u0435 \u0437\u0430\u043f\u043e\u043b\u043d\u0435\u043d\u0430';
   }
 }
 
 function formatDateTime(value?: string | null) {
   if (!value) {
-    return 'Пока нет';
+    return '\u041f\u043e\u043a\u0430 \u043d\u0435\u0442';
   }
 
   return new Intl.DateTimeFormat('ru-RU', {
@@ -198,7 +200,7 @@ function formatDateTime(value?: string | null) {
 
 function formatDateRangeCompact(startsAtUtc?: string | null, endsAtUtc?: string | null) {
   if (!startsAtUtc) {
-    return 'Даты пока не указаны';
+    return '\u0414\u0430\u0442\u044b \u043f\u043e\u043a\u0430 \u043d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u044b';
   }
 
   const formatter = new Intl.DateTimeFormat('ru-RU', {
@@ -213,7 +215,7 @@ function formatDateRangeCompact(startsAtUtc?: string | null, endsAtUtc?: string 
 
 function formatMoney(value?: number | null, currency = 'RUB') {
   if (value === null || value === undefined) {
-    return 'По запросу';
+    return '\u041f\u043e \u0437\u0430\u043f\u0440\u043e\u0441\u0443';
   }
 
   return new Intl.NumberFormat('ru-RU', {
@@ -582,25 +584,30 @@ function ProtectedLayout() {
       <aside className="sidebar">
         <div>
           <p className="mini-eyebrow">Blagodaty</p>
-          <h1>Личный кабинет</h1>
+          <h1>{'\u041b\u0438\u0447\u043d\u044b\u0439 \u043a\u0430\u0431\u0438\u043d\u0435\u0442'}</h1>
           <p className="sidebar-copy">
-            Центр для регистрации на поездку, обновления профиля, работы с анкетой и дальнейшей
-            связи с командой лагеря.
+            {'\u0426\u0435\u043d\u0442\u0440 \u0434\u043b\u044f \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u043d\u0430 \u043f\u043e\u0435\u0437\u0434\u043a\u0443, \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u043f\u0440\u043e\u0444\u0438\u043b\u044f, \u0440\u0430\u0431\u043e\u0442\u044b \u0441 \u0430\u043d\u043a\u0435\u0442\u043e\u0439 \u0438 \u0434\u0430\u043b\u044c\u043d\u0435\u0439\u0448\u0435\u0439 \u0441\u0432\u044f\u0437\u0438 \u0441 \u043a\u043e\u043c\u0430\u043d\u0434\u043e\u0439 \u043b\u0430\u0433\u0435\u0440\u044f.'}
           </p>
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/dashboard">Обзор</NavLink>
-          <NavLink to="/profile">Профиль</NavLink>
-          <NavLink to="/camp-registration">Мероприятия и заявки</NavLink>
-          {canOpenAdmin ? <NavLink to="/admin">Администрирование</NavLink> : null}
+          <NavLink to="/dashboard">{'\u041e\u0431\u0437\u043e\u0440'}</NavLink>
+          <NavLink to="/profile">{'\u041f\u0440\u043e\u0444\u0438\u043b\u044c'}</NavLink>
+          <NavLink to="/camp-registration">{'\u041c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u044f \u0438 \u0437\u0430\u044f\u0432\u043a\u0438'}</NavLink>
+          {canOpenAdmin ? <NavLink to="/admin">{'\u0410\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435'}</NavLink> : null}
+          <NavLink to="/notifications" className="sidebar-link-with-badge">
+            <span>{'\u0423\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f'}</span>
+            {account?.unreadNotificationsCount ? (
+              <span className="sidebar-link-badge">{account.unreadNotificationsCount}</span>
+            ) : null}
+          </NavLink>
           <a href={campBaseUrl} target="_blank" rel="noreferrer">
-            Открыть camp-сайт
+            {'\u041e\u0442\u043a\u0440\u044b\u0442\u044c camp-\u0441\u0430\u0439\u0442'}
           </a>
         </nav>
 
         <div className="sidebar-footer">
-          <p>{account?.user.displayName ?? 'Участник'}</p>
+          <p>{account?.user.displayName ?? '\u0423\u0447\u0430\u0441\u0442\u043d\u0438\u043a'}</p>
           <span className="sidebar-role">{formatRoleList(account?.user.roles)}</span>
           <button
             className="ghost-button"
@@ -610,7 +617,7 @@ function ProtectedLayout() {
               navigate('/login');
             }}
           >
-            Выйти
+            {'\u0412\u044b\u0439\u0442\u0438'}
           </button>
         </div>
       </aside>
@@ -2361,11 +2368,13 @@ function AdminPage() {
   const [registrationsPage, setRegistrationsPage] = useState<PaginatedResponse<AdminUser> | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, UpdateExternalAuthProviderRequest>>({});
   const [roleDrafts, setRoleDrafts] = useState<Record<string, AppRole[]>>({});
+  const [registrationStatusDrafts, setRegistrationStatusDrafts] = useState<Record<string, RegistrationStatus>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
   const [isRegistrationsLoading, setIsRegistrationsLoading] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [savingRegistrationId, setSavingRegistrationId] = useState<string | null>(null);
   const [savingProvider, setSavingProvider] = useState<string | null>(null);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
   const [pendingProviderTest, setPendingProviderTest] = useState<{
@@ -2485,9 +2494,9 @@ function AdminPage() {
         ) as Record<string, UpdateExternalAuthProviderRequest>,
       );
     } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РЅР°СЃС‚СЂРѕР№РєРё РІРЅРµС€РЅРµР№ Р°РІС‚РѕСЂРёР·Р°С†РёРё.';
+      const nextError = loadError instanceof Error ? loadError.message : '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0432\u043d\u0435\u0448\u043d\u0435\u0439 \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u0438.';
       setError(nextError);
-      toast.error('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ auth-РЅР°СЃС‚СЂРѕР№РєРё', nextError);
+      toast.error('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c auth-\u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438', nextError);
     } finally {
       if (!silent) {
         setIsAuthLoading(false);
@@ -2527,9 +2536,9 @@ function AdminPage() {
       setUsersPage(loadedUsers);
       syncRoleDrafts(loadedUsers.items);
     } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№.';
+      const nextError = loadError instanceof Error ? loadError.message : '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u043f\u0438\u0441\u043e\u043a \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u0439.';
       setError(nextError);
-      toast.error('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№', nextError);
+      toast.error('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0435\u0439', nextError);
     } finally {
       setIsUsersLoading(false);
     }
@@ -2553,10 +2562,11 @@ function AdminPage() {
       });
 
       setRegistrationsPage(loadedRegistrations);
+      syncRegistrationStatusDrafts(loadedRegistrations.items);
     } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє Р°РЅРєРµС‚.';
+      const nextError = loadError instanceof Error ? loadError.message : '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u043f\u0438\u0441\u043e\u043a \u0430\u043d\u043a\u0435\u0442.';
       setError(nextError);
-      toast.error('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р°РЅРєРµС‚С‹', nextError);
+      toast.error('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0430\u043d\u043a\u0435\u0442\u044b', nextError);
     } finally {
       setIsRegistrationsLoading(false);
     }
@@ -2573,6 +2583,21 @@ function AdminPage() {
     }));
   }
 
+  function syncRegistrationStatusDrafts(users: AdminUser[]) {
+    if (!users.length) {
+      return;
+    }
+
+    setRegistrationStatusDrafts((current) => ({
+      ...current,
+      ...Object.fromEntries(
+        users
+          .filter((user) => user.registrationId && user.registrationStatus)
+          .map((user) => [user.registrationId as string, user.registrationStatus as RegistrationStatus]),
+      ) as Record<string, RegistrationStatus>,
+    }));
+  }
+
   function replacePagedUser(
     currentPage: PaginatedResponse<AdminUser> | null,
     updatedUser: AdminUser,
@@ -2583,6 +2608,14 @@ function AdminPage() {
           items: currentPage.items.map((item) => (item.id === updatedUser.id ? updatedUser : item)),
         }
       : currentPage;
+  }
+
+  function getDraftRegistrationStatus(user: AdminUser) {
+    if (!user.registrationId) {
+      return user.registrationStatus ?? 'Draft';
+    }
+
+    return registrationStatusDrafts[user.registrationId] ?? user.registrationStatus ?? 'Draft';
   }
 
   useEffect(() => {
@@ -2719,6 +2752,48 @@ function AdminPage() {
     }
   }
 
+  async function saveRegistrationStatus(user: AdminUser) {
+    if (!auth.session || !user.registrationId) {
+      return;
+    }
+
+    setMessage(null);
+    setError(null);
+    setSavingRegistrationId(user.registrationId);
+
+    try {
+      const updatedUser = await updateAdminRegistrationStatus(
+        auth.session.accessToken,
+        user.registrationId,
+        getDraftRegistrationStatus(user),
+      );
+
+      setUsersPage((current) => replacePagedUser(current, updatedUser));
+      setRegistrationsPage((current) => replacePagedUser(current, updatedUser));
+      if (updatedUser.registrationId && updatedUser.registrationStatus) {
+        setRegistrationStatusDrafts((current) => ({
+          ...current,
+          [updatedUser.registrationId as string]: updatedUser.registrationStatus as RegistrationStatus,
+        }));
+      }
+
+      await loadOverview(true);
+      const successMessage = `Статус заявки пользователя ${updatedUser.displayName} обновлён.`;
+      setMessage(successMessage);
+      toast.success('Статус заявки обновлён', successMessage);
+
+      if (auth.account?.user.id === updatedUser.id) {
+        await auth.reloadAccount();
+      }
+    } catch (saveError) {
+      const nextError = saveError instanceof Error ? saveError.message : 'Не удалось обновить статус заявки.';
+      setError(nextError);
+      toast.error('Не удалось сохранить статус заявки', nextError);
+    } finally {
+      setSavingRegistrationId(null);
+    }
+  }
+
   async function saveProvider(provider: AdminExternalAuthProvider) {
     if (!auth.session) {
       return;
@@ -2802,41 +2877,41 @@ function AdminPage() {
   }
 
   const adminHeader = adminSection === 'events'
+  ? {
+      eyebrow: '\u041c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u044f',
+      title: '\u0421\u0435\u0437\u043e\u043d\u044b, \u0432\u044b\u043f\u0443\u0441\u043a\u0438 \u0438 \u0443\u0441\u043b\u043e\u0432\u0438\u044f \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438',
+      description:
+        '\u0417\u0434\u0435\u0441\u044c \u043c\u043e\u0436\u043d\u043e \u0432\u0435\u0441\u0442\u0438 \u043b\u0430\u0433\u0435\u0440\u044f \u043f\u043e \u0433\u043e\u0434\u0430\u043c, \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u0442\u044c \u0434\u0440\u0443\u0433\u0438\u0435 \u0441\u043e\u0431\u044b\u0442\u0438\u044f, \u043d\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u0442\u044c \u0434\u0430\u0442\u044b, \u0442\u0430\u0440\u0438\u0444\u044b \u0438 \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u0434\u043b\u044f \u043a\u0430\u0436\u0434\u043e\u0439 \u043a\u0430\u0440\u0442\u043e\u0447\u043a\u0438.',
+    }
+  : adminSection === 'auth'
+  ? {
+      eyebrow: '\u0412\u043d\u0435\u0448\u043d\u044f\u044f \u0430\u0432\u0442\u043e\u0440\u0438\u0437\u0430\u0446\u0438\u044f',
+      title: '\u041f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440\u044b \u0432\u0445\u043e\u0434\u0430 \u0438 \u0436\u0443\u0440\u043d\u0430\u043b \u043f\u0440\u043e\u0432\u0435\u0440\u043e\u043a',
+      description: '\u0417\u0434\u0435\u0441\u044c \u0443\u0434\u043e\u0431\u043d\u043e \u043d\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u0442\u044c Google, VK, Yandex \u0438 Telegram, \u0430 \u0437\u0430\u0442\u0435\u043c \u0441\u0440\u0430\u0437\u0443 \u043f\u0440\u043e\u0432\u0435\u0440\u044f\u0442\u044c \u043a\u0430\u0436\u0434\u044b\u0439 \u0441\u043f\u043e\u0441\u043e\u0431 \u0432\u0445\u043e\u0434\u0430.',
+    }
+  : adminSection === 'roles'
     ? {
-        eyebrow: '\u041c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u044f',
-        title: '\u0421\u0435\u0437\u043e\u043d\u044b, \u0432\u044b\u043f\u0443\u0441\u043a\u0438 \u0438 \u0443\u0441\u043b\u043e\u0432\u0438\u044f \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438',
-        description:
-          '\u0417\u0434\u0435\u0441\u044c \u043c\u043e\u0436\u043d\u043e \u0432\u0435\u0441\u0442\u0438 \u043b\u0430\u0433\u0435\u0440\u044f \u043f\u043e \u0433\u043e\u0434\u0430\u043c, \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u0442\u044c \u0434\u0440\u0443\u0433\u0438\u0435 \u0441\u043e\u0431\u044b\u0442\u0438\u044f, \u043d\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u0442\u044c \u0434\u0430\u0442\u044b, \u0442\u0430\u0440\u0438\u0444\u044b \u0438 \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u0434\u043b\u044f \u043a\u0430\u0436\u0434\u043e\u0439 \u043a\u0430\u0440\u0442\u043e\u0447\u043a\u0438.',
+        eyebrow: '\u0420\u043e\u043b\u0438 \u043a\u043e\u043c\u0430\u043d\u0434\u044b',
+        title: '\u0420\u043e\u043b\u0438, \u0437\u043e\u043d\u044b \u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u043e\u0441\u0442\u0438 \u0438 \u0441\u043e\u0441\u0442\u0430\u0432',
+        description: '\u0417\u0434\u0435\u0441\u044c \u0432\u0438\u0434\u043d\u043e, \u043a\u0430\u043a\u0438\u0435 \u0440\u043e\u043b\u0438 \u0435\u0441\u0442\u044c \u0432 \u0441\u0438\u0441\u0442\u0435\u043c\u0435, \u0441\u043a\u043e\u043b\u044c\u043a\u043e \u043b\u044e\u0434\u0435\u0439 \u0441\u0435\u0439\u0447\u0430\u0441 \u0432 \u043a\u0430\u0436\u0434\u043e\u0439 \u0438\u0437 \u043d\u0438\u0445 \u0438 \u043a\u0430\u043a \u0440\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0430 \u043a\u043e\u043c\u0430\u043d\u0434\u0430.',
       }
-    : adminSection === 'auth'
-    ? {
-        eyebrow: 'Внешняя авторизация',
-        title: 'Провайдеры входа и журнал проверок',
-        description: 'Здесь удобно настраивать Google, VK, Yandex и Telegram, а затем сразу проверять каждый способ входа.',
-      }
-    : adminSection === 'roles'
+    : adminSection === 'registrations'
       ? {
-          eyebrow: 'Роли команды',
-          title: 'Роли, зоны ответственности и состав',
-          description: 'Здесь видно, какие роли есть в системе, сколько людей сейчас в каждой из них и как распределена команда.',
+          eyebrow: '\u0417\u0430\u044f\u0432\u043a\u0438 \u0438 \u0443\u0447\u0430\u0441\u0442\u0438\u0435',
+          title: '\u0417\u0430\u044f\u0432\u043a\u0438 \u0432 \u043b\u0430\u0433\u0435\u0440\u044c \u0438 \u0438\u0445 \u0441\u0442\u0430\u0442\u0443\u0441\u044b',
+          description: '\u042d\u0442\u043e\u0442 \u044d\u043a\u0440\u0430\u043d \u0441\u043e\u0431\u0440\u0430\u043d \u0434\u043b\u044f \u0441\u043f\u043e\u043a\u043e\u0439\u043d\u043e\u0439 \u0440\u0430\u0431\u043e\u0442\u044b \u0441 \u0430\u043d\u043a\u0435\u0442\u0430\u043c\u0438: \u0443\u0434\u043e\u0431\u043d\u043e \u0441\u043c\u043e\u0442\u0440\u0435\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441\u044b, \u0438\u0441\u043a\u0430\u0442\u044c \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u043e\u0432 \u0438 \u0431\u044b\u0441\u0442\u0440\u043e \u043f\u043e\u043d\u0438\u043c\u0430\u0442\u044c \u043e\u0431\u0449\u0443\u044e \u043a\u0430\u0440\u0442\u0438\u043d\u0443.',
         }
-      : adminSection === 'registrations'
+      : adminSection === 'users'
         ? {
-            eyebrow: 'Заявки и участие',
-            title: 'Заявки в лагерь и их статусы',
-            description: 'Этот экран собран для спокойной работы с анкетами: удобно смотреть статусы, искать участников и быстро понимать общую картину.',
+            eyebrow: '\u0414\u043e\u0441\u0442\u0443\u043f \u0438 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0438',
+            title: '\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0438, \u043f\u0440\u0430\u0432\u0430 \u0438 \u0434\u043e\u0441\u0442\u0443\u043f',
+            description: '\u0417\u0434\u0435\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u043d\u044b \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u044b, \u0440\u043e\u043b\u0438, \u0432\u043d\u0435\u0448\u043d\u0438\u0435 \u0432\u0445\u043e\u0434\u044b \u0438 \u0441\u0442\u0430\u0442\u0443\u0441\u044b \u0437\u0430\u044f\u0432\u043e\u043a, \u0447\u0442\u043e\u0431\u044b \u043f\u0440\u0430\u0432\u0430 \u0431\u044b\u043b\u043e \u0443\u0434\u043e\u0431\u043d\u043e \u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0431\u0435\u0437 \u0445\u0430\u043e\u0441\u0430.',
           }
-        : adminSection === 'users'
-          ? {
-              eyebrow: 'Доступ и пользователи',
-              title: 'Пользователи, права и доступ',
-              description: 'Здесь собраны аккаунты, роли, внешние входы и статусы заявок, чтобы права было удобно редактировать без хаоса.',
-            }
-          : {
-              eyebrow: 'Администрирование',
-              title: 'Панель управления лагерем',
-              description: 'Здесь собран общий обзор по системе: ключевые цифры, роли команды и быстрые переходы в нужные административные разделы.',
-            };
+        : {
+            eyebrow: '\u0410\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+            title: '\u041f\u0430\u043d\u0435\u043b\u044c \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u044f \u043b\u0430\u0433\u0435\u0440\u0435\u043c',
+            description: '\u0417\u0434\u0435\u0441\u044c \u0441\u043e\u0431\u0440\u0430\u043d \u043e\u0431\u0449\u0438\u0439 \u043e\u0431\u0437\u043e\u0440 \u043f\u043e \u0441\u0438\u0441\u0442\u0435\u043c\u0435: \u043a\u043b\u044e\u0447\u0435\u0432\u044b\u0435 \u0446\u0438\u0444\u0440\u044b, \u0440\u043e\u043b\u0438 \u043a\u043e\u043c\u0430\u043d\u0434\u044b \u0438 \u0431\u044b\u0441\u0442\u0440\u044b\u0435 \u043f\u0435\u0440\u0435\u0445\u043e\u0434\u044b \u0432 \u043d\u0443\u0436\u043d\u044b\u0435 \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u0438\u0432\u043d\u044b\u0435 \u0440\u0430\u0437\u0434\u0435\u043b\u044b.',
+          };
 
   return (
     <div className="page-stack">
@@ -2855,41 +2930,39 @@ function AdminPage() {
 
       <section className="admin-nav-grid">
         <NavLink to="/admin" end className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
-          <p className="mini-eyebrow">Обзор</p>
-          <h3>Сводка и роли</h3>
-          <p>Ключевые цифры по системе, роли команды и быстрые переходы к основным административным разделам.</p>
+          <p className="mini-eyebrow">{'\u041e\u0431\u0437\u043e\u0440'}</p>
+          <h3>{'\u0421\u0432\u043e\u0434\u043a\u0430 \u0438 \u0440\u043e\u043b\u0438'}</h3>
+          <p>{'\u041a\u043b\u044e\u0447\u0435\u0432\u044b\u0435 \u0446\u0438\u0444\u0440\u044b \u043f\u043e \u0441\u0438\u0441\u0442\u0435\u043c\u0435, \u0440\u043e\u043b\u0438 \u043a\u043e\u043c\u0430\u043d\u0434\u044b \u0438 \u0431\u044b\u0441\u0442\u0440\u044b\u0435 \u043f\u0435\u0440\u0435\u0445\u043e\u0434\u044b \u043a \u043e\u0441\u043d\u043e\u0432\u043d\u044b\u043c \u0430\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0430\u0442\u0438\u0432\u043d\u044b\u043c \u0440\u0430\u0437\u0434\u0435\u043b\u0430\u043c.'}</p>
         </NavLink>
 
         <NavLink to="/admin/events" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
           <p className="mini-eyebrow">{'\u041c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u044f'}</p>
           <h3>{'\u0421\u043e\u0431\u044b\u0442\u0438\u044f \u0438 \u0432\u044b\u043f\u0443\u0441\u043a\u0438'}</h3>
-          <p>
-            {'\u041b\u0430\u0433\u0435\u0440\u044f \u043f\u043e \u0433\u043e\u0434\u0430\u043c, \u0440\u0435\u0442\u0440\u0438\u0442\u044b, \u043f\u043e\u0435\u0437\u0434\u043a\u0438 \u0438 \u0438\u0445 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438: \u0434\u0430\u0442\u044b, \u043b\u0438\u043c\u0438\u0442\u044b, \u0442\u0430\u0440\u0438\u0444\u044b, \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u0438 \u043e\u043a\u043d\u043e \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438.'}
-          </p>
+          <p>{'\u041b\u0430\u0433\u0435\u0440\u044f \u043f\u043e \u0433\u043e\u0434\u0430\u043c, \u0440\u0435\u0442\u0440\u0438\u0442\u044b, \u043f\u043e\u0435\u0437\u0434\u043a\u0438 \u0438 \u0438\u0445 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438: \u0434\u0430\u0442\u044b, \u043b\u0438\u043c\u0438\u0442\u044b, \u0442\u0430\u0440\u0438\u0444\u044b, \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u0438 \u043e\u043a\u043d\u043e \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438.'}</p>
         </NavLink>
 
         <NavLink to="/admin/users" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
-          <p className="mini-eyebrow">Пользователи</p>
-          <h3>Пользователи и права</h3>
-          <p>Все аккаунты в одном месте: роли, статус заявки, последнее посещение и управление доступом.</p>
+          <p className="mini-eyebrow">{'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0438'}</p>
+          <h3>{'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0438 \u0438 \u043f\u0440\u0430\u0432\u0430'}</h3>
+          <p>{'\u0412\u0441\u0435 \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u044b \u0432 \u043e\u0434\u043d\u043e\u043c \u043c\u0435\u0441\u0442\u0435: \u0440\u043e\u043b\u0438, \u0441\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044f\u0432\u043a\u0438, \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0435\u0435 \u043f\u043e\u0441\u0435\u0449\u0435\u043d\u0438\u0435 \u0438 \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043e\u043c.'}</p>
         </NavLink>
 
         <NavLink to="/admin/registrations" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
-          <p className="mini-eyebrow">Заявки</p>
-          <h3>Анкеты и участие</h3>
-          <p>Статусы анкет, поиск по участникам и быстрый обзор того, что уже отправлено и подтверждено.</p>
+          <p className="mini-eyebrow">{'\u0417\u0430\u044f\u0432\u043a\u0438'}</p>
+          <h3>{'\u0410\u043d\u043a\u0435\u0442\u044b \u0438 \u0443\u0447\u0430\u0441\u0442\u0438\u0435'}</h3>
+          <p>{'\u0421\u0442\u0430\u0442\u0443\u0441\u044b \u0430\u043d\u043a\u0435\u0442, \u043f\u043e\u0438\u0441\u043a \u043f\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430\u043c \u0438 \u0431\u044b\u0441\u0442\u0440\u044b\u0439 \u043e\u0431\u0437\u043e\u0440 \u0442\u043e\u0433\u043e, \u0447\u0442\u043e \u0443\u0436\u0435 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e \u0438 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u043e.'}</p>
         </NavLink>
 
         <NavLink to="/admin/roles" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
-          <p className="mini-eyebrow">Роли</p>
-          <h3>Команда и ответственность</h3>
-          <p>Состав ролей, распределение людей по ним и более спокойный обзор зоны ответственности команды.</p>
+          <p className="mini-eyebrow">{'\u0420\u043e\u043b\u0438'}</p>
+          <h3>{'\u041a\u043e\u043c\u0430\u043d\u0434\u0430 \u0438 \u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u043e\u0441\u0442\u044c'}</h3>
+          <p>{'\u0421\u043e\u0441\u0442\u0430\u0432 \u0440\u043e\u043b\u0435\u0439, \u0440\u0430\u0441\u043f\u0440\u0435\u0434\u0435\u043b\u0435\u043d\u0438\u0435 \u043b\u044e\u0434\u0435\u0439 \u043f\u043e \u043d\u0438\u043c \u0438 \u0431\u043e\u043b\u0435\u0435 \u0441\u043f\u043e\u043a\u043e\u0439\u043d\u044b\u0439 \u043e\u0431\u0437\u043e\u0440 \u0437\u043e\u043d\u044b \u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u043e\u0441\u0442\u0438 \u043a\u043e\u043c\u0430\u043d\u0434\u044b.'}</p>
         </NavLink>
 
         <NavLink to="/admin/auth" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
           <p className="mini-eyebrow">Auth</p>
-          <h3>Провайдеры входа</h3>
-          <p>Google, VK, Yandex и Telegram с подсказками по полям, диагностикой и встроенной проверкой.</p>
+          <h3>{'\u041f\u0440\u043e\u0432\u0430\u0439\u0434\u0435\u0440\u044b \u0432\u0445\u043e\u0434\u0430'}</h3>
+          <p>{'Google, VK, Yandex \u0438 Telegram \u0441 \u043f\u043e\u0434\u0441\u043a\u0430\u0437\u043a\u0430\u043c\u0438 \u043f\u043e \u043f\u043e\u043b\u044f\u043c, \u0434\u0438\u0430\u0433\u043d\u043e\u0441\u0442\u0438\u043a\u043e\u0439 \u0438 \u0432\u0441\u0442\u0440\u043e\u0435\u043d\u043d\u043e\u0439 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u043e\u0439.'}</p>
         </NavLink>
       </section>
 
@@ -3067,7 +3140,16 @@ function AdminPage() {
                 </article>
               ) : null}
 
-              {filteredRegistrations.map((user) => (
+              {filteredRegistrations.map((user) => {
+                const draftRegistrationStatus = getDraftRegistrationStatus(user);
+                const isSavingThisRegistration = savingRegistrationId === user.registrationId;
+                const isRegistrationDirty = Boolean(
+                  user.registrationId &&
+                  user.registrationStatus &&
+                  draftRegistrationStatus !== user.registrationStatus,
+                );
+
+                return (
                 <article className="user-card" key={`registration-${user.id}`}>
                   <div className="user-card-head">
                     <div>
@@ -3079,7 +3161,7 @@ function AdminPage() {
                     </div>
 
                     <div className="role-pills">
-                      <span className="role-pill">{formatStatus(user.registrationStatus)}</span>
+                      <span className="role-pill">{formatStatus(draftRegistrationStatus)}</span>
                     </div>
                   </div>
 
@@ -3101,8 +3183,41 @@ function AdminPage() {
                       <strong>{formatDateTime(user.lastLoginAtUtc)}</strong>
                     </div>
                   </div>
+
+                  {user.registrationId ? (
+                    <div className="action-row">
+                      <label style={{ minWidth: 220 }}>
+                        <span>Статус заявки</span>
+                        <select
+                          value={draftRegistrationStatus}
+                          onChange={(event) =>
+                            setRegistrationStatusDrafts((current) => ({
+                              ...current,
+                              [user.registrationId as string]: event.target.value as RegistrationStatus,
+                            }))
+                          }
+                          disabled={isSavingThisRegistration}
+                        >
+                          <option value="Draft">Черновик</option>
+                          <option value="Submitted">Отправлено</option>
+                          <option value="Confirmed">Подтверждено</option>
+                          <option value="Cancelled">Отменено</option>
+                        </select>
+                      </label>
+
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={async () => saveRegistrationStatus(user)}
+                        disabled={isSavingThisRegistration || !isRegistrationDirty}
+                      >
+                        {isSavingThisRegistration ? 'Сохраняем...' : 'Сохранить статус'}
+                      </button>
+                    </div>
+                  ) : null}
                 </article>
-              ))}
+                );
+              })}
 
               {!filteredRegistrations.length && !isRegistrationsLoading ? (
                 <article className="user-card admin-empty-state">
@@ -3511,6 +3626,7 @@ export default function App() {
       <Route element={<ProtectedLayout />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/camp-registration" element={<CampRegistrationPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/access" element={<AdminPage />} />

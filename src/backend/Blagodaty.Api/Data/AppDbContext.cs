@@ -24,6 +24,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<ExternalAuthRequest> ExternalAuthRequests => Set<ExternalAuthRequest>();
     public DbSet<TelegramAuthRequest> TelegramAuthRequests => Set<TelegramAuthRequest>();
     public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -43,6 +44,10 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(x => x.CampRegistrations)
+                .WithOne(x => x.User)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Notifications)
                 .WithOne(x => x.User)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
@@ -208,6 +213,26 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.Property(x => x.Provider).HasMaxLength(32);
             entity.Property(x => x.EventType).HasMaxLength(64);
             entity.Property(x => x.Detail).HasMaxLength(1024);
+        });
+
+        builder.Entity<UserNotification>(entity =>
+        {
+            entity.HasIndex(x => new { x.UserId, x.IsRead, x.CreatedAtUtc });
+            entity.HasIndex(x => new { x.UserId, x.DeduplicationKey }).IsUnique();
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(64);
+            entity.Property(x => x.Severity).HasConversion<string>().HasMaxLength(16);
+            entity.Property(x => x.Title).HasMaxLength(240);
+            entity.Property(x => x.Message).HasMaxLength(2000);
+            entity.Property(x => x.LinkUrl).HasMaxLength(512);
+            entity.Property(x => x.DeduplicationKey).HasMaxLength(220);
+            entity.HasOne(x => x.EventEdition)
+                .WithMany()
+                .HasForeignKey(x => x.EventEditionId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Registration)
+                .WithMany()
+                .HasForeignKey(x => x.RegistrationId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

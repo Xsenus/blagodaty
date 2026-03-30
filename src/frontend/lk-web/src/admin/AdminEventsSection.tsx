@@ -55,40 +55,40 @@ const eventEditorTabs: Array<{ id: EventEditorTab; label: string; description: s
 ];
 
 const eventKindLabels: Record<EventKind, string> = {
-  Camp: 'Лагерь',
-  Conference: 'Конференция',
-  Retreat: 'Ретрит',
-  Trip: 'Поездка',
-  Other: 'Другое',
+  Camp: '\u041b\u0430\u0433\u0435\u0440\u044c',
+  Conference: '\u041a\u043e\u043d\u0444\u0435\u0440\u0435\u043d\u0446\u0438\u044f',
+  Retreat: '\u0420\u0435\u0442\u0440\u0438\u0442',
+  Trip: '\u041f\u043e\u0435\u0437\u0434\u043a\u0430',
+  Other: '\u0414\u0440\u0443\u0433\u043e\u0435',
 };
 
 const eventStatusLabels: Record<EventEditionStatus, string> = {
-  Draft: 'Черновик',
-  Published: 'Опубликовано',
-  RegistrationOpen: 'Регистрация открыта',
-  RegistrationClosed: 'Регистрация закрыта',
-  InProgress: 'Идёт сейчас',
-  Completed: 'Завершено',
-  Archived: 'Архив',
+  Draft: '\u0427\u0435\u0440\u043d\u043e\u0432\u0438\u043a',
+  Published: '\u041e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043e',
+  RegistrationOpen: '\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f \u043e\u0442\u043a\u0440\u044b\u0442\u0430',
+  RegistrationClosed: '\u0420\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u044f \u0437\u0430\u043a\u0440\u044b\u0442\u0430',
+  InProgress: '\u0418\u0434\u0451\u0442 \u0441\u0435\u0439\u0447\u0430\u0441',
+  Completed: '\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u043e',
+  Archived: '\u0410\u0440\u0445\u0438\u0432',
 };
 
 const scheduleKindLabels: Record<EventScheduleItemKind, string> = {
-  Arrival: 'Заезд',
-  MainProgram: 'Основная программа',
-  Departure: 'Выезд',
-  Meeting: 'Встреча',
-  Deadline: 'Дедлайн',
-  Other: 'Другое',
+  Arrival: '\u0417\u0430\u0435\u0437\u0434',
+  MainProgram: '\u041e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0430',
+  Departure: '\u0412\u044b\u0435\u0437\u0434',
+  Meeting: '\u0412\u0441\u0442\u0440\u0435\u0447\u0430',
+  Deadline: '\u0414\u0435\u0434\u043b\u0430\u0439\u043d',
+  Other: '\u0414\u0440\u0443\u0433\u043e\u0435',
 };
 
 const contentBlockLabels: Record<EventContentBlockType, string> = {
-  Hero: 'Главный блок',
-  About: 'О мероприятии',
-  Highlight: 'Акценты',
-  WhatToBring: 'Что взять',
-  Program: 'Программа',
-  ImportantNotice: 'Важное',
-  Faq: 'Вопросы и ответы',
+  Hero: '\u0413\u043b\u0430\u0432\u043d\u044b\u0439 \u0431\u043b\u043e\u043a',
+  About: '\u041e \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u0438',
+  Highlight: '\u0410\u043a\u0446\u0435\u043d\u0442\u044b',
+  WhatToBring: '\u0427\u0442\u043e \u0432\u0437\u044f\u0442\u044c',
+  Program: '\u041f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0430',
+  ImportantNotice: '\u0412\u0430\u0436\u043d\u043e\u0435',
+  Faq: '\u0412\u043e\u043f\u0440\u043e\u0441\u044b \u0438 \u043e\u0442\u0432\u0435\u0442\u044b',
 };
 
 function formatEventKind(kind: EventKind) {
@@ -109,7 +109,7 @@ function formatContentBlockType(type: EventContentBlockType) {
 
 function formatDateTime(value?: string | null) {
   if (!value) {
-    return 'Пока не задано';
+    return '\u041f\u043e\u043a\u0430 \u043d\u0435 \u0437\u0430\u0434\u0430\u043d\u043e';
   }
 
   return new Intl.DateTimeFormat('ru-RU', {

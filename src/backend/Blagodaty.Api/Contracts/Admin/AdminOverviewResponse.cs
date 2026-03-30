@@ -29,6 +29,7 @@ public sealed class AdminRoleDto
 public sealed class AdminUserDto
 {
     public required Guid Id { get; init; }
+    public Guid? RegistrationId { get; init; }
     public required string Email { get; init; }
     public required string DisplayName { get; init; }
     public required string FirstName { get; init; }

@@ -11,15 +11,18 @@ public sealed class EventRegistrationService
     private readonly AppDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
     private readonly EventCatalogService _eventCatalogService;
+    private readonly UserNotificationService _userNotificationService;
 
     public EventRegistrationService(
         AppDbContext dbContext,
         TimeProvider timeProvider,
-        EventCatalogService eventCatalogService)
+        EventCatalogService eventCatalogService,
+        UserNotificationService userNotificationService)
     {
         _dbContext = dbContext;
         _timeProvider = timeProvider;
         _eventCatalogService = eventCatalogService;
+        _userNotificationService = userNotificationService;
     }
 
     public async Task<EventEdition?> GetAccessibleEventEditionBySlugAsync(
@@ -106,6 +109,7 @@ public sealed class EventRegistrationService
             _dbContext.CampRegistrations.Add(registration);
         }
 
+        var previousStatus = registration.Status;
         registration.EventEditionId = eventEdition.Id;
         registration.SelectedPriceOptionId = selectedPriceOption?.Id;
         registration.FullName = request.FullName.Trim();
@@ -133,6 +137,11 @@ public sealed class EventRegistrationService
             .ThenInclude(item => item!.EventSeries)
             .Include(item => item.SelectedPriceOption)
             .FirstAsync(item => item.Id == registration.Id, cancellationToken);
+
+        if (request.Submit && previousStatus != RegistrationStatus.Submitted)
+        {
+            await _userNotificationService.NotifyRegistrationSubmittedAsync(saved, cancellationToken);
+        }
 
         return MapRegistration(saved);
     }

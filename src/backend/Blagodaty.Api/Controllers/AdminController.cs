@@ -21,12 +21,21 @@ public sealed class AdminController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly EventCatalogService _eventCatalogService;
+    private readonly UserNotificationService _userNotificationService;
+    private readonly TimeProvider _timeProvider;
 
-    public AdminController(AppDbContext dbContext, UserManager<ApplicationUser> userManager, EventCatalogService eventCatalogService)
+    public AdminController(
+        AppDbContext dbContext,
+        UserManager<ApplicationUser> userManager,
+        EventCatalogService eventCatalogService,
+        UserNotificationService userNotificationService,
+        TimeProvider timeProvider)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _eventCatalogService = eventCatalogService;
+        _userNotificationService = userNotificationService;
+        _timeProvider = timeProvider;
     }
 
     [HttpGet("overview")]
@@ -176,6 +185,7 @@ public sealed class AdminController : ControllerBase
             .ThenByDescending(registration => registration.CreatedAtUtc)
             .Select(registration => new RegistrationListItem
             {
+                RegistrationId = registration.Id,
                 UserId = registration.UserId,
                 EventEditionId = registration.EventEditionId,
                 EventSlug = registration.EventEdition!.Slug,
@@ -283,6 +293,75 @@ public sealed class AdminController : ControllerBase
         return Ok(mappedUser.Single());
     }
 
+    [HttpPut("registrations/{registrationId:guid}/status")]
+    public async Task<ActionResult<AdminUserDto>> UpdateRegistrationStatus(
+        Guid registrationId,
+        [FromBody] UpdateRegistrationStatusRequest request)
+    {
+        var registration = await _dbContext.CampRegistrations
+            .Include(item => item.EventEdition)
+            .ThenInclude(item => item!.EventSeries)
+            .FirstOrDefaultAsync(item => item.Id == registrationId, HttpContext.RequestAborted);
+
+        if (registration is null)
+        {
+            return NotFound();
+        }
+
+        var previousStatus = registration.Status;
+        if (previousStatus != request.Status)
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            registration.Status = request.Status;
+            registration.UpdatedAtUtc = now;
+
+            if (request.Status == RegistrationStatus.Draft)
+            {
+                registration.SubmittedAtUtc = null;
+            }
+            else if (request.Status is RegistrationStatus.Submitted or RegistrationStatus.Confirmed)
+            {
+                registration.SubmittedAtUtc ??= now;
+            }
+
+            await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
+
+            registration = await _dbContext.CampRegistrations
+                .AsNoTracking()
+                .Include(item => item.EventEdition)
+                .ThenInclude(item => item!.EventSeries)
+                .FirstAsync(item => item.Id == registrationId, HttpContext.RequestAborted);
+
+            await _userNotificationService.NotifyRegistrationStatusChangedAsync(
+                registration,
+                previousStatus,
+                HttpContext.RequestAborted);
+        }
+
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstAsync(item => item.Id == registration.UserId, HttpContext.RequestAborted);
+
+        var mappedUser = await MapAdminUsersAsync(
+            [user],
+            registrationsByUserId: new Dictionary<Guid, RegistrationListItem>
+            {
+                [registration.UserId] = new RegistrationListItem
+                {
+                    RegistrationId = registration.Id,
+                    UserId = registration.UserId,
+                    EventEditionId = registration.EventEditionId,
+                    EventSlug = registration.EventEdition?.Slug,
+                    EventTitle = registration.EventEdition?.Title,
+                    Status = registration.Status,
+                    UpdatedAtUtc = registration.UpdatedAtUtc
+                }
+            },
+            orderedUserIds: [user.Id]);
+
+        return Ok(mappedUser.Single());
+    }
+
     private ActionResult<AdminUserDto> BuildIdentityProblem(IdentityResult result)
     {
         foreach (var error in result.Errors)
@@ -368,6 +447,7 @@ public sealed class AdminController : ControllerBase
                 return new AdminUserDto
                 {
                     Id = user.Id,
+                    RegistrationId = registration?.RegistrationId,
                     Email = TechnicalEmailHelper.ToVisibleEmail(user.Email),
                     DisplayName = user.DisplayName,
                     FirstName = user.FirstName,
@@ -423,6 +503,7 @@ public sealed class AdminController : ControllerBase
             .Where(registration => userIds.Contains(registration.UserId) && registration.EventEditionId == eventEditionId)
             .Select(registration => new RegistrationListItem
             {
+                RegistrationId = registration.Id,
                 UserId = registration.UserId,
                 EventEditionId = registration.EventEditionId,
                 EventSlug = registration.EventEdition!.Slug,
@@ -498,6 +579,7 @@ public sealed class AdminController : ControllerBase
 
     private sealed class RegistrationListItem
     {
+        public required Guid RegistrationId { get; init; }
         public required Guid UserId { get; init; }
         public Guid? EventEditionId { get; init; }
         public string? EventSlug { get; init; }

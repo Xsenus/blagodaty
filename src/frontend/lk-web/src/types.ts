@@ -88,7 +88,40 @@ export type CurrentAccount = {
   registrations: AccountRegistrationSummary[];
   externalIdentities: ExternalIdentity[];
   availableExternalAuthProviders: PublicExternalAuthProvider[];
+  unreadNotificationsCount: number;
   hasPassword: boolean;
+};
+
+export type NotificationSeverity = 'Info' | 'Success' | 'Warning';
+export type UserNotificationType =
+  | 'Generic'
+  | 'RegistrationSubmitted'
+  | 'RegistrationStatusChanged'
+  | 'RegistrationClosingSoon';
+
+export type AccountNotification = {
+  id: string;
+  type: UserNotificationType;
+  severity: NotificationSeverity;
+  title: string;
+  message: string;
+  linkUrl?: string | null;
+  eventEditionId?: string | null;
+  registrationId?: string | null;
+  eventSlug?: string | null;
+  eventTitle?: string | null;
+  isRead: boolean;
+  createdAtUtc: string;
+  readAtUtc?: string | null;
+};
+
+export type AccountNotificationsResponse = {
+  items: AccountNotification[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  unreadCount: number;
 };
 
 export type AuthResponse = {
@@ -202,6 +235,7 @@ export type AdminRoleDefinition = {
 
 export type AdminUser = {
   id: string;
+  registrationId?: string | null;
   email: string;
   displayName: string;
   firstName: string;

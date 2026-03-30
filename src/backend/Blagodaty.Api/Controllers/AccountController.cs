@@ -22,6 +22,7 @@ public sealed class AccountController : ControllerBase
     private readonly ExternalAuthProviderService _externalAuthProviderService;
     private readonly EventCatalogService _eventCatalogService;
     private readonly EventRegistrationService _eventRegistrationService;
+    private readonly UserNotificationService _userNotificationService;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
@@ -29,7 +30,8 @@ public sealed class AccountController : ControllerBase
         ExternalIdentityService externalIdentityService,
         ExternalAuthProviderService externalAuthProviderService,
         EventCatalogService eventCatalogService,
-        EventRegistrationService eventRegistrationService)
+        EventRegistrationService eventRegistrationService,
+        UserNotificationService userNotificationService)
     {
         _userManager = userManager;
         _dbContext = dbContext;
@@ -37,6 +39,7 @@ public sealed class AccountController : ControllerBase
         _externalAuthProviderService = externalAuthProviderService;
         _eventCatalogService = eventCatalogService;
         _eventRegistrationService = eventRegistrationService;
+        _userNotificationService = userNotificationService;
     }
 
     [HttpGet("me")]
@@ -77,6 +80,7 @@ public sealed class AccountController : ControllerBase
             Registrations = registrations,
             ExternalIdentities = identities.Select(AccountMapper.ToExternalIdentity).ToArray(),
             AvailableExternalAuthProviders = await _externalAuthProviderService.GetPublicProvidersAsync(HttpContext.RequestAborted),
+            UnreadNotificationsCount = await _userNotificationService.GetUnreadCountAsync(user.Id, HttpContext.RequestAborted),
             HasPassword = !string.IsNullOrWhiteSpace(user.PasswordHash)
         });
     }
@@ -91,6 +95,49 @@ public sealed class AccountController : ControllerBase
         }
 
         return Ok(await _eventRegistrationService.GetUserRegistrationsAsync(user.Id, HttpContext.RequestAborted));
+    }
+
+    [HttpGet("notifications")]
+    public async Task<ActionResult<AccountNotificationsResponse>> GetNotifications([FromQuery] AccountNotificationsQueryRequest request)
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(await _userNotificationService.GetNotificationsAsync(
+            user.Id,
+            request.Page,
+            request.PageSize,
+            request.UnreadOnly,
+            HttpContext.RequestAborted));
+    }
+
+    [HttpPost("notifications/{notificationId:guid}/read")]
+    public async Task<IActionResult> MarkNotificationAsRead(Guid notificationId)
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        var marked = await _userNotificationService.MarkAsReadAsync(user.Id, notificationId, HttpContext.RequestAborted);
+        return marked ? NoContent() : NotFound();
+    }
+
+    [HttpPost("notifications/read-all")]
+    public async Task<ActionResult<object>> MarkAllNotificationsAsRead()
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        var markedCount = await _userNotificationService.MarkAllAsReadAsync(user.Id, HttpContext.RequestAborted);
+        return Ok(new { markedCount });
     }
 
     [HttpPut("profile")]
