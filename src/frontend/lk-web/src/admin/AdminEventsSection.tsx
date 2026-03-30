@@ -24,6 +24,36 @@ type AdminEventsSectionProps = {
   isActive: boolean;
 };
 
+type EventEditorTab = 'main' | 'dates' | 'pricing' | 'schedule' | 'content';
+
+const eventEditorTabs: Array<{ id: EventEditorTab; label: string; description: string }> = [
+  {
+    id: 'main',
+    label: '\u041e\u0441\u043d\u043e\u0432\u043d\u043e\u0435',
+    description: '\u0421\u0435\u0440\u0438\u044f, \u0432\u044b\u043f\u0443\u0441\u043a \u0438 \u043e\u043f\u0438\u0441\u0430\u043d\u0438\u0435',
+  },
+  {
+    id: 'dates',
+    label: '\u0414\u0430\u0442\u044b',
+    description: '\u041e\u043a\u043d\u043e \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u0438 \u0441\u0440\u043e\u043a\u0438',
+  },
+  {
+    id: 'pricing',
+    label: '\u0422\u0430\u0440\u0438\u0444\u044b',
+    description: '\u0426\u0435\u043d\u044b, \u043a\u0432\u043e\u0442\u044b \u0438 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b',
+  },
+  {
+    id: 'schedule',
+    label: '\u0420\u0430\u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435',
+    description: '\u041a\u043b\u044e\u0447\u0435\u0432\u044b\u0435 \u0434\u0430\u0442\u044b \u0438 \u044d\u0442\u0430\u043f\u044b',
+  },
+  {
+    id: 'content',
+    label: '\u041a\u043e\u043d\u0442\u0435\u043d\u0442',
+    description: '\u0411\u043b\u043e\u043a\u0438 \u0434\u043b\u044f \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u044b \u0441\u043e\u0431\u044b\u0442\u0438\u044f',
+  },
+];
+
 const eventKindLabels: Record<EventKind, string> = {
   Camp: 'Лагерь',
   Conference: 'Конференция',
@@ -240,6 +270,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<EventEditorTab>('main');
 
   const selectedSummary = currentEventId ? events.find((item) => item.id === currentEventId) ?? null : null;
   const isCreateMode = selectedEventId === 'new' || !currentEventId;
@@ -260,6 +291,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
     if (selectedEventId === 'new') {
       setCurrentEventId(null);
       setDraft(createEmptyEventDraft());
+      setActiveTab('main');
       return;
     }
 
@@ -413,6 +445,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
     setSelectedEventId('new');
     setCurrentEventId(null);
     setDraft(createEmptyEventDraft());
+    setActiveTab('main');
     setMessage(null);
     setError(null);
   }
@@ -536,6 +569,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
               onClick={() => {
                 setMessage(null);
                 setError(null);
+                setActiveTab('main');
                 setSelectedEventId(eventItem.id);
               }}
             >
@@ -585,7 +619,21 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
         {error ? <p className="form-error">{error}</p> : null}
         {isDetailsLoading ? <p className="form-muted">Загружаем полную карточку...</p> : null}
 
-        <section className="event-subsection">
+        <div className="event-tab-strip" role="tablist" aria-label="Разделы редактора мероприятия">
+          {eventEditorTabs.map((tab) => (
+            <button
+              className={`event-tab-button${activeTab === tab.id ? ' active' : ''}`}
+              type="button"
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              <strong>{tab.label}</strong>
+              <span>{tab.description}</span>
+            </button>
+          ))}
+        </div>
+
+        <section className="event-subsection" hidden={activeTab !== 'main'}>
           <div className="event-subsection-head">
             <div>
               <p className="mini-eyebrow">Основное</p>
@@ -708,7 +756,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
           </label>
         </section>
 
-        <section className="event-subsection">
+        <section className="event-subsection" hidden={activeTab !== 'dates'}>
           <div className="event-subsection-head">
             <div>
               <p className="mini-eyebrow">Даты</p>
@@ -757,7 +805,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
           </div>
         </section>
 
-        <section className="event-subsection">
+        <section className="event-subsection" hidden={activeTab !== 'pricing'}>
           <div className="event-subsection-head">
             <div>
               <p className="mini-eyebrow">Тарифы</p>
@@ -862,7 +910,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
           </div>
         </section>
 
-        <section className="event-subsection">
+        <section className="event-subsection" hidden={activeTab !== 'schedule'}>
           <div className="event-subsection-head">
             <div>
               <p className="mini-eyebrow">Расписание</p>
@@ -944,7 +992,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
           </div>
         </section>
 
-        <section className="event-subsection">
+        <section className="event-subsection" hidden={activeTab !== 'content'}>
           <div className="event-subsection-head">
             <div>
               <p className="mini-eyebrow">Контент</p>
