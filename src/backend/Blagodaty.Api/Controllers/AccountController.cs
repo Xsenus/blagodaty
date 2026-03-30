@@ -20,17 +20,20 @@ public sealed class AccountController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly ExternalIdentityService _externalIdentityService;
     private readonly ExternalAuthProviderService _externalAuthProviderService;
+    private readonly EventCatalogService _eventCatalogService;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
         AppDbContext dbContext,
         ExternalIdentityService externalIdentityService,
-        ExternalAuthProviderService externalAuthProviderService)
+        ExternalAuthProviderService externalAuthProviderService,
+        EventCatalogService eventCatalogService)
     {
         _userManager = userManager;
         _dbContext = dbContext;
         _externalIdentityService = externalIdentityService;
         _externalAuthProviderService = externalAuthProviderService;
+        _eventCatalogService = eventCatalogService;
     }
 
     [HttpGet("me")]
@@ -43,7 +46,13 @@ public sealed class AccountController : ControllerBase
         }
 
         var roles = (await _userManager.GetRolesAsync(user)).ToArray();
-        var registration = await _dbContext.CampRegistrations.FirstOrDefaultAsync(x => x.UserId == user.Id);
+        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
+        var registration = activeCampEditionId is null
+            ? null
+            : await _dbContext.CampRegistrations
+                .AsNoTracking()
+                .Include(item => item.EventEdition)
+                .FirstOrDefaultAsync(x => x.UserId == user.Id && x.EventEditionId == activeCampEditionId, HttpContext.RequestAborted);
         var identities = await _dbContext.UserExternalIdentities
             .AsNoTracking()
             .Where(identity => identity.UserId == user.Id)
@@ -58,6 +67,8 @@ public sealed class AccountController : ControllerBase
                 : new CampRegistrationSnapshotDto
                 {
                     Id = registration.Id,
+                    EventEditionId = registration.EventEditionId,
+                    EventSlug = registration.EventEdition?.Slug,
                     Status = registration.Status,
                     UpdatedAtUtc = registration.UpdatedAtUtc,
                     SubmittedAtUtc = registration.SubmittedAtUtc

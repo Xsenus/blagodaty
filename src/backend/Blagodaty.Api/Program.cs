@@ -23,6 +23,7 @@ builder.Services.AddScoped<AuthSessionService>();
 builder.Services.AddScoped<AppSettingsService>();
 builder.Services.AddScoped<ExternalIdentityService>();
 builder.Services.AddScoped<ExternalAuthProviderService>();
+builder.Services.AddScoped<EventCatalogService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>

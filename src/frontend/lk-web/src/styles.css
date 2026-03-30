@@ -445,6 +445,107 @@ select {
   gap: 14px;
 }
 
+.event-admin-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.event-list-column,
+.event-detail-column {
+  min-width: 0;
+}
+
+.event-list-column {
+  position: sticky;
+  top: 24px;
+}
+
+.event-list-stack,
+.event-collection {
+  display: grid;
+  gap: 14px;
+}
+
+.event-list-card {
+  display: grid;
+  gap: 10px;
+  padding: 20px;
+  text-align: left;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  color: inherit;
+}
+
+.event-list-card:hover {
+  transform: translateY(-1px);
+}
+
+.event-list-card.active {
+  border-color: rgba(216, 154, 104, 0.42);
+  background: linear-gradient(180deg, rgba(255, 250, 242, 0.98), rgba(248, 236, 214, 0.9));
+  box-shadow: 0 20px 44px rgba(216, 154, 104, 0.14);
+}
+
+.event-list-card h3,
+.event-collection-item strong {
+  margin: 0;
+  color: var(--text-main);
+  font-family: "Palatino Linotype", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+}
+
+.event-list-card-head,
+.event-subsection-head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.event-subsection {
+  display: grid;
+  gap: 16px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.event-subsection-head.compact {
+  align-items: center;
+}
+
+.event-editor-grid,
+.event-inline-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.event-editor-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.event-inline-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.event-toggle-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.event-collection-item {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.64);
+}
+
 .admin-empty-state {
   text-align: center;
   justify-items: center;
@@ -875,13 +976,21 @@ select {
   .admin-stats-grid,
   .admin-nav-grid,
   .admin-filter-bar,
+  .event-admin-layout,
   .form-grid,
   .auth-layout,
   .role-grid,
   .role-editor,
+  .event-editor-grid,
+  .event-inline-grid,
+  .event-toggle-row,
   .user-info-grid,
   .provider-diagnostics-grid {
     grid-template-columns: 1fr;
+  }
+
+  .event-list-column {
+    position: static;
   }
 }
 

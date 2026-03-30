@@ -11,4 +11,8 @@ public sealed class CampOptions
     public decimal SuggestedDonation { get; set; }
     public DateTime StartsAtUtc { get; set; }
     public DateTime EndsAtUtc { get; set; }
+    public DateTime? RegistrationOpensAtUtc { get; set; }
+    public DateTime? RegistrationClosesAtUtc { get; set; }
+    public int? Capacity { get; set; }
+    public bool WaitlistEnabled { get; set; }
 }

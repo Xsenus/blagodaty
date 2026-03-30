@@ -2,6 +2,8 @@ import { apiBaseUrl } from './config';
 import type {
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
+  AdminEventDetails,
+  AdminEventsResponse,
   AdminOverview,
   AdminUser,
   AuthResponse,
@@ -13,6 +15,7 @@ import type {
   PublicExternalAuthProvider,
   SaveRegistrationRequest,
   SessionState,
+  UpsertAdminEventRequest,
   UpdateProfileRequest,
   UpdateExternalAuthProviderRequest,
   UserSummary,
@@ -259,6 +262,36 @@ export function updateUserRoles(accessToken: string, userId: string, roles: stri
 
 export function getAdminExternalAuthSettings(accessToken: string) {
   return request<AdminExternalAuthSettings>('/api/admin/auth/settings', {}, accessToken);
+}
+
+export function getAdminEvents(accessToken: string) {
+  return request<AdminEventsResponse>('/api/admin/events', {}, accessToken);
+}
+
+export function getAdminEventDetails(accessToken: string, eventId: string) {
+  return request<AdminEventDetails>(`/api/admin/events/${eventId}`, {}, accessToken);
+}
+
+export function createAdminEvent(accessToken: string, payload: UpsertAdminEventRequest) {
+  return request<AdminEventDetails>(
+    '/api/admin/events',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function updateAdminEvent(accessToken: string, eventId: string, payload: UpsertAdminEventRequest) {
+  return request<AdminEventDetails>(
+    `/api/admin/events/${eventId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
 }
 
 export function updateAdminExternalAuthProvider(

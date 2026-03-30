@@ -5,6 +5,9 @@ namespace Blagodaty.Api.Contracts.Camp;
 public sealed class CampRegistrationResponse
 {
     public required Guid Id { get; init; }
+    public Guid? EventEditionId { get; init; }
+    public string? EventSlug { get; init; }
+    public Guid? SelectedPriceOptionId { get; init; }
     public required RegistrationStatus Status { get; init; }
     public required string FullName { get; init; }
     public required DateOnly BirthDate { get; init; }

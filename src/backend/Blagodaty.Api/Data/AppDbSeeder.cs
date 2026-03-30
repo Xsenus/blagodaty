@@ -16,6 +16,7 @@ public static class AppDbSeeder
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
         var seedOptions = services.GetRequiredService<IOptions<SeedOptions>>().Value;
+        var campOptions = services.GetRequiredService<IOptions<CampOptions>>().Value;
 
         foreach (var role in AppRoles.All)
         {
@@ -26,6 +27,8 @@ public static class AppDbSeeder
         }
 
         await EnsureExternalAuthSettingsAsync(dbContext);
+        await EnsureDefaultCampEventAsync(dbContext, campOptions);
+        await AttachLegacyRegistrationsAsync(dbContext);
 
         if (await userManager.Users.AnyAsync())
         {
@@ -109,5 +112,186 @@ public static class AppDbSeeder
         }
 
         await dbContext.SaveChangesAsync();
+    }
+
+    private static async Task EnsureDefaultCampEventAsync(AppDbContext dbContext, CampOptions campOptions)
+    {
+        var now = DateTime.UtcNow;
+        const string defaultSeriesSlug = "blagodaty-camp";
+        var series = await dbContext.EventSeries
+            .FirstOrDefaultAsync(item => item.Slug == defaultSeriesSlug);
+
+        if (series is null)
+        {
+            series = new EventSeries
+            {
+                Id = Guid.NewGuid(),
+                Slug = defaultSeriesSlug,
+                Title = string.IsNullOrWhiteSpace(campOptions.Name) ? "Blagodaty Camp" : campOptions.Name.Trim(),
+                Kind = EventKind.Camp,
+                IsActive = true,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            dbContext.EventSeries.Add(series);
+        }
+
+        var year = campOptions.StartsAtUtc == default ? DateTime.UtcNow.Year : campOptions.StartsAtUtc.Year;
+        var editionSlug = $"{defaultSeriesSlug}-{year}";
+        var edition = await dbContext.EventEditions
+            .Include(item => item.PriceOptions)
+            .Include(item => item.ScheduleItems)
+            .Include(item => item.ContentBlocks)
+            .FirstOrDefaultAsync(item => item.Slug == editionSlug);
+
+        if (edition is null)
+        {
+            edition = new EventEdition
+            {
+                Id = Guid.NewGuid(),
+                EventSeriesId = series.Id,
+                Slug = editionSlug,
+                Title = BuildCampEditionTitle(campOptions, year),
+                SeasonLabel = string.IsNullOrWhiteSpace(campOptions.Season) ? $"Сезон {year}" : campOptions.Season.Trim(),
+                ShortDescription = string.IsNullOrWhiteSpace(campOptions.Tagline)
+                    ? "Горный лагерь с церковной командой, общением, молитвой и временем для перезагрузки."
+                    : campOptions.Tagline.Trim(),
+                FullDescription = string.IsNullOrWhiteSpace(campOptions.Tagline) ? null : campOptions.Tagline.Trim(),
+                Location = string.IsNullOrWhiteSpace(campOptions.Location) ? null : campOptions.Location.Trim(),
+                Timezone = "Asia/Novosibirsk",
+                Status = EventEditionStatus.RegistrationOpen,
+                StartsAtUtc = campOptions.StartsAtUtc == default ? new DateTime(year, 7, 15, 8, 0, 0, DateTimeKind.Utc) : campOptions.StartsAtUtc,
+                EndsAtUtc = campOptions.EndsAtUtc == default ? new DateTime(year, 7, 23, 8, 0, 0, DateTimeKind.Utc) : campOptions.EndsAtUtc,
+                RegistrationOpensAtUtc = campOptions.RegistrationOpensAtUtc,
+                RegistrationClosesAtUtc = campOptions.RegistrationClosesAtUtc,
+                Capacity = campOptions.Capacity,
+                WaitlistEnabled = campOptions.WaitlistEnabled,
+                SortOrder = 0,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            };
+
+            edition.PriceOptions.Add(new EventPriceOption
+            {
+                Id = Guid.NewGuid(),
+                Code = "standard",
+                Title = "Стандартное участие",
+                Description = "Базовый тариф для участия в лагере.",
+                Amount = campOptions.SuggestedDonation,
+                Currency = "RUB",
+                IsDefault = true,
+                IsActive = true,
+                SortOrder = 0,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+
+            edition.ScheduleItems.Add(new EventScheduleItem
+            {
+                Id = Guid.NewGuid(),
+                Title = "Заезд и размещение",
+                Kind = EventScheduleItemKind.Arrival,
+                StartsAtUtc = edition.StartsAtUtc,
+                EndsAtUtc = edition.StartsAtUtc.AddHours(6),
+                Location = edition.Location,
+                SortOrder = 0
+            });
+
+            edition.ScheduleItems.Add(new EventScheduleItem
+            {
+                Id = Guid.NewGuid(),
+                Title = "Основная программа лагеря",
+                Kind = EventScheduleItemKind.MainProgram,
+                StartsAtUtc = edition.StartsAtUtc.AddHours(6),
+                EndsAtUtc = edition.EndsAtUtc.AddHours(-6),
+                Location = edition.Location,
+                SortOrder = 10
+            });
+
+            edition.ScheduleItems.Add(new EventScheduleItem
+            {
+                Id = Guid.NewGuid(),
+                Title = "Отъезд",
+                Kind = EventScheduleItemKind.Departure,
+                StartsAtUtc = edition.EndsAtUtc.AddHours(-6),
+                EndsAtUtc = edition.EndsAtUtc,
+                Location = edition.Location,
+                SortOrder = 20
+            });
+
+            var contentBlocks = new[]
+            {
+                (EventContentBlockType.Hero, "О событии", string.IsNullOrWhiteSpace(campOptions.Tagline)
+                    ? "Тихий отдых, молитва, братское общение и горный воздух Алтая."
+                    : campOptions.Tagline.Trim(), 0),
+                (EventContentBlockType.Highlight, (string?)null, "Походы и выезды в горы Алтая вместе с церковной командой.", 10),
+                (EventContentBlockType.Highlight, (string?)null, "Палатки, домики, костры и теплые вечерние встречи под открытым небом.", 20),
+                (EventContentBlockType.Highlight, (string?)null, "Поклонение, молитва, наставничество и живое братское общение.", 30),
+                (EventContentBlockType.WhatToBring, (string?)null, "Спальник, коврик, фонарик и базовую походную одежду.", 40),
+                (EventContentBlockType.WhatToBring, (string?)null, "Средства личной гигиены, теплые вещи и дождевик.", 50),
+                (EventContentBlockType.WhatToBring, (string?)null, "Библию, блокнот, ручку и открытое сердце к Богу и людям.", 60)
+            };
+
+            foreach (var (blockType, title, body, sortOrder) in contentBlocks)
+            {
+                edition.ContentBlocks.Add(new EventContentBlock
+                {
+                    Id = Guid.NewGuid(),
+                    BlockType = blockType,
+                    Title = title,
+                    Body = body,
+                    SortOrder = sortOrder,
+                    IsPublished = true
+                });
+            }
+
+            dbContext.EventEditions.Add(edition);
+            await dbContext.SaveChangesAsync();
+        }
+    }
+
+    private static async Task AttachLegacyRegistrationsAsync(AppDbContext dbContext)
+    {
+        var activeCampEditionId = await dbContext.EventEditions
+            .Where(item =>
+                item.EventSeries.Kind == EventKind.Camp &&
+                item.EventSeries.IsActive &&
+                item.Status != EventEditionStatus.Draft &&
+                item.Status != EventEditionStatus.Archived)
+            .OrderByDescending(item => item.StartsAtUtc)
+            .Select(item => (Guid?)item.Id)
+            .FirstOrDefaultAsync();
+
+        if (activeCampEditionId is null)
+        {
+            return;
+        }
+
+        var legacyRegistrations = await dbContext.CampRegistrations
+            .Where(item => item.EventEditionId == null)
+            .ToListAsync();
+
+        if (legacyRegistrations.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var registration in legacyRegistrations)
+        {
+            registration.EventEditionId = activeCampEditionId.Value;
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private static string BuildCampEditionTitle(CampOptions campOptions, int year)
+    {
+        if (!string.IsNullOrWhiteSpace(campOptions.Name) && !string.IsNullOrWhiteSpace(campOptions.Season))
+        {
+            return $"{campOptions.Name.Trim()} {campOptions.Season.Trim()}";
+        }
+
+        return $"Blagodaty Camp {year}";
     }
 }

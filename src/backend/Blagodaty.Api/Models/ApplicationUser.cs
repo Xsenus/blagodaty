@@ -12,7 +12,7 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAtUtc { get; set; }
 
-    public CampRegistration? CampRegistration { get; set; }
+    public ICollection<CampRegistration> CampRegistrations { get; set; } = [];
     public ICollection<RefreshSession> RefreshSessions { get; set; } = [];
     public ICollection<UserExternalIdentity> ExternalIdentities { get; set; } = [];
 }

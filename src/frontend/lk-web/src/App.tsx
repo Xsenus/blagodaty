@@ -27,22 +27,32 @@ import {
   updateAdminExternalAuthProvider,
   updateUserRoles,
 } from './lib/api';
+import { AdminEventsSection } from './admin/AdminEventsSection';
 import { useToast } from './ui/ToastProvider';
 import type {
   AccommodationPreference,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
+  AdminEventDetails,
   AdminOverview,
   AdminRoleDefinition,
   AdminUser,
   AppRole,
   CampRegistration,
+  EventContentBlockType,
+  EventEditionStatus,
+  EventKind,
+  EventScheduleItemKind,
   ExternalAuthStartResponse,
   ExternalIdentity,
   PaginatedResponse,
   PublicExternalAuthProvider,
   RegistrationStatus,
   SaveRegistrationRequest,
+  UpsertAdminEventContentBlockRequest,
+  UpsertAdminEventPriceOptionRequest,
+  UpsertAdminEventRequest,
+  UpsertAdminEventScheduleItemRequest,
   UpdateProfileRequest,
   UpdateExternalAuthProviderRequest,
 } from './types';
@@ -90,6 +100,59 @@ function formatProviderLabel(provider: string) {
   }
 }
 
+const eventKindLabels: Record<EventKind, string> = {
+  Camp: 'Лагерь',
+  Conference: 'Конференция',
+  Retreat: 'Ретрит',
+  Trip: 'Поездка',
+  Other: 'Другое',
+};
+
+const eventStatusLabels: Record<EventEditionStatus, string> = {
+  Draft: 'Черновик',
+  Published: 'Опубликовано',
+  RegistrationOpen: 'Регистрация открыта',
+  RegistrationClosed: 'Регистрация закрыта',
+  InProgress: 'Идёт сейчас',
+  Completed: 'Завершено',
+  Archived: 'Архив',
+};
+
+const scheduleKindLabels: Record<EventScheduleItemKind, string> = {
+  Arrival: 'Заезд',
+  MainProgram: 'Основная программа',
+  Departure: 'Выезд',
+  Meeting: 'Встреча',
+  Deadline: 'Дедлайн',
+  Other: 'Другое',
+};
+
+const contentBlockLabels: Record<EventContentBlockType, string> = {
+  Hero: 'Главный блок',
+  About: 'О мероприятии',
+  Highlight: 'Акценты',
+  WhatToBring: 'Что взять',
+  Program: 'Программа',
+  ImportantNotice: 'Важное',
+  Faq: 'Вопросы и ответы',
+};
+
+function formatEventKind(kind: EventKind) {
+  return eventKindLabels[kind] ?? kind;
+}
+
+function formatEventStatus(status: EventEditionStatus) {
+  return eventStatusLabels[status] ?? status;
+}
+
+function formatScheduleKind(kind: EventScheduleItemKind) {
+  return scheduleKindLabels[kind] ?? kind;
+}
+
+function formatContentBlockType(blockType: EventContentBlockType) {
+  return contentBlockLabels[blockType] ?? blockType;
+}
+
 function formatRoleList(roles: string[] | undefined) {
   if (!roles?.length) {
     return 'Без роли';
@@ -125,6 +188,183 @@ function formatDateTime(value?: string | null) {
     minute: '2-digit',
   }).format(new Date(value));
 }
+
+function toDateTimeLocalInput(value?: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  const timezoneOffset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16);
+}
+
+function fromDateTimeLocalInput(value: string) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+function formatEventRange(startsAtUtc?: string | null, endsAtUtc?: string | null) {
+  if (!startsAtUtc) {
+    return 'Даты пока не заданы';
+  }
+
+  const formatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const starts = formatter.format(new Date(startsAtUtc));
+  if (!endsAtUtc) {
+    return starts;
+  }
+
+  return `${starts} - ${formatter.format(new Date(endsAtUtc))}`;
+}
+
+function createEmptyPriceOptionDraft(sortOrder = 0): UpsertAdminEventPriceOptionRequest {
+  return {
+    code: `price-${sortOrder + 1}`,
+    title: '',
+    description: '',
+    amount: 0,
+    currency: 'RUB',
+    salesStartsAtUtc: null,
+    salesEndsAtUtc: null,
+    capacity: null,
+    isDefault: sortOrder === 0,
+    isActive: true,
+    sortOrder,
+  };
+}
+
+function createEmptyScheduleItemDraft(sortOrder = 0): UpsertAdminEventScheduleItemRequest {
+  const startsAtUtc = new Date();
+  const endsAtUtc = new Date(startsAtUtc.getTime() + 2 * 60 * 60 * 1000);
+
+  return {
+    title: '',
+    kind: sortOrder === 0 ? 'Arrival' : 'MainProgram',
+    startsAtUtc: startsAtUtc.toISOString(),
+    endsAtUtc: endsAtUtc.toISOString(),
+    location: '',
+    notes: '',
+    sortOrder,
+  };
+}
+
+function createEmptyContentBlockDraft(sortOrder = 0): UpsertAdminEventContentBlockRequest {
+  return {
+    blockType: sortOrder === 0 ? 'Hero' : 'About',
+    title: '',
+    body: '',
+    isPublished: true,
+    sortOrder,
+  };
+}
+
+function createEmptyEventDraft(): UpsertAdminEventRequest {
+  const startsAtUtc = new Date();
+  const endsAtUtc = new Date(startsAtUtc.getTime() + 3 * 24 * 60 * 60 * 1000);
+  const registrationClosesAtUtc = new Date(startsAtUtc.getTime() - 24 * 60 * 60 * 1000);
+
+  return {
+    seriesSlug: '',
+    seriesTitle: '',
+    kind: 'Camp',
+    seriesIsActive: true,
+    slug: '',
+    title: '',
+    seasonLabel: '',
+    shortDescription: '',
+    fullDescription: '',
+    location: '',
+    timezone: 'Asia/Novosibirsk',
+    status: 'Draft',
+    startsAtUtc: startsAtUtc.toISOString(),
+    endsAtUtc: endsAtUtc.toISOString(),
+    registrationOpensAtUtc: null,
+    registrationClosesAtUtc: registrationClosesAtUtc.toISOString(),
+    capacity: null,
+    waitlistEnabled: true,
+    sortOrder: 0,
+    priceOptions: [createEmptyPriceOptionDraft(0)],
+    scheduleItems: [createEmptyScheduleItemDraft(0)],
+    contentBlocks: [createEmptyContentBlockDraft(0)],
+  };
+}
+
+function createDraftFromEvent(event: AdminEventDetails): UpsertAdminEventRequest {
+  return {
+    seriesSlug: event.seriesSlug,
+    seriesTitle: event.seriesTitle,
+    kind: event.kind,
+    seriesIsActive: event.seriesIsActive,
+    slug: event.slug,
+    title: event.title,
+    seasonLabel: event.seasonLabel ?? '',
+    shortDescription: event.shortDescription,
+    fullDescription: event.fullDescription ?? '',
+    location: event.location ?? '',
+    timezone: event.timezone,
+    status: event.status,
+    startsAtUtc: event.startsAtUtc,
+    endsAtUtc: event.endsAtUtc,
+    registrationOpensAtUtc: event.registrationOpensAtUtc ?? null,
+    registrationClosesAtUtc: event.registrationClosesAtUtc ?? null,
+    capacity: event.capacity ?? null,
+    waitlistEnabled: event.waitlistEnabled,
+    sortOrder: event.sortOrder,
+    priceOptions: event.priceOptions.map((item) => ({
+      code: item.code,
+      title: item.title,
+      description: item.description ?? '',
+      amount: item.amount,
+      currency: item.currency,
+      salesStartsAtUtc: item.salesStartsAtUtc ?? null,
+      salesEndsAtUtc: item.salesEndsAtUtc ?? null,
+      capacity: item.capacity ?? null,
+      isDefault: item.isDefault,
+      isActive: item.isActive,
+      sortOrder: item.sortOrder,
+    })),
+    scheduleItems: event.scheduleItems.map((item) => ({
+      title: item.title,
+      kind: item.kind,
+      startsAtUtc: item.startsAtUtc,
+      endsAtUtc: item.endsAtUtc ?? null,
+      location: item.location ?? '',
+      notes: item.notes ?? '',
+      sortOrder: item.sortOrder,
+    })),
+    contentBlocks: event.contentBlocks.map((item) => ({
+      blockType: item.blockType,
+      title: item.title ?? '',
+      body: item.body,
+      isPublished: item.isPublished,
+      sortOrder: item.sortOrder,
+    })),
+  };
+}
+
+export const __adminEventEditorLegacyHelpers = {
+  eventKindLabels,
+  eventStatusLabels,
+  scheduleKindLabels,
+  contentBlockLabels,
+  formatEventKind,
+  formatEventStatus,
+  formatScheduleKind,
+  formatContentBlockType,
+  toDateTimeLocalInput,
+  fromDateTimeLocalInput,
+  formatEventRange,
+  createEmptyPriceOptionDraft,
+  createEmptyScheduleItemDraft,
+  createEmptyContentBlockDraft,
+  createEmptyEventDraft,
+  createDraftFromEvent,
+};
 
 function useDebouncedValue<T>(value: T, delay = 350) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -1460,7 +1700,9 @@ function AdminPage() {
   const [registrationPageSize, setRegistrationPageSize] = useState(20);
   const debouncedUserSearch = useDebouncedValue(userSearch);
   const debouncedRegistrationSearch = useDebouncedValue(registrationSearch);
-  const adminSection = location.pathname.startsWith('/admin/auth')
+  const adminSection = location.pathname.startsWith('/admin/events')
+    ? 'events'
+    : location.pathname.startsWith('/admin/auth')
     ? 'auth'
     : location.pathname.startsWith('/admin/roles')
       ? 'roles'
@@ -1857,7 +2099,13 @@ function AdminPage() {
     return <Navigate replace to="/dashboard" />;
   }
 
-  const adminHeader = adminSection === 'auth'
+  const adminHeader = adminSection === 'events'
+    ? {
+        eyebrow: 'РњРµСЂРѕРїСЂРёСЏС‚РёСЏ',
+        title: 'РЎРµР·РѕРЅС‹, РІС‹РїСѓСЃРєРё Рё СѓСЃР»РѕРІРёСЏ СЂРµРіРёСЃС‚СЂР°С†РёРё',
+        description: 'Р—РґРµСЃСЊ РјРѕР¶РЅРѕ РІРµСЃС‚Рё Р»Р°РіРµСЂСЏ РїРѕ РіРѕРґР°Рј, РґРѕР±Р°РІР»СЏС‚СЊ РґСЂСѓРіРёРµ СЃРѕР±С‹С‚РёСЏ, РЅР°СЃС‚СЂР°РёРІР°С‚СЊ РґР°С‚С‹, С‚Р°СЂРёС„С‹ Рё РєРѕРЅС‚РµРЅС‚ РґР»СЏ РєР°Р¶РґРѕР№ РєР°СЂС‚РѕС‡РєРё.',
+      }
+    : adminSection === 'auth'
     ? {
         eyebrow: 'Внешняя авторизация',
         title: 'Провайдеры входа и журнал проверок',
@@ -1909,6 +2157,12 @@ function AdminPage() {
           <p>Ключевые цифры по системе, роли команды и быстрые переходы к основным административным разделам.</p>
         </NavLink>
 
+        <NavLink to="/admin/events" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">РњРµСЂРѕРїСЂРёСЏС‚РёСЏ</p>
+          <h3>РЎРѕР±С‹С‚РёСЏ Рё РІС‹РїСѓСЃРєРё</h3>
+          <p>Р›Р°РіРµСЂСЏ РїРѕ РіРѕРґР°Рј, СЂРµС‚СЂРёС‚С‹, РїРѕРµР·РґРєРё Рё РёС… РЅР°СЃС‚СЂРѕР№РєРё: РґР°С‚С‹, Р»РёРјРёС‚С‹, С‚Р°СЂРёС„С‹, РєРѕРЅС‚РµРЅС‚ Рё РѕРєРЅРѕ СЂРµРіРёСЃС‚СЂР°С†РёРё.</p>
+        </NavLink>
+
         <NavLink to="/admin/users" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
           <p className="mini-eyebrow">Пользователи</p>
           <h3>Пользователи и права</h3>
@@ -1943,6 +2197,8 @@ function AdminPage() {
         </div>
       ) : overview ? (
         <>
+          <AdminEventsSection accessToken={auth.session?.accessToken ?? null} isActive={adminSection === 'events'} />
+
           <section className="dashboard-grid admin-stats-grid" hidden={adminSection !== 'overview'}>
             <article className="glass-card metric-card">
               <p>Пользователи</p>
@@ -2527,6 +2783,7 @@ export default function App() {
         <Route path="/camp-registration" element={<CampRegistrationPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/access" element={<AdminPage />} />
+        <Route path="/admin/events" element={<AdminPage />} />
         <Route path="/admin/users" element={<AdminPage />} />
         <Route path="/admin/registrations" element={<AdminPage />} />
         <Route path="/admin/roles" element={<AdminPage />} />

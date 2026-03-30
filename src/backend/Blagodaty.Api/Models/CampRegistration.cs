@@ -5,6 +5,10 @@ public sealed class CampRegistration
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }
     public ApplicationUser User { get; set; } = null!;
+    public Guid? EventEditionId { get; set; }
+    public EventEdition? EventEdition { get; set; }
+    public Guid? SelectedPriceOptionId { get; set; }
+    public EventPriceOption? SelectedPriceOption { get; set; }
 
     public RegistrationStatus Status { get; set; } = RegistrationStatus.Draft;
     public string FullName { get; set; } = string.Empty;

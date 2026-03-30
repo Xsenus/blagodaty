@@ -20,27 +20,33 @@ public sealed class AdminController : ControllerBase
 
     private readonly AppDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly EventCatalogService _eventCatalogService;
 
-    public AdminController(AppDbContext dbContext, UserManager<ApplicationUser> userManager)
+    public AdminController(AppDbContext dbContext, UserManager<ApplicationUser> userManager, EventCatalogService eventCatalogService)
     {
         _dbContext = dbContext;
         _userManager = userManager;
+        _eventCatalogService = eventCatalogService;
     }
 
     [HttpGet("overview")]
     public async Task<ActionResult<AdminOverviewResponse>> GetOverview()
     {
+        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
         var totalUsersTask = _dbContext.Users.AsNoTracking().CountAsync();
-        var registrationStatsTask = _dbContext.CampRegistrations
-            .AsNoTracking()
-            .GroupBy(_ => 1)
-            .Select(group => new
-            {
-                TotalRegistrations = group.Count(),
-                SubmittedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Submitted),
-                ConfirmedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Confirmed)
-            })
-            .FirstOrDefaultAsync();
+        var registrationStatsTask = activeCampEditionId is null
+            ? Task.FromResult<RegistrationStatsSummary?>(null)
+            : _dbContext.CampRegistrations
+                .AsNoTracking()
+                .Where(registration => registration.EventEditionId == activeCampEditionId)
+                .GroupBy(_ => 1)
+                .Select(group => new RegistrationStatsSummary
+                {
+                    TotalRegistrations = group.Count(),
+                    SubmittedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Submitted),
+                    ConfirmedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Confirmed)
+                })
+                .FirstOrDefaultAsync();
 
         var roleAssignments = await (
             from userRole in _dbContext.UserRoles.AsNoTracking()
@@ -132,16 +138,28 @@ public sealed class AdminController : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        var mappedItems = await MapAdminUsersAsync(items, orderedUserIds: items.Select(user => user.Id).ToArray());
+        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
+        var mappedItems = await MapAdminUsersAsync(
+            items,
+            eventEditionId: activeCampEditionId,
+            orderedUserIds: items.Select(user => user.Id).ToArray());
         return Ok(CreatePagedResponse(page, pageSize, totalItems, mappedItems));
     }
 
     [HttpGet("registrations")]
     public async Task<ActionResult<AdminPagedResponse<AdminUserDto>>> GetRegistrations([FromQuery] AdminRegistrationsQueryRequest request)
     {
+        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
+        if (activeCampEditionId is null)
+        {
+            return Ok(CreatePagedResponse(NormalizePage(request.Page), NormalizePageSize(request.PageSize), 0, Array.Empty<AdminUserDto>()));
+        }
+
         var page = NormalizePage(request.Page);
         var pageSize = NormalizePageSize(request.PageSize);
-        var registrations = ApplyRegistrationSearch(_dbContext.CampRegistrations.AsNoTracking(), request.Search);
+        var registrations = ApplyRegistrationSearch(
+            _dbContext.CampRegistrations.AsNoTracking().Where(registration => registration.EventEditionId == activeCampEditionId),
+            request.Search);
 
         if (request.Status is not null)
         {
@@ -183,7 +201,7 @@ public sealed class AdminController : ControllerBase
             registration => registration.UserId,
             registration => registration);
 
-        var mappedItems = await MapAdminUsersAsync(users, registrationByUserId, orderedUserIds);
+        var mappedItems = await MapAdminUsersAsync(users, registrationByUserId, orderedUserIds: orderedUserIds);
         return Ok(CreatePagedResponse(page, pageSize, totalItems, mappedItems));
     }
 
@@ -252,8 +270,10 @@ public sealed class AdminController : ControllerBase
             .AsNoTracking()
             .FirstAsync(item => item.Id == user.Id);
 
+        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
         var mappedUser = await MapAdminUsersAsync(
             [refreshedUser],
+            eventEditionId: activeCampEditionId,
             orderedUserIds: [refreshedUser.Id]);
 
         return Ok(mappedUser.Single());
@@ -317,6 +337,7 @@ public sealed class AdminController : ControllerBase
     private async Task<IReadOnlyCollection<AdminUserDto>> MapAdminUsersAsync(
         IReadOnlyCollection<ApplicationUser> users,
         IReadOnlyDictionary<Guid, RegistrationListItem>? registrationsByUserId = null,
+        Guid? eventEditionId = null,
         IReadOnlyCollection<Guid>? orderedUserIds = null)
     {
         if (users.Count == 0)
@@ -329,7 +350,7 @@ public sealed class AdminController : ControllerBase
         var usersById = users.ToDictionary(user => user.Id);
         var rolesByUserId = await GetRolesByUserIdAsync(userIds);
         var registrations = registrationsByUserId is null
-            ? await GetRegistrationsByUserIdAsync(userIds)
+            ? await GetRegistrationsByUserIdAsync(userIds, eventEditionId)
             : registrationsByUserId;
         var externalIdentitiesByUserId = await GetExternalIdentitiesByUserIdAsync(userIds);
         var finalOrder = orderedUserIds?.Where(userIdSet.Contains).ToArray() ?? userIds;
@@ -383,11 +404,16 @@ public sealed class AdminController : ControllerBase
                     .ToArray());
     }
 
-    private async Task<Dictionary<Guid, RegistrationListItem>> GetRegistrationsByUserIdAsync(IReadOnlyCollection<Guid> userIds)
+    private async Task<Dictionary<Guid, RegistrationListItem>> GetRegistrationsByUserIdAsync(IReadOnlyCollection<Guid> userIds, Guid? eventEditionId)
     {
+        if (eventEditionId is null)
+        {
+            return [];
+        }
+
         var registrations = await _dbContext.CampRegistrations
             .AsNoTracking()
-            .Where(registration => userIds.Contains(registration.UserId))
+            .Where(registration => userIds.Contains(registration.UserId) && registration.EventEditionId == eventEditionId)
             .Select(registration => new RegistrationListItem
             {
                 UserId = registration.UserId,
@@ -465,5 +491,12 @@ public sealed class AdminController : ControllerBase
         public required Guid UserId { get; init; }
         public required RegistrationStatus Status { get; init; }
         public required DateTime UpdatedAtUtc { get; init; }
+    }
+
+    private sealed class RegistrationStatsSummary
+    {
+        public required int TotalRegistrations { get; init; }
+        public required int SubmittedRegistrations { get; init; }
+        public required int ConfirmedRegistrations { get; init; }
     }
 }

@@ -13,6 +13,11 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     }
 
     public DbSet<CampRegistration> CampRegistrations => Set<CampRegistration>();
+    public DbSet<EventSeries> EventSeries => Set<EventSeries>();
+    public DbSet<EventEdition> EventEditions => Set<EventEdition>();
+    public DbSet<EventPriceOption> EventPriceOptions => Set<EventPriceOption>();
+    public DbSet<EventScheduleItem> EventScheduleItems => Set<EventScheduleItem>();
+    public DbSet<EventContentBlock> EventContentBlocks => Set<EventContentBlock>();
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<UserExternalIdentity> UserExternalIdentities => Set<UserExternalIdentity>();
@@ -37,6 +42,77 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
                 .WithOne(x => x.User)
                 .HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.CampRegistrations)
+                .WithOne(x => x.User)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EventSeries>(entity =>
+        {
+            entity.HasIndex(x => x.Slug).IsUnique();
+            entity.Property(x => x.Slug).HasMaxLength(120);
+            entity.Property(x => x.Title).HasMaxLength(180);
+            entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+        });
+
+        builder.Entity<EventEdition>(entity =>
+        {
+            entity.HasIndex(x => x.Slug).IsUnique();
+            entity.HasIndex(x => new { x.Status, x.StartsAtUtc });
+            entity.HasIndex(x => x.RegistrationClosesAtUtc);
+            entity.Property(x => x.Slug).HasMaxLength(140);
+            entity.Property(x => x.Title).HasMaxLength(220);
+            entity.Property(x => x.SeasonLabel).HasMaxLength(80);
+            entity.Property(x => x.ShortDescription).HasMaxLength(600);
+            entity.Property(x => x.FullDescription).HasMaxLength(8000);
+            entity.Property(x => x.Location).HasMaxLength(220);
+            entity.Property(x => x.Timezone).HasMaxLength(64);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.HasOne(x => x.EventSeries)
+                .WithMany(x => x.Editions)
+                .HasForeignKey(x => x.EventSeriesId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EventPriceOption>(entity =>
+        {
+            entity.HasIndex(x => new { x.EventEditionId, x.Code }).IsUnique();
+            entity.HasIndex(x => new { x.EventEditionId, x.IsActive, x.SortOrder });
+            entity.Property(x => x.Code).HasMaxLength(64);
+            entity.Property(x => x.Title).HasMaxLength(180);
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.Currency).HasMaxLength(8);
+            entity.Property(x => x.Amount).HasPrecision(12, 2);
+            entity.HasOne(x => x.EventEdition)
+                .WithMany(x => x.PriceOptions)
+                .HasForeignKey(x => x.EventEditionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EventScheduleItem>(entity =>
+        {
+            entity.HasIndex(x => new { x.EventEditionId, x.SortOrder });
+            entity.Property(x => x.Title).HasMaxLength(180);
+            entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Location).HasMaxLength(220);
+            entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.HasOne(x => x.EventEdition)
+                .WithMany(x => x.ScheduleItems)
+                .HasForeignKey(x => x.EventEditionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EventContentBlock>(entity =>
+        {
+            entity.HasIndex(x => new { x.EventEditionId, x.BlockType, x.SortOrder });
+            entity.Property(x => x.BlockType).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Title).HasMaxLength(180);
+            entity.Property(x => x.Body).HasMaxLength(8000);
+            entity.HasOne(x => x.EventEdition)
+                .WithMany(x => x.ContentBlocks)
+                .HasForeignKey(x => x.EventEditionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<RefreshSession>(entity =>
@@ -49,10 +125,11 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
 
         builder.Entity<CampRegistration>(entity =>
         {
-            entity.HasIndex(x => x.UserId).IsUnique();
+            entity.HasIndex(x => new { x.EventEditionId, x.UserId }).IsUnique();
+            entity.HasIndex(x => x.EventEditionId);
             entity.HasIndex(x => x.Status);
             entity.HasIndex(x => x.UpdatedAtUtc);
-            entity.HasIndex(x => new { x.Status, x.UpdatedAtUtc });
+            entity.HasIndex(x => new { x.EventEditionId, x.Status, x.UpdatedAtUtc });
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(24);
             entity.Property(x => x.AccommodationPreference).HasConversion<string>().HasMaxLength(24);
             entity.Property(x => x.FullName).HasMaxLength(180);
@@ -65,6 +142,14 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.Property(x => x.AllergyNotes).HasMaxLength(2000);
             entity.Property(x => x.SpecialNeeds).HasMaxLength(2000);
             entity.Property(x => x.Motivation).HasMaxLength(2000);
+            entity.HasOne(x => x.EventEdition)
+                .WithMany(x => x.Registrations)
+                .HasForeignKey(x => x.EventEditionId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.SelectedPriceOption)
+                .WithMany(x => x.Registrations)
+                .HasForeignKey(x => x.SelectedPriceOptionId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<AppSetting>(entity =>

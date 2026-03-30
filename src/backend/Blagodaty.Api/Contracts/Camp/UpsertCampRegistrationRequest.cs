@@ -5,6 +5,8 @@ namespace Blagodaty.Api.Contracts.Camp;
 
 public sealed class UpsertCampRegistrationRequest
 {
+    public Guid? SelectedPriceOptionId { get; set; }
+
     [Required, MaxLength(180)]
     public string FullName { get; set; } = string.Empty;
 
