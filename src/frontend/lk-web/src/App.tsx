@@ -1332,6 +1332,7 @@ function CampRegistrationPage() {
 function AdminPage() {
   const auth = useAuth();
   const toast = useToast();
+  const location = useLocation();
   const canOpenAdmin = isAdmin(auth.account?.user.roles);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [authSettings, setAuthSettings] = useState<AdminExternalAuthSettings | null>(null);
@@ -1348,6 +1349,11 @@ function AdminPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const adminSection = location.pathname.startsWith('/admin/auth')
+    ? 'auth'
+    : location.pathname.startsWith('/admin/access')
+      ? 'access'
+      : 'overview';
 
   useEffect(() => {
     if (!canOpenAdmin || !auth.session) {
@@ -1612,16 +1618,31 @@ function AdminPage() {
     return <Navigate replace to="/dashboard" />;
   }
 
+  const adminHeader = adminSection === 'auth'
+    ? {
+        eyebrow: 'Внешняя авторизация',
+        title: 'Провайдеры входа и журнал проверок',
+        description: 'Здесь удобно настраивать Google, VK, Yandex и Telegram, а затем сразу проверять каждый способ входа.',
+      }
+    : adminSection === 'access'
+      ? {
+          eyebrow: 'Доступ и роли',
+          title: 'Пользователи, роли и права доступа',
+          description: 'Этот раздел собран для спокойного управления доступами: роли видны отдельно, а права пользователей редактируются ниже.',
+        }
+      : {
+          eyebrow: 'Администрирование',
+          title: 'Панель управления лагерем',
+          description: 'Здесь собран общий обзор по системе: ключевые цифры, роли команды и быстрые переходы в нужные административные разделы.',
+        };
+
   return (
     <div className="page-stack">
       <header className="page-hero glass-card">
         <div>
-          <p className="mini-eyebrow">Администрирование</p>
-          <h2>Права, роли и состояние лагеря</h2>
-          <p>
-            Здесь заложен базовый админский контур: структура ролей, обзор базы пользователей и
-            настройка прав доступа для команды проекта.
-          </p>
+          <p className="mini-eyebrow">{adminHeader.eyebrow}</p>
+          <h2>{adminHeader.title}</h2>
+          <p>{adminHeader.description}</p>
         </div>
 
         <div className="status-badge">
@@ -1629,6 +1650,26 @@ function AdminPage() {
           <strong>{formatRoleList(auth.account?.user.roles)}</strong>
         </div>
       </header>
+
+      <section className="admin-nav-grid">
+        <NavLink to="/admin" end className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">Обзор</p>
+          <h3>Сводка и роли</h3>
+          <p>Ключевые цифры по системе, роли команды и быстрые переходы к основным административным разделам.</p>
+        </NavLink>
+
+        <NavLink to="/admin/access" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">Доступ</p>
+          <h3>Пользователи и права</h3>
+          <p>Все аккаунты в одном месте: роли, статус заявки, последнее посещение и управление доступом.</p>
+        </NavLink>
+
+        <NavLink to="/admin/auth" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">Auth</p>
+          <h3>Провайдеры входа</h3>
+          <p>Google, VK, Yandex и Telegram с подсказками по полям, диагностикой и встроенной проверкой.</p>
+        </NavLink>
+      </section>
 
       {message ? <p className="form-success">{message}</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
@@ -1639,7 +1680,7 @@ function AdminPage() {
         </div>
       ) : overview ? (
         <>
-          <section className="dashboard-grid admin-stats-grid">
+          <section className="dashboard-grid admin-stats-grid" hidden={adminSection !== 'overview'}>
             <article className="glass-card metric-card">
               <p>Пользователи</p>
               <strong>{overview.stats.totalUsers}</strong>
@@ -1665,7 +1706,7 @@ function AdminPage() {
             </article>
           </section>
 
-          <section className="role-grid">
+          <section className="role-grid" hidden={adminSection === 'auth'}>
             {overview.roles.map((role) => (
               <article className="glass-card role-card" key={role.id}>
                 <p className="mini-eyebrow">Роль</p>
@@ -1676,7 +1717,7 @@ function AdminPage() {
           </section>
 
           {authSettings ? (
-            <section className="glass-card stack-form">
+            <section className="glass-card stack-form" hidden={adminSection !== 'auth'}>
               <div className="section-inline">
                 <div>
                   <p className="mini-eyebrow">Auth providers</p>
@@ -1864,7 +1905,7 @@ function AdminPage() {
             </section>
           ) : null}
 
-          <section className="glass-card stack-form">
+          <section className="glass-card stack-form" hidden={adminSection !== 'access'}>
             <div className="section-inline">
               <div>
                 <p className="mini-eyebrow">Пользователи</p>
@@ -1990,6 +2031,8 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/camp-registration" element={<CampRegistrationPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/access" element={<AdminPage />} />
+        <Route path="/admin/auth" element={<AdminPage />} />
       </Route>
 
       <Route path="*" element={<Navigate replace to="/" />} />
