@@ -2,6 +2,7 @@ using Blagodaty.Api.Contracts.Admin;
 using Blagodaty.Api.Data;
 using Blagodaty.Api.Models;
 using Blagodaty.Api.Security;
+using Blagodaty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -62,6 +63,19 @@ public sealed class AdminController : ControllerBase
             registration => registration.UserId,
             registration => registration);
 
+        var externalIdentities = await _dbContext.UserExternalIdentities
+            .AsNoTracking()
+            .OrderBy(identity => identity.Provider)
+            .ToListAsync();
+
+        var externalIdentitiesByUserId = externalIdentities
+            .GroupBy(identity => identity.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyCollection<Blagodaty.Api.Contracts.Account.ExternalIdentityDto>)group
+                    .Select(AccountMapper.ToExternalIdentity)
+                    .ToArray());
+
         return Ok(new AdminOverviewResponse
         {
             Stats = new AdminStatsDto
@@ -87,7 +101,7 @@ public sealed class AdminController : ControllerBase
                     return new AdminUserDto
                     {
                         Id = user.Id,
-                        Email = user.Email ?? string.Empty,
+                        Email = TechnicalEmailHelper.ToVisibleEmail(user.Email),
                         DisplayName = user.DisplayName,
                         FirstName = user.FirstName,
                         LastName = user.LastName,
@@ -98,7 +112,8 @@ public sealed class AdminController : ControllerBase
                         CreatedAtUtc = user.CreatedAtUtc,
                         LastLoginAtUtc = user.LastLoginAtUtc,
                         RegistrationStatus = registration?.Status,
-                        RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc
+                        RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc,
+                        ExternalIdentities = externalIdentitiesByUserId.GetValueOrDefault(user.Id, Array.Empty<Blagodaty.Api.Contracts.Account.ExternalIdentityDto>())
                     };
                 })
                 .ToArray()
@@ -178,7 +193,7 @@ public sealed class AdminController : ControllerBase
         return Ok(new AdminUserDto
         {
             Id = user.Id,
-            Email = user.Email ?? string.Empty,
+            Email = TechnicalEmailHelper.ToVisibleEmail(user.Email),
             DisplayName = user.DisplayName,
             FirstName = user.FirstName,
             LastName = user.LastName,
@@ -189,7 +204,14 @@ public sealed class AdminController : ControllerBase
             CreatedAtUtc = user.CreatedAtUtc,
             LastLoginAtUtc = user.LastLoginAtUtc,
             RegistrationStatus = registration?.Status,
-            RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc
+            RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc,
+            ExternalIdentities = (await _dbContext.UserExternalIdentities
+                .AsNoTracking()
+                .Where(identity => identity.UserId == user.Id)
+                .OrderBy(identity => identity.Provider)
+                .ToListAsync())
+                .Select(AccountMapper.ToExternalIdentity)
+                .ToArray()
         });
     }
 

@@ -14,4 +14,5 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 
     public CampRegistration? CampRegistration { get; set; }
     public ICollection<RefreshSession> RefreshSessions { get; set; } = [];
+    public ICollection<UserExternalIdentity> ExternalIdentities { get; set; } = [];
 }

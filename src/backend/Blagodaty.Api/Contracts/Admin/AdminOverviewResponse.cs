@@ -1,4 +1,5 @@
 using Blagodaty.Api.Models;
+using Blagodaty.Api.Contracts.Account;
 
 namespace Blagodaty.Api.Contracts.Admin;
 
@@ -39,4 +40,5 @@ public sealed class AdminUserDto
     public DateTime? LastLoginAtUtc { get; init; }
     public RegistrationStatus? RegistrationStatus { get; init; }
     public DateTime? RegistrationUpdatedAtUtc { get; init; }
+    public required IReadOnlyCollection<ExternalIdentityDto> ExternalIdentities { get; init; }
 }

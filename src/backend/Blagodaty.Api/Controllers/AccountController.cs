@@ -3,6 +3,7 @@ using Blagodaty.Api.Contracts.Account;
 using Blagodaty.Api.Contracts.Camp;
 using Blagodaty.Api.Data;
 using Blagodaty.Api.Models;
+using Blagodaty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -17,11 +18,19 @@ public sealed class AccountController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly AppDbContext _dbContext;
+    private readonly ExternalIdentityService _externalIdentityService;
+    private readonly ExternalAuthProviderService _externalAuthProviderService;
 
-    public AccountController(UserManager<ApplicationUser> userManager, AppDbContext dbContext)
+    public AccountController(
+        UserManager<ApplicationUser> userManager,
+        AppDbContext dbContext,
+        ExternalIdentityService externalIdentityService,
+        ExternalAuthProviderService externalAuthProviderService)
     {
         _userManager = userManager;
         _dbContext = dbContext;
+        _externalIdentityService = externalIdentityService;
+        _externalAuthProviderService = externalAuthProviderService;
     }
 
     [HttpGet("me")]
@@ -35,21 +44,15 @@ public sealed class AccountController : ControllerBase
 
         var roles = (await _userManager.GetRolesAsync(user)).ToArray();
         var registration = await _dbContext.CampRegistrations.FirstOrDefaultAsync(x => x.UserId == user.Id);
+        var identities = await _dbContext.UserExternalIdentities
+            .AsNoTracking()
+            .Where(identity => identity.UserId == user.Id)
+            .OrderBy(identity => identity.Provider)
+            .ToListAsync();
 
         return Ok(new CurrentAccountResponse
         {
-            User = new UserSummaryDto
-            {
-                Id = user.Id,
-                Email = user.Email ?? string.Empty,
-                DisplayName = user.DisplayName,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                City = user.City,
-                ChurchName = user.ChurchName,
-                PhoneNumber = user.PhoneNumber,
-                Roles = roles
-            },
+            User = AccountMapper.ToUserSummary(user, roles),
             Registration = registration is null
                 ? null
                 : new CampRegistrationSnapshotDto
@@ -58,7 +61,10 @@ public sealed class AccountController : ControllerBase
                     Status = registration.Status,
                     UpdatedAtUtc = registration.UpdatedAtUtc,
                     SubmittedAtUtc = registration.SubmittedAtUtc
-                }
+                },
+            ExternalIdentities = identities.Select(AccountMapper.ToExternalIdentity).ToArray(),
+            AvailableExternalAuthProviders = await _externalAuthProviderService.GetPublicProvidersAsync(HttpContext.RequestAborted),
+            HasPassword = !string.IsNullOrWhiteSpace(user.PasswordHash)
         });
     }
 
@@ -95,19 +101,38 @@ public sealed class AccountController : ControllerBase
         }
 
         var roles = (await _userManager.GetRolesAsync(user)).ToArray();
+        return Ok(AccountMapper.ToUserSummary(user, roles));
+    }
 
-        return Ok(new UserSummaryDto
+    [HttpDelete("external/{provider}")]
+    public async Task<ActionResult<IReadOnlyCollection<ExternalIdentityDto>>> UnlinkExternalIdentity([FromRoute] string provider)
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null)
         {
-            Id = user.Id,
-            Email = user.Email ?? string.Empty,
-            DisplayName = user.DisplayName,
-            FirstName = user.FirstName,
-            LastName = user.LastName,
-            City = user.City,
-            ChurchName = user.ChurchName,
-            PhoneNumber = user.PhoneNumber,
-            Roles = roles
-        });
+            return Unauthorized();
+        }
+
+        try
+        {
+            var removed = await _externalIdentityService.DetachExternalIdentityAsync(user.Id, provider, HttpContext.RequestAborted);
+            if (!removed)
+            {
+                return NotFound();
+            }
+
+            var identities = await _dbContext.UserExternalIdentities
+                .AsNoTracking()
+                .Where(identity => identity.UserId == user.Id)
+                .OrderBy(identity => identity.Provider)
+                .ToListAsync();
+
+            return Ok(identities.Select(AccountMapper.ToExternalIdentity).ToArray());
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
     }
 
     private async Task<ApplicationUser?> GetCurrentUserAsync()

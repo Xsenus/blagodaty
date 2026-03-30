@@ -16,8 +16,13 @@ builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(Fro
 builder.Services.Configure<CampOptions>(builder.Configuration.GetSection(CampOptions.SectionName));
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
 
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<AuthSessionService>();
+builder.Services.AddScoped<AppSettingsService>();
+builder.Services.AddScoped<ExternalIdentityService>();
+builder.Services.AddScoped<ExternalAuthProviderService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
