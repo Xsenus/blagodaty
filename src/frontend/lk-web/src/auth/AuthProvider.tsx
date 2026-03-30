@@ -17,6 +17,7 @@ import {
   updateProfile,
 } from '../lib/api';
 import type {
+  AuthResponse,
   CampRegistration,
   CurrentAccount,
   SaveRegistrationRequest,
@@ -37,6 +38,7 @@ type AuthContextValue = {
     lastName: string;
     displayName?: string;
   }) => Promise<void>;
+  acceptAuthResponse: (payload: AuthResponse) => Promise<void>;
   logout: () => Promise<void>;
   reloadAccount: () => Promise<void>;
   updateProfile: (payload: UpdateProfileRequest) => Promise<void>;
@@ -140,9 +142,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   async function handleLogin(payload: { email: string; password: string }) {
     const response = await loginRequest(payload);
-    applySession(response);
-    setAccount({ user: response.user, registration: null });
-    await reloadAccount(response.accessToken);
+    await acceptAuthResponse(response);
   }
 
   async function handleRegister(payload: {
@@ -153,9 +153,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
     displayName?: string;
   }) {
     const response = await registerRequest(payload);
-    applySession(response);
-    setAccount({ user: response.user, registration: null });
-    await reloadAccount(response.accessToken);
+    await acceptAuthResponse(response);
+  }
+
+  async function acceptAuthResponse(payload: AuthResponse) {
+    applySession(payload);
+    setAccount({
+      user: payload.user,
+      registration: null,
+      externalIdentities: [],
+      availableExternalAuthProviders: [],
+      hasPassword: true,
+    });
+    await reloadAccount(payload.accessToken);
   }
 
   async function handleLogout() {
@@ -197,6 +207,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         : {
             user: updatedUser,
             registration: null,
+            externalIdentities: [],
+            availableExternalAuthProviders: [],
+            hasPassword: true,
           },
     );
   }
@@ -234,6 +247,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     isAuthenticated: Boolean(session?.accessToken),
     login: handleLogin,
     register: handleRegister,
+    acceptAuthResponse,
     logout: handleLogout,
     reloadAccount: () => reloadAccount(),
     updateProfile: handleUpdateProfile,

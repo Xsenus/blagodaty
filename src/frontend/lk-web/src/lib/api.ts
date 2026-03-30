@@ -1,13 +1,19 @@
 import { apiBaseUrl } from './config';
 import type {
+  AdminExternalAuthProvider,
+  AdminExternalAuthSettings,
   AdminOverview,
   AdminUser,
   AuthResponse,
   CampRegistration,
   CurrentAccount,
+  ExternalAuthStartResponse,
+  ExternalAuthStatusResponse,
+  PublicExternalAuthProvider,
   SaveRegistrationRequest,
   SessionState,
   UpdateProfileRequest,
+  UpdateExternalAuthProviderRequest,
   UserSummary,
 } from '../types';
 
@@ -94,6 +100,10 @@ export function getCurrentAccount(accessToken: string) {
   return request<CurrentAccount>('/api/account/me', {}, accessToken);
 }
 
+export function getPublicExternalAuthProviders() {
+  return request<{ providers: PublicExternalAuthProvider[] }>('/api/public/auth/providers');
+}
+
 export function updateProfile(accessToken: string, payload: UpdateProfileRequest) {
   return request<UserSummary>(
     '/api/account/profile',
@@ -103,6 +113,67 @@ export function updateProfile(accessToken: string, payload: UpdateProfileRequest
     },
     accessToken,
   );
+}
+
+export function unlinkExternalIdentity(accessToken: string, provider: string) {
+  return request<CurrentAccount['externalIdentities']>(
+    `/api/account/external/${provider}`,
+    {
+      method: 'DELETE',
+    },
+    accessToken,
+  );
+}
+
+export function startExternalAuth(
+  payload: { provider: string; intent?: 'signin' | 'link'; returnUrl?: string },
+  accessToken?: string,
+) {
+  return request<ExternalAuthStartResponse>(
+    '/api/auth/external/start',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function getExternalAuthStatus(state: string) {
+  return request<ExternalAuthStatusResponse>(`/api/auth/external/status/${state}`);
+}
+
+export function startTelegramAuth(
+  payload: { intent?: 'signin' | 'link'; returnUrl?: string },
+  accessToken?: string,
+) {
+  return request<ExternalAuthStartResponse>(
+    '/api/auth/telegram/start',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function getTelegramAuthStatus(state: string) {
+  return request<ExternalAuthStatusResponse>(`/api/auth/telegram/status/${state}`);
+}
+
+export function loginWithTelegramWidget(payload: {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+  photo_url?: string;
+  auth_date: string;
+  hash: string;
+}) {
+  return request<AuthResponse>('/api/auth/telegram/login', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
 }
 
 export function getRegistration(accessToken: string) {
@@ -130,6 +201,35 @@ export function updateUserRoles(accessToken: string, userId: string, roles: stri
     {
       method: 'PUT',
       body: JSON.stringify({ roles }),
+    },
+    accessToken,
+  );
+}
+
+export function getAdminExternalAuthSettings(accessToken: string) {
+  return request<AdminExternalAuthSettings>('/api/admin/auth/settings', {}, accessToken);
+}
+
+export function updateAdminExternalAuthProvider(
+  accessToken: string,
+  provider: string,
+  payload: UpdateExternalAuthProviderRequest,
+) {
+  return request<AdminExternalAuthProvider>(
+    `/api/admin/auth/providers/${provider}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function startAdminExternalAuthProviderTest(accessToken: string, provider: string) {
+  return request<ExternalAuthStartResponse>(
+    `/api/admin/auth/providers/${provider}/test/start`,
+    {
+      method: 'POST',
     },
     accessToken,
   );

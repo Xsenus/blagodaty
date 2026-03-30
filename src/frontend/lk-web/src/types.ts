@@ -10,6 +10,28 @@ export type UserSummary = {
   roles: string[];
 };
 
+export type ExternalIdentity = {
+  provider: string;
+  displayName: string;
+  providerUsername?: string | null;
+  providerEmail?: string | null;
+  providerEmailVerified: boolean;
+  avatarUrl?: string | null;
+  profileUrl?: string | null;
+  createdAtUtc: string;
+  verifiedAtUtc?: string | null;
+  lastUsedAtUtc?: string | null;
+};
+
+export type PublicExternalAuthProvider = {
+  provider: string;
+  displayName: string;
+  mode: 'oauth' | 'telegram';
+  enabled: boolean;
+  widgetEnabled: boolean;
+  botUsername?: string | null;
+};
+
 export type AppRole = 'Member' | 'CampManager' | 'Admin';
 
 export type RegistrationStatus = 'Draft' | 'Submitted' | 'Confirmed' | 'Cancelled';
@@ -25,6 +47,9 @@ export type CampRegistrationSnapshot = {
 export type CurrentAccount = {
   user: UserSummary;
   registration?: CampRegistrationSnapshot | null;
+  externalIdentities: ExternalIdentity[];
+  availableExternalAuthProviders: PublicExternalAuthProvider[];
+  hasPassword: boolean;
 };
 
 export type AuthResponse = {
@@ -33,6 +58,27 @@ export type AuthResponse = {
   accessTokenExpiresAtUtc: string;
   refreshTokenExpiresAtUtc: string;
   user: UserSummary;
+};
+
+export type ExternalAuthStartResponse = {
+  provider: string;
+  intent: 'signin' | 'link' | 'test';
+  state: string;
+  authUrl: string;
+  returnUrl?: string | null;
+  expiresAtUtc: string;
+  pollIntervalMs: number;
+};
+
+export type ExternalAuthStatusResponse = {
+  status: string;
+  completed: boolean;
+  provider?: string | null;
+  linked: boolean;
+  returnUrl?: string | null;
+  message?: string | null;
+  auth?: AuthResponse | null;
+  identity?: ExternalIdentity | null;
 };
 
 export type SessionState = {
@@ -116,10 +162,60 @@ export type AdminUser = {
   lastLoginAtUtc?: string | null;
   registrationStatus?: RegistrationStatus | null;
   registrationUpdatedAtUtc?: string | null;
+  externalIdentities: ExternalIdentity[];
 };
 
 export type AdminOverview = {
   stats: AdminStats;
   roles: AdminRoleDefinition[];
   users: AdminUser[];
+};
+
+export type AdminExternalAuthProvider = {
+  provider: string;
+  displayName: string;
+  mode: 'oauth' | 'telegram';
+  enabled: boolean;
+  ready: boolean;
+  widgetEnabled: boolean;
+  clientId?: string | null;
+  clientSecretMasked?: string | null;
+  botUsername?: string | null;
+  botTokenMasked?: string | null;
+  callbackUrl?: string | null;
+  webhookUrl?: string | null;
+  webhookSecretMasked?: string | null;
+  hints: string[];
+  diagnostics: AdminExternalAuthDiagnostic[];
+};
+
+export type AdminExternalAuthDiagnostic = {
+  key: string;
+  title: string;
+  ok: boolean;
+  message?: string | null;
+};
+
+export type AdminExternalAuthEvent = {
+  id: string;
+  userId?: string | null;
+  provider: string;
+  eventType: string;
+  detail?: string | null;
+  createdAtUtc: string;
+};
+
+export type AdminExternalAuthSettings = {
+  providers: AdminExternalAuthProvider[];
+  recentEvents: AdminExternalAuthEvent[];
+};
+
+export type UpdateExternalAuthProviderRequest = {
+  enabled: boolean;
+  widgetEnabled?: boolean;
+  clientId?: string;
+  clientSecret?: string;
+  botUsername?: string;
+  botToken?: string;
+  webhookSecret?: string;
 };

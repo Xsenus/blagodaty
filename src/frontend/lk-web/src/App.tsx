@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Navigate,
   NavLink,
@@ -10,17 +10,38 @@ import {
 } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
 import { campBaseUrl } from './lib/config';
-import { ApiError, getAdminOverview, updateUserRoles } from './lib/api';
+import {
+  ApiError,
+  getAdminExternalAuthSettings,
+  getAdminOverview,
+  getExternalAuthStatus,
+  getPublicExternalAuthProviders,
+  getTelegramAuthStatus,
+  loginWithTelegramWidget,
+  startAdminExternalAuthProviderTest,
+  startExternalAuth,
+  startTelegramAuth,
+  unlinkExternalIdentity,
+  updateAdminExternalAuthProvider,
+  updateUserRoles,
+} from './lib/api';
+import { useToast } from './ui/ToastProvider';
 import type {
   AccommodationPreference,
+  AdminExternalAuthProvider,
+  AdminExternalAuthSettings,
   AdminOverview,
   AdminRoleDefinition,
   AdminUser,
   AppRole,
   CampRegistration,
+  ExternalAuthStartResponse,
+  ExternalIdentity,
+  PublicExternalAuthProvider,
   RegistrationStatus,
   SaveRegistrationRequest,
   UpdateProfileRequest,
+  UpdateExternalAuthProviderRequest,
 } from './types';
 
 const roleLabels: Record<AppRole, string> = {
@@ -49,6 +70,21 @@ function orderRoles(roles: AppRole[]) {
 
 function formatRoleLabel(role: string) {
   return roleLabels[role as AppRole] ?? role;
+}
+
+function formatProviderLabel(provider: string) {
+  switch (provider) {
+    case 'google':
+      return 'Google';
+    case 'vk':
+      return 'VK';
+    case 'yandex':
+      return 'Yandex';
+    case 'telegram':
+      return 'Telegram';
+    default:
+      return provider;
+  }
 }
 
 function formatRoleList(roles: string[] | undefined) {
@@ -85,6 +121,22 @@ function formatDateTime(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function findIdentity(identities: ExternalIdentity[] | undefined, provider: string) {
+  return identities?.find((identity) => identity.provider === provider) ?? null;
+}
+
+function createExternalAuthProviderDraft(provider: AdminExternalAuthProvider): UpdateExternalAuthProviderRequest {
+  return {
+    enabled: provider.enabled,
+    widgetEnabled: provider.mode === 'telegram' ? provider.widgetEnabled : undefined,
+    clientId: provider.clientId ?? '',
+    clientSecret: '',
+    botUsername: provider.botUsername ?? '',
+    botToken: '',
+    webhookSecret: '',
+  };
 }
 
 function rolesEqual(left: string[], right: string[]) {
@@ -167,10 +219,21 @@ function ProtectedLayout() {
 
 function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const auth = useAuth();
+  const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [providers, setProviders] = useState<PublicExternalAuthProvider[]>([]);
+  const [isLoadingProviders, setIsLoadingProviders] = useState(true);
+  const [pendingExternalAuth, setPendingExternalAuth] = useState<{
+    provider: string;
+    state: string;
+    mode: 'oauth' | 'telegram';
+  } | null>(null);
+  const [isExternalBusy, setIsExternalBusy] = useState(false);
+  const [widgetError, setWidgetError] = useState<string | null>(null);
+  const telegramWidgetRef = useRef<HTMLDivElement | null>(null);
   const [form, setForm] = useState({
     email: '',
     password: '',
@@ -179,11 +242,158 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     displayName: '',
   });
 
+  const telegramProvider = providers.find((provider) => provider.provider === 'telegram');
+  const oauthProviders = providers.filter((provider) => provider.mode === 'oauth' && provider.enabled);
+
   useEffect(() => {
     if (auth.isAuthenticated) {
       navigate('/dashboard', { replace: true });
     }
   }, [auth.isAuthenticated, navigate]);
+
+  useEffect(() => {
+    let active = true;
+
+    void (async () => {
+      try {
+        const response = await getPublicExternalAuthProviders();
+        if (active) {
+          setProviders(Array.isArray(response.providers) ? response.providers : []);
+        }
+      } catch {
+        if (active) {
+          setProviders([]);
+        }
+      } finally {
+        if (active) {
+          setIsLoadingProviders(false);
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'login' || !telegramWidgetRef.current || !telegramProvider?.widgetEnabled || !telegramProvider.botUsername) {
+      return;
+    }
+
+    const hostWindow = window as Window & {
+      __blagodatyTelegramWidgetAuth?: (user: {
+        id: string;
+        first_name?: string;
+        last_name?: string;
+        username?: string;
+        photo_url?: string;
+        auth_date: string;
+        hash: string;
+      }) => void;
+    };
+
+    const container = telegramWidgetRef.current;
+    container.innerHTML = '';
+    setWidgetError(null);
+
+    hostWindow.__blagodatyTelegramWidgetAuth = async (user) => {
+      setError(null);
+      setWidgetError(null);
+      setIsExternalBusy(true);
+
+      try {
+        const response = await loginWithTelegramWidget(user);
+        await auth.acceptAuthResponse(response);
+        toast.success('Вход через Telegram выполнен', 'Профиль подтвержден и готов к работе.');
+        navigate('/dashboard', { replace: true, state: { from: location.pathname } });
+      } catch (submitError) {
+        const nextError = submitError instanceof Error ? submitError.message : 'Не удалось выполнить вход через Telegram Widget.';
+        setError(nextError);
+        toast.error('Не удалось войти через Telegram Widget', nextError);
+      } finally {
+        setIsExternalBusy(false);
+      }
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.async = true;
+    script.setAttribute('data-telegram-login', (telegramProvider.botUsername ?? '').replace(/^@/, ''));
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-userpic', 'false');
+    script.setAttribute('data-radius', '14');
+    script.setAttribute('data-request-access', 'write');
+    script.setAttribute('data-onauth', '__blagodatyTelegramWidgetAuth(user)');
+    script.onerror = () => {
+      const nextError = 'Не удалось загрузить Telegram Widget. Попробуйте вход через Telegram-бота.';
+      setWidgetError(nextError);
+      toast.error('Telegram Widget недоступен', nextError);
+    };
+
+    container.appendChild(script);
+
+    return () => {
+      container.innerHTML = '';
+      delete hostWindow.__blagodatyTelegramWidgetAuth;
+    };
+  }, [auth, location.pathname, mode, navigate, telegramProvider?.botUsername, telegramProvider?.widgetEnabled]);
+
+  useEffect(() => {
+    if (!pendingExternalAuth) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const response = pendingExternalAuth.mode === 'telegram'
+          ? await getTelegramAuthStatus(pendingExternalAuth.state)
+          : await getExternalAuthStatus(pendingExternalAuth.state);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.completed) {
+          if (response.status === 'failed' || response.status === 'expired') {
+            const nextError = response.message ?? 'Не удалось завершить внешнюю авторизацию.';
+            setError(nextError);
+            toast.error(`Не удалось войти через ${formatProviderLabel(response.provider || pendingExternalAuth.provider)}`, nextError);
+            setPendingExternalAuth(null);
+            setIsExternalBusy(false);
+          }
+
+          return;
+        }
+
+        if (response.auth) {
+          await auth.acceptAuthResponse(response.auth);
+          setPendingExternalAuth(null);
+          setIsExternalBusy(false);
+          toast.success(`Вход через ${formatProviderLabel(response.provider || pendingExternalAuth.provider)} выполнен`, 'Рады видеть вас в личном кабинете.');
+          navigate(response.returnUrl || '/dashboard', { replace: true, state: { from: location.pathname } });
+        }
+      } catch (pollError) {
+        if (!cancelled) {
+          const nextError = pollError instanceof Error ? pollError.message : 'Не удалось завершить внешнюю авторизацию.';
+          setError(nextError);
+          toast.error('Внешняя авторизация не завершена', nextError);
+          setPendingExternalAuth(null);
+          setIsExternalBusy(false);
+        }
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [auth, location.pathname, navigate, pendingExternalAuth]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -196,6 +406,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           email: form.email,
           password: form.password,
         });
+        toast.success('Вход выполнен', 'Сессия активна, можно продолжать работу.');
       } else {
         await auth.register({
           email: form.email,
@@ -204,13 +415,65 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           lastName: form.lastName,
           displayName: form.displayName || undefined,
         });
+        toast.success('Регистрация завершена', 'Аккаунт создан и личный кабинет готов.');
       }
 
       navigate('/dashboard', { replace: true, state: { from: location.pathname } });
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Не удалось выполнить действие.');
+      const nextError = submitError instanceof Error ? submitError.message : 'Не удалось выполнить действие.';
+      setError(nextError);
+      toast.error(mode === 'login' ? 'Не удалось войти' : 'Не удалось зарегистрироваться', nextError);
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleOAuthSignIn(provider: PublicExternalAuthProvider) {
+    setError(null);
+    setIsExternalBusy(true);
+
+    try {
+      const started = await startExternalAuth({
+        provider: provider.provider,
+        intent: 'signin',
+        returnUrl: '/dashboard',
+      });
+
+      window.open(started.authUrl, `${provider.provider}-auth`, 'width=560,height=720');
+      setPendingExternalAuth({
+        provider: provider.provider,
+        state: started.state,
+        mode: 'oauth',
+      });
+    } catch (submitError) {
+      const nextError = submitError instanceof Error ? submitError.message : `Не удалось начать вход через ${provider.displayName}.`;
+      setError(nextError);
+      toast.error(`Не удалось открыть ${provider.displayName}`, nextError);
+      setIsExternalBusy(false);
+    }
+  }
+
+  async function handleTelegramBotSignIn() {
+    setError(null);
+    setIsExternalBusy(true);
+
+    try {
+      const started: ExternalAuthStartResponse = await startTelegramAuth({
+        intent: 'signin',
+        returnUrl: '/dashboard',
+      });
+
+      window.open(started.authUrl, 'telegram-auth', 'width=520,height=720');
+      setPendingExternalAuth({
+        provider: 'telegram',
+        state: started.state,
+        mode: 'telegram',
+      });
+    } catch (submitError) {
+      const nextError = submitError instanceof Error ? submitError.message : 'Не удалось начать вход через Telegram.';
+      setError(nextError);
+      toast.error('Не удалось открыть Telegram', nextError);
+      setIsExternalBusy(false);
     }
   }
 
@@ -323,6 +586,52 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
               {isSubmitting ? 'Подождите...' : mode === 'login' ? 'Войти' : 'Создать кабинет'}
             </button>
           </form>
+
+          <div className="auth-divider">
+            <span>или продолжить через</span>
+          </div>
+
+          <div className="feature-list auth-provider-list">
+            {oauthProviders.map((provider) => (
+              <button
+                key={provider.provider}
+                className="secondary-button"
+                type="button"
+                disabled={isExternalBusy}
+                onClick={async () => handleOAuthSignIn(provider)}
+              >
+                {isExternalBusy && pendingExternalAuth?.provider === provider.provider
+                  ? 'Открываем окно...'
+                  : `Войти через ${provider.displayName}`}
+              </button>
+            ))}
+
+            {telegramProvider?.enabled ? (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={isExternalBusy}
+                onClick={handleTelegramBotSignIn}
+              >
+                {isExternalBusy && pendingExternalAuth?.provider === 'telegram'
+                  ? 'Открываем Telegram...'
+                  : 'Войти через Telegram-бота'}
+              </button>
+            ) : null}
+          </div>
+
+          {mode === 'login' && telegramProvider?.widgetEnabled ? (
+            <div className="stack-form" style={{ marginTop: 18 }}>
+              <div>
+                <span className="mini-eyebrow">Telegram Widget</span>
+                <p className="form-muted">Мгновенный вход, если домен привязан у BotFather.</p>
+              </div>
+              <div ref={telegramWidgetRef} />
+              {widgetError ? <p className="form-error">{widgetError}</p> : null}
+            </div>
+          ) : null}
+
+          {isLoadingProviders ? <p className="form-muted">Проверяем доступные способы входа...</p> : null}
         </section>
       </div>
     </div>
@@ -389,10 +698,19 @@ function DashboardPage() {
 }
 
 function ProfilePage() {
-  const { account, updateProfile } = useAuth();
+  const auth = useAuth();
+  const toast = useToast();
+  const { account, updateProfile } = auth;
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [linkingProvider, setLinkingProvider] = useState<string | null>(null);
+  const [unlinkingProvider, setUnlinkingProvider] = useState<string | null>(null);
+  const [pendingLink, setPendingLink] = useState<{
+    provider: string;
+    state: string;
+    mode: 'oauth' | 'telegram';
+  } | null>(null);
   const [form, setForm] = useState<UpdateProfileRequest>({
     firstName: '',
     lastName: '',
@@ -417,6 +735,61 @@ function ProfilePage() {
     });
   }, [account]);
 
+  useEffect(() => {
+    if (!pendingLink) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const response = pendingLink.mode === 'telegram'
+          ? await getTelegramAuthStatus(pendingLink.state)
+          : await getExternalAuthStatus(pendingLink.state);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.completed) {
+          if (response.status === 'failed' || response.status === 'expired') {
+            const nextError = response.message ?? 'Не удалось завершить привязку.';
+            setError(nextError);
+            toast.error(`Не удалось подключить ${formatProviderLabel(response.provider || pendingLink.provider)}`, nextError);
+            setPendingLink(null);
+            setLinkingProvider(null);
+          }
+
+          return;
+        }
+
+        setPendingLink(null);
+        setLinkingProvider(null);
+        await auth.reloadAccount();
+        const successMessage = `${formatProviderLabel(response.provider || pendingLink.provider)} подключен к профилю.`;
+        setMessage(successMessage);
+        toast.success('Способ входа подключен', successMessage);
+      } catch (linkError) {
+        if (!cancelled) {
+          const nextError = linkError instanceof Error ? linkError.message : 'Не удалось завершить привязку.';
+          setError(nextError);
+          toast.error('Привязка не завершена', nextError);
+          setPendingLink(null);
+          setLinkingProvider(null);
+        }
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [auth, pendingLink]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
@@ -426,10 +799,77 @@ function ProfilePage() {
     try {
       await updateProfile(form);
       setMessage('Профиль сохранен.');
+      toast.success('Профиль сохранен', 'Изменения уже доступны в личном кабинете.');
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Не удалось сохранить профиль.');
+      const nextError = submitError instanceof Error ? submitError.message : 'Не удалось сохранить профиль.';
+      setError(nextError);
+      toast.error('Не удалось сохранить профиль', nextError);
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleLink(provider: PublicExternalAuthProvider) {
+    if (!auth.session) {
+      return;
+    }
+
+    setMessage(null);
+    setError(null);
+    setLinkingProvider(provider.provider);
+
+    try {
+      const started = provider.provider === 'telegram'
+        ? await startTelegramAuth({ intent: 'link', returnUrl: '/profile' }, auth.session.accessToken)
+        : await startExternalAuth(
+            {
+              provider: provider.provider,
+              intent: 'link',
+              returnUrl: '/profile',
+            },
+            auth.session.accessToken,
+          );
+
+      window.open(
+        started.authUrl,
+        provider.provider === 'telegram' ? 'telegram-link' : `${provider.provider}-link`,
+        'width=560,height=720',
+      );
+
+      setPendingLink({
+        provider: provider.provider,
+        state: started.state,
+        mode: provider.provider === 'telegram' ? 'telegram' : 'oauth',
+      });
+    } catch (linkError) {
+      const nextError = linkError instanceof Error ? linkError.message : `Не удалось начать привязку ${provider.displayName}.`;
+      setError(nextError);
+      toast.error(`Не удалось открыть ${provider.displayName}`, nextError);
+      setLinkingProvider(null);
+    }
+  }
+
+  async function handleUnlink(provider: string) {
+    if (!auth.session) {
+      return;
+    }
+
+    setMessage(null);
+    setError(null);
+    setUnlinkingProvider(provider);
+
+    try {
+      await unlinkExternalIdentity(auth.session.accessToken, provider);
+      await auth.reloadAccount();
+      const successMessage = `${formatProviderLabel(provider)} отвязан от профиля.`;
+      setMessage(successMessage);
+      toast.success('Способ входа отвязан', successMessage);
+    } catch (unlinkError) {
+      const nextError = unlinkError instanceof Error ? unlinkError.message : 'Не удалось отвязать внешний аккаунт.';
+      setError(nextError);
+      toast.error('Не удалось отвязать способ входа', nextError);
+    } finally {
+      setUnlinkingProvider(null);
     }
   }
 
@@ -504,12 +944,105 @@ function ProfilePage() {
           {isSaving ? 'Сохраняем...' : 'Сохранить профиль'}
         </button>
       </form>
+
+      <section className="glass-card stack-form">
+        <div className="section-inline">
+          <div>
+            <p className="mini-eyebrow">Способы входа</p>
+            <h3>Привязанные аккаунты</h3>
+          </div>
+          <p className="form-muted">
+            {account?.hasPassword
+              ? 'Email и пароль активны. Можно безопасно подключать и отвязывать соцсети.'
+              : 'У вас внешний вход без пароля. Не отвязывайте последний способ входа.'}
+          </p>
+        </div>
+
+        <div className="user-list">
+          {(account?.availableExternalAuthProviders ?? [])
+            .filter((provider) => provider.enabled)
+            .map((provider) => {
+              const identity = findIdentity(account?.externalIdentities, provider.provider);
+              const isLinking = linkingProvider === provider.provider;
+              const isUnlinking = unlinkingProvider === provider.provider;
+
+              return (
+                <article className="user-card" key={provider.provider}>
+                  <div className="user-card-head">
+                    <div>
+                      <strong className="user-name">{provider.displayName}</strong>
+                      <p className="user-meta">
+                        {identity
+                          ? identity.providerEmail || identity.providerUsername || identity.displayName
+                          : provider.provider === 'telegram'
+                            ? 'Бот и widget для быстрого входа'
+                            : 'Вход и регистрация через OAuth'}
+                      </p>
+                    </div>
+
+                    <div className="role-pills">
+                      <span className={`role-pill ${identity ? '' : 'muted-pill'}`}>
+                        {identity ? 'Подключен' : 'Не подключен'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="user-info-grid">
+                    <div>
+                      <span>Провайдер</span>
+                      <strong>{formatProviderLabel(provider.provider)}</strong>
+                    </div>
+                    <div>
+                      <span>Последнее использование</span>
+                      <strong>{identity?.lastUsedAtUtc ? formatDateTime(identity.lastUsedAtUtc) : 'Пока нет'}</strong>
+                    </div>
+                    <div>
+                      <span>Имя в системе</span>
+                      <strong>{identity?.displayName || 'Еще не подключено'}</strong>
+                    </div>
+                    <div>
+                      <span>Username</span>
+                      <strong>{identity?.providerUsername || '—'}</strong>
+                    </div>
+                  </div>
+
+                  <div className="action-row">
+                    {identity ? (
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={isUnlinking || !!linkingProvider}
+                        onClick={async () => handleUnlink(provider.provider)}
+                      >
+                        {isUnlinking ? 'Отвязываем...' : 'Отвязать'}
+                      </button>
+                    ) : (
+                      <button
+                        className="primary-button"
+                        type="button"
+                        disabled={isLinking || !!unlinkingProvider}
+                        onClick={async () => handleLink(provider)}
+                      >
+                        {isLinking
+                          ? provider.provider === 'telegram'
+                            ? 'Открываем Telegram...'
+                            : 'Открываем окно...'
+                          : `Подключить ${provider.displayName}`}
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+        </div>
+      </section>
     </div>
   );
 }
 
 function CampRegistrationPage() {
   const auth = useAuth();
+  const toast = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -573,7 +1106,9 @@ function CampRegistrationPage() {
         }));
       }
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить анкету.');
+      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить анкету.';
+      setError(nextError);
+      toast.error('Не удалось загрузить анкету', nextError);
     } finally {
       setIsLoading(false);
     }
@@ -590,7 +1125,9 @@ function CampRegistrationPage() {
         submit: submitMode,
       });
       setRegistration(saved);
-      setMessage(submitMode ? 'Анкета отправлена команде.' : 'Черновик сохранен.');
+      const successMessage = submitMode ? 'Анкета отправлена команде.' : 'Черновик сохранен.';
+      setMessage(successMessage);
+      toast.success(submitMode ? 'Анкета отправлена' : 'Черновик сохранен', successMessage);
     } catch (submitError) {
       const nextError =
         submitError instanceof ApiError
@@ -599,6 +1136,7 @@ function CampRegistrationPage() {
             ? submitError.message
             : 'Не удалось сохранить анкету.';
       setError(nextError);
+      toast.error('Не удалось сохранить анкету', nextError);
     } finally {
       setIsSaving(false);
     }
@@ -793,11 +1331,21 @@ function CampRegistrationPage() {
 
 function AdminPage() {
   const auth = useAuth();
+  const toast = useToast();
   const canOpenAdmin = isAdmin(auth.account?.user.roles);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [authSettings, setAuthSettings] = useState<AdminExternalAuthSettings | null>(null);
+  const [providerDrafts, setProviderDrafts] = useState<Record<string, UpdateExternalAuthProviderRequest>>({});
   const [roleDrafts, setRoleDrafts] = useState<Record<string, AppRole[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [savingProvider, setSavingProvider] = useState<string | null>(null);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [pendingProviderTest, setPendingProviderTest] = useState<{
+    provider: string;
+    state: string;
+    mode: 'oauth' | 'telegram';
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -819,20 +1367,91 @@ function AdminPage() {
     setError(null);
 
     try {
-      const loaded = await getAdminOverview(auth.session.accessToken);
+      const [loaded, loadedAuthSettings] = await Promise.all([
+        getAdminOverview(auth.session.accessToken),
+        getAdminExternalAuthSettings(auth.session.accessToken),
+      ]);
       setOverview(loaded);
+      setAuthSettings(loadedAuthSettings);
       setRoleDrafts(
         Object.fromEntries(loaded.users.map((user) => [user.id, orderRoles([...user.roles])])) as Record<
           string,
           AppRole[]
         >,
       );
+      setProviderDrafts(
+        Object.fromEntries(
+          loadedAuthSettings.providers.map((provider) => [provider.provider, createExternalAuthProviderDraft(provider)]),
+        ) as Record<string, UpdateExternalAuthProviderRequest>,
+      );
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Не удалось загрузить админский раздел.');
+      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить админский раздел.';
+      setError(nextError);
+      toast.error('Не удалось открыть админку', nextError);
     } finally {
       setIsLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (!pendingProviderTest || !auth.session) {
+      return;
+    }
+
+    const accessToken = auth.session.accessToken;
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const response = pendingProviderTest.mode === 'telegram'
+          ? await getTelegramAuthStatus(pendingProviderTest.state)
+          : await getExternalAuthStatus(pendingProviderTest.state);
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.completed) {
+          if (response.status === 'failed' || response.status === 'expired') {
+            const nextError = response.message ?? 'Проверка провайдера не завершилась успешно.';
+            setError(nextError);
+            toast.error(`Проверка ${formatProviderLabel(response.provider || pendingProviderTest.provider)} не прошла`, nextError);
+            setPendingProviderTest(null);
+            setTestingProvider(null);
+          }
+
+          return;
+        }
+
+        const successMessage = response.message ?? `Проверка ${formatProviderLabel(response.provider || pendingProviderTest.provider)} завершена успешно.`;
+        setMessage(successMessage);
+        toast.success(`${formatProviderLabel(response.provider || pendingProviderTest.provider)} настроен`, successMessage);
+        setPendingProviderTest(null);
+        setTestingProvider(null);
+
+        const refreshedAuthSettings = await getAdminExternalAuthSettings(accessToken);
+        if (!cancelled) {
+          setAuthSettings(refreshedAuthSettings);
+        }
+      } catch (testError) {
+        if (!cancelled) {
+          const nextError = testError instanceof Error ? testError.message : 'Не удалось завершить проверку провайдера.';
+          setError(nextError);
+          toast.error('Проверка провайдера не завершена', nextError);
+          setPendingProviderTest(null);
+          setTestingProvider(null);
+        }
+      }
+    };
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [auth.session, pendingProviderTest]);
 
   function getDraftRoles(user: AdminUser) {
     return roleDrafts[user.id] ?? orderRoles([...user.roles]);
@@ -861,6 +1480,20 @@ function AdminPage() {
     }));
   }
 
+  function getProviderDraft(provider: AdminExternalAuthProvider) {
+    return providerDrafts[provider.provider] ?? createExternalAuthProviderDraft(provider);
+  }
+
+  function updateProviderDraft(provider: string, patch: Partial<UpdateExternalAuthProviderRequest>) {
+    setProviderDrafts((current) => ({
+      ...current,
+      [provider]: {
+        ...current[provider],
+        ...patch,
+      },
+    }));
+  }
+
   async function saveRoles(user: AdminUser) {
     if (!auth.session) {
       return;
@@ -884,15 +1517,94 @@ function AdminPage() {
         ...current,
         [updatedUser.id]: orderRoles([...updatedUser.roles]),
       }));
-      setMessage(`Права пользователя ${updatedUser.displayName} обновлены.`);
+      const successMessage = `Права пользователя ${updatedUser.displayName} обновлены.`;
+      setMessage(successMessage);
+      toast.success('Роли обновлены', successMessage);
 
       if (auth.account?.user.id === updatedUser.id) {
         await auth.reloadAccount();
       }
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Не удалось обновить роли пользователя.');
+      const nextError = saveError instanceof Error ? saveError.message : 'Не удалось обновить роли пользователя.';
+      setError(nextError);
+      toast.error('Не удалось сохранить роли', nextError);
     } finally {
       setSavingUserId(null);
+    }
+  }
+
+  async function saveProvider(provider: AdminExternalAuthProvider) {
+    if (!auth.session) {
+      return;
+    }
+
+    setMessage(null);
+    setError(null);
+    setSavingProvider(provider.provider);
+
+    try {
+      const updated = await updateAdminExternalAuthProvider(
+        auth.session.accessToken,
+        provider.provider,
+        getProviderDraft(provider),
+      );
+
+      setAuthSettings((current) =>
+        current
+          ? {
+              ...current,
+              providers: current.providers.map((item) => (item.provider === updated.provider ? updated : item)),
+            }
+          : current,
+      );
+      setProviderDrafts((current) => ({
+        ...current,
+        [updated.provider]: createExternalAuthProviderDraft(updated),
+      }));
+      const successMessage = `Настройки ${updated.displayName} сохранены.`;
+      setMessage(successMessage);
+      toast.success('Настройки провайдера сохранены', successMessage);
+    } catch (saveError) {
+      const nextError = saveError instanceof Error ? saveError.message : 'Не удалось сохранить настройки провайдера.';
+      setError(nextError);
+      toast.error('Не удалось сохранить настройки провайдера', nextError);
+    } finally {
+      setSavingProvider(null);
+    }
+  }
+
+  async function startProviderTest(provider: AdminExternalAuthProvider) {
+    if (!auth.session) {
+      return;
+    }
+
+    setMessage(null);
+    setError(null);
+    setTestingProvider(provider.provider);
+
+    try {
+      const started = await startAdminExternalAuthProviderTest(auth.session.accessToken, provider.provider);
+      window.open(
+        started.authUrl,
+        provider.provider === 'telegram' ? 'telegram-auth-test' : `${provider.provider}-auth-test`,
+        'width=560,height=720',
+      );
+      setPendingProviderTest({
+        provider: provider.provider,
+        state: started.state,
+        mode: provider.provider === 'telegram' ? 'telegram' : 'oauth',
+      });
+      toast.info(
+        `Проверяем ${provider.displayName}`,
+        provider.provider === 'telegram'
+          ? 'Подтвердите вход в Telegram-боте, затем мы покажем результат.'
+          : 'Завершите вход у провайдера во всплывающем окне.',
+      );
+    } catch (testError) {
+      const nextError = testError instanceof Error ? testError.message : 'Не удалось запустить проверку провайдера.';
+      setError(nextError);
+      toast.error(`Не удалось проверить ${provider.displayName}`, nextError);
+      setTestingProvider(null);
     }
   }
 
@@ -962,6 +1674,195 @@ function AdminPage() {
               </article>
             ))}
           </section>
+
+          {authSettings ? (
+            <section className="glass-card stack-form">
+              <div className="section-inline">
+                <div>
+                  <p className="mini-eyebrow">Auth providers</p>
+                  <h3>Внешняя авторизация</h3>
+                </div>
+                <p className="form-muted">
+                  Здесь включаются Google, VK, Yandex и Telegram, а также задаются callback и webhook параметры.
+                </p>
+              </div>
+
+              <div className="user-list">
+                {authSettings.providers.map((provider) => {
+                  const draft = getProviderDraft(provider);
+                  const isSavingThisProvider = savingProvider === provider.provider;
+                  const isTestingThisProvider = testingProvider === provider.provider;
+
+                  return (
+                    <article className="user-card" key={provider.provider}>
+                      <div className="user-card-head">
+                        <div>
+                          <strong className="user-name">{provider.displayName}</strong>
+                          <p className="user-meta">
+                            {provider.mode === 'telegram' ? 'Telegram bot, widget и webhook' : 'OAuth 2.0'}
+                          </p>
+                        </div>
+
+                        <div className="role-pills">
+                          <span className={`role-pill ${provider.ready ? '' : 'muted-pill'}`}>
+                            {provider.ready ? 'Готов' : 'Не готов'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="form-grid">
+                        <label className="checkbox-row">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(draft.enabled)}
+                            onChange={(event) => updateProviderDraft(provider.provider, { enabled: event.target.checked })}
+                          />
+                          <span>Включить {provider.displayName}</span>
+                        </label>
+
+                        {provider.mode === 'oauth' ? (
+                          <>
+                            <label>
+                              <span>Client ID</span>
+                              <input
+                                value={draft.clientId ?? ''}
+                                onChange={(event) => updateProviderDraft(provider.provider, { clientId: event.target.value })}
+                                placeholder="client id"
+                              />
+                            </label>
+
+                            <label>
+                              <span>Client Secret</span>
+                              <input
+                                value={draft.clientSecret ?? ''}
+                                onChange={(event) => updateProviderDraft(provider.provider, { clientSecret: event.target.value })}
+                                placeholder={provider.clientSecretMasked || 'Оставьте пустым, чтобы не менять'}
+                              />
+                            </label>
+                          </>
+                        ) : (
+                          <>
+                            <label className="checkbox-row">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(draft.widgetEnabled)}
+                                onChange={(event) => updateProviderDraft(provider.provider, { widgetEnabled: event.target.checked })}
+                              />
+                              <span>Разрешить Telegram Widget</span>
+                            </label>
+
+                            <label>
+                              <span>Bot username</span>
+                              <input
+                                value={draft.botUsername ?? ''}
+                                onChange={(event) => updateProviderDraft(provider.provider, { botUsername: event.target.value })}
+                                placeholder="@blagodaty_login_bot"
+                              />
+                            </label>
+
+                            <label>
+                              <span>Bot token</span>
+                              <input
+                                value={draft.botToken ?? ''}
+                                onChange={(event) => updateProviderDraft(provider.provider, { botToken: event.target.value })}
+                                placeholder={provider.botTokenMasked || 'Оставьте пустым, чтобы не менять'}
+                              />
+                            </label>
+
+                            <label>
+                              <span>Webhook secret</span>
+                              <input
+                                value={draft.webhookSecret ?? ''}
+                                onChange={(event) => updateProviderDraft(provider.provider, { webhookSecret: event.target.value })}
+                                placeholder={provider.webhookSecretMasked || 'Секрет для X-Telegram-Bot-Api-Secret-Token'}
+                              />
+                            </label>
+                          </>
+                        )}
+                      </div>
+
+                      <div className="user-info-grid">
+                        {provider.callbackUrl ? (
+                          <div>
+                            <span>Callback URL</span>
+                            <strong>{provider.callbackUrl}</strong>
+                          </div>
+                        ) : null}
+                        {provider.webhookUrl ? (
+                          <div>
+                            <span>Webhook URL</span>
+                            <strong>{provider.webhookUrl}</strong>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {provider.hints.length ? (
+                        <div className="provider-help-block">
+                          <span className="provider-help-title">Что заполнить</span>
+                          <ul className="provider-hint-list">
+                            {provider.hints.map((hint) => (
+                              <li key={hint}>{hint}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+
+                      {provider.diagnostics.length ? (
+                        <div className="provider-diagnostics-grid">
+                          {provider.diagnostics.map((diagnostic) => (
+                            <article
+                              className={`diagnostic-card ${diagnostic.ok ? 'diagnostic-ok' : 'diagnostic-warn'}`}
+                              key={`${provider.provider}-${diagnostic.key}`}
+                            >
+                              <strong>{diagnostic.title}</strong>
+                              <p>{diagnostic.message || (diagnostic.ok ? 'Проверка пройдена.' : 'Требуется настройка.')}</p>
+                            </article>
+                          ))}
+                        </div>
+                      ) : null}
+
+                      <div className="action-row">
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={isSavingThisProvider || isTestingThisProvider || !provider.ready}
+                          onClick={async () => startProviderTest(provider)}
+                        >
+                          {isTestingThisProvider ? 'Проверяем...' : 'Проверить'}
+                        </button>
+
+                        <button
+                          className="primary-button"
+                          type="button"
+                          disabled={isSavingThisProvider || isTestingThisProvider}
+                          onClick={async () => saveProvider(provider)}
+                        >
+                          {isSavingThisProvider ? 'Сохраняем...' : 'Сохранить настройки'}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              <div className="user-list">
+                {authSettings.recentEvents.map((event) => (
+                  <article className="user-card" key={event.id}>
+                    <div className="user-card-head">
+                      <div>
+                        <strong className="user-name">{formatProviderLabel(event.provider)}</strong>
+                        <p className="user-meta">{event.eventType}</p>
+                      </div>
+                      <div className="role-pills">
+                        <span className="role-pill">{formatDateTime(event.createdAtUtc)}</span>
+                      </div>
+                    </div>
+                    <p className="form-muted">{event.detail || 'Служебное событие внешней авторизации'}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           <section className="glass-card stack-form">
             <div className="section-inline">
