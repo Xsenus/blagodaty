@@ -50,7 +50,34 @@ export type AccommodationPreference = 'Tent' | 'Cabin' | 'Either';
 
 export type CampRegistrationSnapshot = {
   id: string;
+  eventEditionId?: string | null;
+  eventSlug?: string | null;
   status: RegistrationStatus;
+  updatedAtUtc: string;
+  submittedAtUtc?: string | null;
+};
+
+export type AccountRegistrationSummary = {
+  id: string;
+  eventEditionId?: string | null;
+  eventSlug?: string | null;
+  eventTitle?: string | null;
+  eventSeasonLabel?: string | null;
+  eventSeriesTitle?: string | null;
+  eventLocation?: string | null;
+  eventStartsAtUtc?: string | null;
+  eventEndsAtUtc?: string | null;
+  registrationOpensAtUtc?: string | null;
+  registrationClosesAtUtc?: string | null;
+  isRegistrationOpen: boolean;
+  isRegistrationClosingSoon: boolean;
+  remainingCapacity?: number | null;
+  selectedPriceOptionId?: string | null;
+  selectedPriceOptionTitle?: string | null;
+  selectedPriceOptionAmount?: number | null;
+  selectedPriceOptionCurrency?: string | null;
+  status: RegistrationStatus;
+  createdAtUtc: string;
   updatedAtUtc: string;
   submittedAtUtc?: string | null;
 };
@@ -58,6 +85,7 @@ export type CampRegistrationSnapshot = {
 export type CurrentAccount = {
   user: UserSummary;
   registration?: CampRegistrationSnapshot | null;
+  registrations: AccountRegistrationSummary[];
   externalIdentities: ExternalIdentity[];
   availableExternalAuthProviders: PublicExternalAuthProvider[];
   hasPassword: boolean;
@@ -101,6 +129,16 @@ export type SessionState = {
 
 export type CampRegistration = {
   id: string;
+  eventEditionId?: string | null;
+  eventSlug?: string | null;
+  eventTitle?: string | null;
+  eventSeasonLabel?: string | null;
+  eventSeriesTitle?: string | null;
+  eventLocation?: string | null;
+  selectedPriceOptionId?: string | null;
+  selectedPriceOptionTitle?: string | null;
+  selectedPriceOptionAmount?: number | null;
+  selectedPriceOptionCurrency?: string | null;
   status: RegistrationStatus;
   fullName: string;
   birthDate: string;
@@ -121,6 +159,7 @@ export type CampRegistration = {
 };
 
 export type SaveRegistrationRequest = {
+  selectedPriceOptionId?: string | null;
   fullName: string;
   birthDate: string;
   city: string;
@@ -173,6 +212,9 @@ export type AdminUser = {
   roles: AppRole[];
   createdAtUtc: string;
   lastLoginAtUtc?: string | null;
+  registrationEventEditionId?: string | null;
+  registrationEventSlug?: string | null;
+  registrationEventTitle?: string | null;
   registrationStatus?: RegistrationStatus | null;
   registrationUpdatedAtUtc?: string | null;
   externalIdentities: ExternalIdentity[];
@@ -262,6 +304,87 @@ export type AdminEventSummary = {
 
 export type AdminEventsResponse = {
   events: AdminEventSummary[];
+};
+
+export type PublicEventPriceOption = {
+  id: string;
+  code: string;
+  title: string;
+  description?: string | null;
+  amount: number;
+  currency: string;
+  salesStartsAtUtc?: string | null;
+  salesEndsAtUtc?: string | null;
+  capacity?: number | null;
+  isDefault: boolean;
+  isActive: boolean;
+};
+
+export type PublicEventScheduleItem = {
+  id: string;
+  title: string;
+  kind: EventScheduleItemKind;
+  startsAtUtc: string;
+  endsAtUtc?: string | null;
+  location?: string | null;
+  notes?: string | null;
+};
+
+export type PublicEventContentBlock = {
+  id: string;
+  blockType: EventContentBlockType;
+  title?: string | null;
+  body: string;
+};
+
+export type PublicEventSummary = {
+  id: string;
+  seriesSlug: string;
+  seriesTitle: string;
+  kind: EventKind;
+  slug: string;
+  title: string;
+  seasonLabel?: string | null;
+  shortDescription: string;
+  location?: string | null;
+  startsAtUtc: string;
+  endsAtUtc: string;
+  registrationOpensAtUtc?: string | null;
+  registrationClosesAtUtc?: string | null;
+  isRegistrationOpen: boolean;
+  isRegistrationClosingSoon: boolean;
+  capacity?: number | null;
+  remainingCapacity?: number | null;
+  waitlistEnabled: boolean;
+  priceFromAmount?: number | null;
+  priceCurrency?: string | null;
+};
+
+export type PublicEventDetails = {
+  id: string;
+  seriesSlug: string;
+  seriesTitle: string;
+  kind: EventKind;
+  slug: string;
+  title: string;
+  seasonLabel?: string | null;
+  shortDescription: string;
+  fullDescription?: string | null;
+  location?: string | null;
+  timezone: string;
+  status: EventEditionStatus;
+  startsAtUtc: string;
+  endsAtUtc: string;
+  registrationOpensAtUtc?: string | null;
+  registrationClosesAtUtc?: string | null;
+  isRegistrationOpen: boolean;
+  isRegistrationClosingSoon: boolean;
+  capacity?: number | null;
+  remainingCapacity?: number | null;
+  waitlistEnabled: boolean;
+  priceOptions: PublicEventPriceOption[];
+  scheduleItems: PublicEventScheduleItem[];
+  contentBlocks: PublicEventContentBlock[];
 };
 
 export type AdminEventPriceOption = {

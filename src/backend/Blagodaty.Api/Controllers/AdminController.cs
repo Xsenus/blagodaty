@@ -149,17 +149,18 @@ public sealed class AdminController : ControllerBase
     [HttpGet("registrations")]
     public async Task<ActionResult<AdminPagedResponse<AdminUserDto>>> GetRegistrations([FromQuery] AdminRegistrationsQueryRequest request)
     {
-        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
-        if (activeCampEditionId is null)
-        {
-            return Ok(CreatePagedResponse(NormalizePage(request.Page), NormalizePageSize(request.PageSize), 0, Array.Empty<AdminUserDto>()));
-        }
-
         var page = NormalizePage(request.Page);
         var pageSize = NormalizePageSize(request.PageSize);
-        var registrations = ApplyRegistrationSearch(
-            _dbContext.CampRegistrations.AsNoTracking().Where(registration => registration.EventEditionId == activeCampEditionId),
-            request.Search);
+        var registrations = _dbContext.CampRegistrations
+            .AsNoTracking()
+            .Where(registration => registration.EventEditionId != null);
+
+        if (request.EventEditionId is not null)
+        {
+            registrations = registrations.Where(registration => registration.EventEditionId == request.EventEditionId);
+        }
+
+        registrations = ApplyRegistrationSearch(registrations, request.Search);
 
         if (request.Status is not null)
         {
@@ -176,6 +177,9 @@ public sealed class AdminController : ControllerBase
             .Select(registration => new RegistrationListItem
             {
                 UserId = registration.UserId,
+                EventEditionId = registration.EventEditionId,
+                EventSlug = registration.EventEdition!.Slug,
+                EventTitle = registration.EventEdition.Title,
                 Status = registration.Status,
                 UpdatedAtUtc = registration.UpdatedAtUtc
             })
@@ -374,6 +378,9 @@ public sealed class AdminController : ControllerBase
                     Roles = rolesByUserId.GetValueOrDefault(user.Id, Array.Empty<string>()),
                     CreatedAtUtc = user.CreatedAtUtc,
                     LastLoginAtUtc = user.LastLoginAtUtc,
+                    RegistrationEventEditionId = registration?.EventEditionId,
+                    RegistrationEventSlug = registration?.EventSlug,
+                    RegistrationEventTitle = registration?.EventTitle,
                     RegistrationStatus = registration?.Status,
                     RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc,
                     ExternalIdentities = externalIdentitiesByUserId.GetValueOrDefault(
@@ -417,6 +424,9 @@ public sealed class AdminController : ControllerBase
             .Select(registration => new RegistrationListItem
             {
                 UserId = registration.UserId,
+                EventEditionId = registration.EventEditionId,
+                EventSlug = registration.EventEdition!.Slug,
+                EventTitle = registration.EventEdition.Title,
                 Status = registration.Status,
                 UpdatedAtUtc = registration.UpdatedAtUtc
             })
@@ -489,6 +499,9 @@ public sealed class AdminController : ControllerBase
     private sealed class RegistrationListItem
     {
         public required Guid UserId { get; init; }
+        public Guid? EventEditionId { get; init; }
+        public string? EventSlug { get; init; }
+        public string? EventTitle { get; init; }
         public required RegistrationStatus Status { get; init; }
         public required DateTime UpdatedAtUtc { get; init; }
     }

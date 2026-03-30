@@ -39,6 +39,9 @@ public sealed class AdminUserDto
     public required IReadOnlyCollection<string> Roles { get; init; }
     public DateTime CreatedAtUtc { get; init; }
     public DateTime? LastLoginAtUtc { get; init; }
+    public Guid? RegistrationEventEditionId { get; init; }
+    public string? RegistrationEventSlug { get; init; }
+    public string? RegistrationEventTitle { get; init; }
     public RegistrationStatus? RegistrationStatus { get; init; }
     public DateTime? RegistrationUpdatedAtUtc { get; init; }
     public required IReadOnlyCollection<ExternalIdentityDto> ExternalIdentities { get; init; }

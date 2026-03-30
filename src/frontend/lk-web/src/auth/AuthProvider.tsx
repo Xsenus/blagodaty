@@ -7,12 +7,14 @@ import {
 } from 'react';
 import {
   ApiError,
+  getEventRegistration,
   getCurrentAccount,
   getRegistration,
   login as loginRequest,
   logout as logoutRequest,
   refreshSession as refreshSessionRequest,
   register as registerRequest,
+  saveEventRegistration,
   saveRegistration,
   updateProfile,
 } from '../lib/api';
@@ -42,8 +44,8 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   reloadAccount: () => Promise<void>;
   updateProfile: (payload: UpdateProfileRequest) => Promise<void>;
-  loadRegistration: () => Promise<CampRegistration | null>;
-  saveRegistration: (payload: SaveRegistrationRequest) => Promise<CampRegistration>;
+  loadRegistration: (eventSlug?: string | null) => Promise<CampRegistration | null>;
+  saveRegistration: (payload: SaveRegistrationRequest, eventSlug?: string | null) => Promise<CampRegistration>;
 };
 
 const STORAGE_KEY = 'blagodaty.lk.session';
@@ -161,6 +163,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setAccount({
       user: payload.user,
       registration: null,
+      registrations: [],
       externalIdentities: [],
       availableExternalAuthProviders: [],
       hasPassword: true,
@@ -207,6 +210,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         : {
             user: updatedUser,
             registration: null,
+            registrations: [],
             externalIdentities: [],
             availableExternalAuthProviders: [],
             hasPassword: true,
@@ -214,13 +218,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     );
   }
 
-  async function loadCurrentRegistration() {
+  async function loadCurrentRegistration(eventSlug?: string | null) {
     if (!session) {
       throw new Error('Not authenticated');
     }
 
     try {
-      return await getRegistration(session.accessToken);
+      return eventSlug
+        ? await getEventRegistration(session.accessToken, eventSlug)
+        : await getRegistration(session.accessToken);
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         return null;
@@ -230,12 +236,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
     }
   }
 
-  async function handleSaveRegistration(payload: SaveRegistrationRequest) {
+  async function handleSaveRegistration(payload: SaveRegistrationRequest, eventSlug?: string | null) {
     if (!session) {
       throw new Error('Not authenticated');
     }
 
-    const saved = await saveRegistration(session.accessToken, payload);
+    const saved = eventSlug
+      ? await saveEventRegistration(session.accessToken, eventSlug, payload)
+      : await saveRegistration(session.accessToken, payload);
     await reloadAccount();
     return saved;
   }

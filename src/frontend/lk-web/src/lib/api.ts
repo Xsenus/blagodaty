@@ -6,12 +6,15 @@ import type {
   AdminEventsResponse,
   AdminOverview,
   AdminUser,
+  AccountRegistrationSummary,
   AuthResponse,
   CampRegistration,
   CurrentAccount,
   ExternalAuthStartResponse,
   ExternalAuthStatusResponse,
   PaginatedResponse,
+  PublicEventDetails,
+  PublicEventSummary,
   PublicExternalAuthProvider,
   SaveRegistrationRequest,
   SessionState,
@@ -195,6 +198,33 @@ export function saveRegistration(accessToken: string, payload: SaveRegistrationR
   );
 }
 
+export function getAccountRegistrations(accessToken: string) {
+  return request<AccountRegistrationSummary[]>('/api/account/registrations', {}, accessToken);
+}
+
+export function getPublicEvents() {
+  return request<{ events: PublicEventSummary[] }>('/api/events');
+}
+
+export function getPublicEvent(slug: string) {
+  return request<PublicEventDetails>(`/api/events/${slug}`);
+}
+
+export function getEventRegistration(accessToken: string, slug: string) {
+  return request<CampRegistration>(`/api/events/${slug}/registration`, {}, accessToken);
+}
+
+export function saveEventRegistration(accessToken: string, slug: string, payload: SaveRegistrationRequest) {
+  return request<CampRegistration>(
+    `/api/events/${slug}/registration`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
 export function getAdminOverview(accessToken: string) {
   return request<AdminOverview>('/api/admin/overview', {}, accessToken);
 }
@@ -231,6 +261,7 @@ export function getAdminRegistrations(
     pageSize: number;
     search?: string;
     status?: string;
+    eventEditionId?: string;
   },
 ) {
   const query = new URLSearchParams({
@@ -244,6 +275,10 @@ export function getAdminRegistrations(
 
   if (params.status && params.status !== 'all') {
     query.set('status', params.status);
+  }
+
+  if (params.eventEditionId && params.eventEditionId !== 'all') {
+    query.set('eventEditionId', params.eventEditionId);
   }
 
   return request<PaginatedResponse<AdminUser>>(`/api/admin/registrations?${query.toString()}`, {}, accessToken);

@@ -21,19 +21,22 @@ public sealed class AccountController : ControllerBase
     private readonly ExternalIdentityService _externalIdentityService;
     private readonly ExternalAuthProviderService _externalAuthProviderService;
     private readonly EventCatalogService _eventCatalogService;
+    private readonly EventRegistrationService _eventRegistrationService;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
         AppDbContext dbContext,
         ExternalIdentityService externalIdentityService,
         ExternalAuthProviderService externalAuthProviderService,
-        EventCatalogService eventCatalogService)
+        EventCatalogService eventCatalogService,
+        EventRegistrationService eventRegistrationService)
     {
         _userManager = userManager;
         _dbContext = dbContext;
         _externalIdentityService = externalIdentityService;
         _externalAuthProviderService = externalAuthProviderService;
         _eventCatalogService = eventCatalogService;
+        _eventRegistrationService = eventRegistrationService;
     }
 
     [HttpGet("me")]
@@ -46,13 +49,11 @@ public sealed class AccountController : ControllerBase
         }
 
         var roles = (await _userManager.GetRolesAsync(user)).ToArray();
+        var registrations = await _eventRegistrationService.GetUserRegistrationsAsync(user.Id, HttpContext.RequestAborted);
         var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
         var registration = activeCampEditionId is null
             ? null
-            : await _dbContext.CampRegistrations
-                .AsNoTracking()
-                .Include(item => item.EventEdition)
-                .FirstOrDefaultAsync(x => x.UserId == user.Id && x.EventEditionId == activeCampEditionId, HttpContext.RequestAborted);
+            : registrations.FirstOrDefault(item => item.EventEditionId == activeCampEditionId);
         var identities = await _dbContext.UserExternalIdentities
             .AsNoTracking()
             .Where(identity => identity.UserId == user.Id)
@@ -68,15 +69,28 @@ public sealed class AccountController : ControllerBase
                 {
                     Id = registration.Id,
                     EventEditionId = registration.EventEditionId,
-                    EventSlug = registration.EventEdition?.Slug,
+                    EventSlug = registration.EventSlug,
                     Status = registration.Status,
                     UpdatedAtUtc = registration.UpdatedAtUtc,
                     SubmittedAtUtc = registration.SubmittedAtUtc
                 },
+            Registrations = registrations,
             ExternalIdentities = identities.Select(AccountMapper.ToExternalIdentity).ToArray(),
             AvailableExternalAuthProviders = await _externalAuthProviderService.GetPublicProvidersAsync(HttpContext.RequestAborted),
             HasPassword = !string.IsNullOrWhiteSpace(user.PasswordHash)
         });
+    }
+
+    [HttpGet("registrations")]
+    public async Task<ActionResult<IReadOnlyCollection<AccountRegistrationSummaryDto>>> GetRegistrations()
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(await _eventRegistrationService.GetUserRegistrationsAsync(user.Id, HttpContext.RequestAborted));
     }
 
     [HttpPut("profile")]

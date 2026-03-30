@@ -198,6 +198,24 @@ public sealed class EventCatalogService
         return GetRemainingCapacity(edition, occupied);
     }
 
+    public bool IsPriceAvailable(EventPriceOption option)
+    {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return IsPriceAvailable(option, now);
+    }
+
+    public bool IsRegistrationOpen(EventEdition edition, int? remainingCapacity)
+    {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return IsRegistrationOpen(edition, remainingCapacity, now);
+    }
+
+    public bool IsRegistrationClosingSoon(EventEdition edition, int? remainingCapacity)
+    {
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return IsRegistrationClosingSoon(edition, remainingCapacity, now);
+    }
+
     private async Task<Dictionary<Guid, int>> GetOccupiedSlotsByEditionIdAsync(IEnumerable<Guid> eventEditionIds, CancellationToken cancellationToken)
     {
         var ids = eventEditionIds.Distinct().ToArray();

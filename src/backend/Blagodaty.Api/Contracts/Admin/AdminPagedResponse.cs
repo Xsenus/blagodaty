@@ -24,5 +24,6 @@ public sealed class AdminRegistrationsQueryRequest
     public int Page { get; init; } = 1;
     public int PageSize { get; init; } = 20;
     public string? Search { get; init; }
+    public Guid? EventEditionId { get; init; }
     public RegistrationStatus? Status { get; init; }
 }

@@ -13,10 +13,13 @@ import { campBaseUrl } from './lib/config';
 import {
   ApiError,
   getAdminExternalAuthSettings,
+  getAdminEvents,
   getAdminOverview,
   getAdminRegistrations,
   getAdminUsers,
   getExternalAuthStatus,
+  getPublicEvent,
+  getPublicEvents,
   getPublicExternalAuthProviders,
   getTelegramAuthStatus,
   loginWithTelegramWidget,
@@ -31,9 +34,11 @@ import { AdminEventsSection } from './admin/AdminEventsSection';
 import { useToast } from './ui/ToastProvider';
 import type {
   AccommodationPreference,
+  AccountRegistrationSummary,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
   AdminEventDetails,
+  AdminEventSummary,
   AdminOverview,
   AdminRoleDefinition,
   AdminUser,
@@ -46,6 +51,8 @@ import type {
   ExternalAuthStartResponse,
   ExternalIdentity,
   PaginatedResponse,
+  PublicEventDetails,
+  PublicEventSummary,
   PublicExternalAuthProvider,
   RegistrationStatus,
   SaveRegistrationRequest,
@@ -187,6 +194,68 @@ function formatDateTime(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function formatDateRangeCompact(startsAtUtc?: string | null, endsAtUtc?: string | null) {
+  if (!startsAtUtc) {
+    return 'Даты пока не указаны';
+  }
+
+  const formatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const starts = formatter.format(new Date(startsAtUtc));
+  return endsAtUtc ? `${starts} - ${formatter.format(new Date(endsAtUtc))}` : starts;
+}
+
+function formatMoney(value?: number | null, currency = 'RUB') {
+  if (value === null || value === undefined) {
+    return 'По запросу';
+  }
+
+  return new Intl.NumberFormat('ru-RU', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function isPriceOptionCurrentlyAvailable(
+  option: {
+    isActive: boolean;
+    salesStartsAtUtc?: string | null;
+    salesEndsAtUtc?: string | null;
+  },
+) {
+  if (!option.isActive) {
+    return false;
+  }
+
+  const now = Date.now();
+  const startsAt = option.salesStartsAtUtc ? new Date(option.salesStartsAtUtc).getTime() : null;
+  const endsAt = option.salesEndsAtUtc ? new Date(option.salesEndsAtUtc).getTime() : null;
+
+  return (startsAt === null || startsAt <= now) && (endsAt === null || endsAt >= now);
+}
+
+function pickPreferredEventSlug(
+  events: PublicEventSummary[],
+  registrations: AccountRegistrationSummary[],
+  requestedSlug?: string | null,
+) {
+  if (requestedSlug && events.some((event) => event.slug === requestedSlug)) {
+    return requestedSlug;
+  }
+
+  const existingRegistrationSlug = registrations.find((item) => item.eventSlug)?.eventSlug;
+  if (existingRegistrationSlug && events.some((event) => event.slug === existingRegistrationSlug)) {
+    return existingRegistrationSlug;
+  }
+
+  return events.find((event) => event.isRegistrationOpen)?.slug ?? events[0]?.slug ?? null;
 }
 
 function toDateTimeLocalInput(value?: string | null) {
@@ -523,7 +592,7 @@ function ProtectedLayout() {
         <nav className="sidebar-nav">
           <NavLink to="/dashboard">Обзор</NavLink>
           <NavLink to="/profile">Профиль</NavLink>
-          <NavLink to="/camp-registration">Заявка в лагерь</NavLink>
+          <NavLink to="/camp-registration">Мероприятия и заявки</NavLink>
           {canOpenAdmin ? <NavLink to="/admin">Администрирование</NavLink> : null}
           <a href={campBaseUrl} target="_blank" rel="noreferrer">
             Открыть camp-сайт
@@ -974,7 +1043,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   );
 }
 
-function DashboardPage() {
+function DashboardPageLegacy() {
   const { account } = useAuth();
   const canOpenAdmin = isAdmin(account?.user.roles);
 
@@ -1026,6 +1095,150 @@ function DashboardPage() {
         <div className="inline-links">
           <NavLink to="/profile">Открыть профиль</NavLink>
           <NavLink to="/camp-registration">Перейти к анкете</NavLink>
+          {canOpenAdmin ? <NavLink to="/admin">Открыть админку</NavLink> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+void DashboardPageLegacy;
+
+function DashboardPage() {
+  const { account } = useAuth();
+  const canOpenAdmin = isAdmin(account?.user.roles);
+  const registrations = account?.registrations ?? [];
+  const nextRegistration = registrations[0] ?? null;
+  const primaryRegistrationLink = nextRegistration?.eventSlug
+    ? `/camp-registration?event=${nextRegistration.eventSlug}`
+    : '/camp-registration';
+
+  return (
+    <div className="page-stack">
+      <header className="page-hero glass-card">
+        <div>
+          <p className="mini-eyebrow">Обзор</p>
+          <h2>Здравствуйте, {account?.user.displayName}</h2>
+          <p>Здесь видно ваши мероприятия, статусы заявок и следующие шаги по каждому событию.</p>
+        </div>
+
+        <div className="status-badge">
+          <span>Ближайший статус</span>
+          <strong>{formatStatus(nextRegistration?.status ?? account?.registration?.status)}</strong>
+        </div>
+      </header>
+
+      <section className="dashboard-grid">
+        <article className="glass-card metric-card">
+          <p>Аккаунт</p>
+          <strong>{account?.user.email}</strong>
+          <span>Роль: {formatRoleList(account?.user.roles)}</span>
+        </article>
+
+        <article className="glass-card metric-card">
+          <p>Профиль</p>
+          <strong>{account?.user.city || 'Пока без города'}</strong>
+          <span>Обновите профиль, чтобы команде было проще связаться с вами по любому мероприятию.</span>
+        </article>
+
+        <article className="glass-card metric-card">
+          <p>Мои заявки</p>
+          <strong>{registrations.length}</strong>
+          <span>Можно вести несколько мероприятий: лагерь по сезонам, ретриты и другие события.</span>
+        </article>
+
+        <article className="glass-card metric-card">
+          <p>Следующее мероприятие</p>
+          <strong>{nextRegistration?.eventTitle || 'Пока не выбрано'}</strong>
+          <span>
+            {nextRegistration
+              ? formatDateRangeCompact(nextRegistration.eventStartsAtUtc, nextRegistration.eventEndsAtUtc)
+              : 'Откройте раздел заявок и выберите ближайшее событие.'}
+          </span>
+        </article>
+      </section>
+
+      <section className="glass-card stack-form">
+        <div className="section-inline">
+          <div>
+            <p className="mini-eyebrow">Мои мероприятия</p>
+            <h3>Регистрации по событиям и сезонам</h3>
+          </div>
+          <p className="form-muted">
+            Здесь собраны все ваши заявки, поэтому больше не нужно держать в голове только один текущий лагерь.
+          </p>
+        </div>
+
+        <div className="user-list">
+          {registrations.length ? (
+            registrations.map((registration) => (
+              <article className="user-card" key={registration.id}>
+                <div className="user-card-head">
+                  <div>
+                    <strong className="user-name">{registration.eventTitle || 'Мероприятие'}</strong>
+                    <p className="user-meta">
+                      {registration.eventSeriesTitle || 'Серия не указана'}
+                      {registration.eventSeasonLabel ? ` • ${registration.eventSeasonLabel}` : ''}
+                    </p>
+                  </div>
+
+                  <div className="role-pills">
+                    <span className="role-pill">{formatStatus(registration.status)}</span>
+                    {registration.isRegistrationClosingSoon ? (
+                      <span className="role-pill muted-pill">Скоро закрывается</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="user-info-grid">
+                  <div>
+                    <span>Даты</span>
+                    <strong>{formatDateRangeCompact(registration.eventStartsAtUtc, registration.eventEndsAtUtc)}</strong>
+                  </div>
+                  <div>
+                    <span>Локация</span>
+                    <strong>{registration.eventLocation || 'Уточняется'}</strong>
+                  </div>
+                  <div>
+                    <span>Тариф</span>
+                    <strong>
+                      {registration.selectedPriceOptionTitle
+                        ? `${registration.selectedPriceOptionTitle} • ${formatMoney(
+                            registration.selectedPriceOptionAmount,
+                            registration.selectedPriceOptionCurrency || 'RUB',
+                          )}`
+                        : 'Пока не выбран'}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Обновлено</span>
+                    <strong>{formatDateTime(registration.updatedAtUtc)}</strong>
+                  </div>
+                </div>
+
+                <div className="inline-links">
+                  <NavLink to={`/camp-registration?event=${registration.eventSlug || ''}`}>Открыть заявку</NavLink>
+                </div>
+              </article>
+            ))
+          ) : (
+            <article className="user-card admin-empty-state">
+              <strong className="user-name">Пока нет ни одной заявки</strong>
+              <p className="form-muted">
+                Откройте список мероприятий, выберите нужное событие и сохраните анкету как черновик или отправьте ее сразу.
+              </p>
+            </article>
+          )}
+        </div>
+      </section>
+
+      <section className="glass-card callout-card">
+        <p className="mini-eyebrow">Следующее действие</p>
+        <h3>Сначала обновите профиль, затем выберите нужное мероприятие и заполните анкету</h3>
+        <p>Такой порядок помогает не дублировать данные и делает дальнейшую административную работу заметно чище.</p>
+        <div className="inline-links">
+          <NavLink to="/profile">Открыть профиль</NavLink>
+          <NavLink to={primaryRegistrationLink}>Перейти к мероприятиям</NavLink>
           {canOpenAdmin ? <NavLink to="/admin">Открыть админку</NavLink> : null}
         </div>
       </section>
@@ -1376,7 +1589,7 @@ function ProfilePage() {
   );
 }
 
-function CampRegistrationPage() {
+function CampRegistrationPageLegacy() {
   const auth = useAuth();
   const toast = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -1665,6 +1878,477 @@ function CampRegistrationPage() {
   );
 }
 
+void CampRegistrationPageLegacy;
+
+function CampRegistrationPage() {
+  const auth = useAuth();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const requestedEventSlug = new URLSearchParams(location.search).get('event');
+  const [events, setEvents] = useState<PublicEventSummary[]>([]);
+  const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<PublicEventDetails | null>(null);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [isLoadingRegistration, setIsLoadingRegistration] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [registration, setRegistration] = useState<CampRegistration | null>(null);
+  const [form, setForm] = useState<SaveRegistrationRequest>({
+    selectedPriceOptionId: null,
+    fullName: '',
+    birthDate: '',
+    city: '',
+    churchName: '',
+    phoneNumber: '',
+    emergencyContactName: '',
+    emergencyContactPhone: '',
+    accommodationPreference: 'Either',
+    healthNotes: '',
+    allergyNotes: '',
+    specialNeeds: '',
+    motivation: '',
+    consentAccepted: false,
+    submit: false,
+  });
+
+  useEffect(() => {
+    void loadEvents();
+  }, [auth.account?.user.id, requestedEventSlug]);
+
+  useEffect(() => {
+    if (!selectedEventSlug) {
+      setSelectedEvent(null);
+      setRegistration(null);
+      return;
+    }
+
+    void loadSelectedEvent(selectedEventSlug);
+  }, [selectedEventSlug, auth.account?.user.id]);
+
+  async function loadEvents() {
+    setIsLoadingEvents(true);
+    setError(null);
+
+    try {
+      const response = await getPublicEvents();
+      setEvents(response.events);
+
+      const preferredSlug = pickPreferredEventSlug(
+        response.events,
+        auth.account?.registrations ?? [],
+        requestedEventSlug,
+      );
+
+      setSelectedEventSlug(preferredSlug);
+
+      if (preferredSlug) {
+        navigate(
+          {
+            pathname: '/camp-registration',
+            search: `?event=${preferredSlug}`,
+          },
+          { replace: true },
+        );
+      }
+    } catch (loadError) {
+      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить список мероприятий.';
+      setError(nextError);
+      toast.error('Не удалось загрузить мероприятия', nextError);
+    } finally {
+      setIsLoadingEvents(false);
+    }
+  }
+
+  async function loadSelectedEvent(eventSlug: string) {
+    setIsLoadingRegistration(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const [eventDetails, currentRegistration] = await Promise.all([
+        getPublicEvent(eventSlug),
+        auth.loadRegistration(eventSlug),
+      ]);
+
+      setSelectedEvent(eventDetails);
+      setRegistration(currentRegistration);
+
+      if (currentRegistration) {
+        setForm({
+          selectedPriceOptionId: currentRegistration.selectedPriceOptionId ?? null,
+          fullName: currentRegistration.fullName,
+          birthDate: currentRegistration.birthDate,
+          city: currentRegistration.city,
+          churchName: currentRegistration.churchName,
+          phoneNumber: currentRegistration.phoneNumber,
+          emergencyContactName: currentRegistration.emergencyContactName,
+          emergencyContactPhone: currentRegistration.emergencyContactPhone,
+          accommodationPreference: currentRegistration.accommodationPreference,
+          healthNotes: currentRegistration.healthNotes ?? '',
+          allergyNotes: currentRegistration.allergyNotes ?? '',
+          specialNeeds: currentRegistration.specialNeeds ?? '',
+          motivation: currentRegistration.motivation ?? '',
+          consentAccepted: currentRegistration.consentAccepted,
+          submit: false,
+        });
+
+        return;
+      }
+
+      const defaultPriceOption = eventDetails.priceOptions.find((option) => option.isDefault && isPriceOptionCurrentlyAvailable(option))
+        ?? eventDetails.priceOptions.find((option) => isPriceOptionCurrentlyAvailable(option))
+        ?? eventDetails.priceOptions.find((option) => option.isActive)
+        ?? null;
+
+      setForm((current) => ({
+        ...current,
+        selectedPriceOptionId: defaultPriceOption?.id ?? null,
+        fullName: auth.account ? `${auth.account.user.firstName} ${auth.account.user.lastName}`.trim() : current.fullName,
+        city: auth.account?.user.city ?? '',
+        churchName: auth.account?.user.churchName ?? '',
+        phoneNumber: auth.account?.user.phoneNumber ?? '',
+      }));
+    } catch (loadError) {
+      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить выбранное мероприятие.';
+      setError(nextError);
+      toast.error('Не удалось открыть мероприятие', nextError);
+      setSelectedEvent(null);
+      setRegistration(null);
+    } finally {
+      setIsLoadingRegistration(false);
+    }
+  }
+
+  async function submit(submitMode: boolean) {
+    if (!selectedEventSlug) {
+      const nextError = 'Сначала выберите мероприятие.';
+      setError(nextError);
+      toast.error('Мероприятие не выбрано', nextError);
+      return;
+    }
+
+    setMessage(null);
+    setError(null);
+    setIsSaving(true);
+
+    try {
+      const saved = await auth.saveRegistration(
+        {
+          ...form,
+          submit: submitMode,
+        },
+        selectedEventSlug,
+      );
+
+      setRegistration(saved);
+      const successMessage = submitMode ? 'Анкета отправлена команде.' : 'Черновик сохранен.';
+      setMessage(successMessage);
+      toast.success(submitMode ? 'Анкета отправлена' : 'Черновик сохранен', successMessage);
+      await auth.reloadAccount();
+    } catch (submitError) {
+      const nextError =
+        submitError instanceof ApiError
+          ? submitError.message
+          : submitError instanceof Error
+            ? submitError.message
+            : 'Не удалось сохранить анкету.';
+      setError(nextError);
+      toast.error('Не удалось сохранить анкету', nextError);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const availablePriceOptions = selectedEvent?.priceOptions.filter((option) => option.isActive) ?? [];
+
+  return (
+    <div className="page-stack">
+      <header className="page-hero glass-card compact-hero">
+        <div>
+          <p className="mini-eyebrow">Мероприятия и заявки</p>
+          <h2>{selectedEvent?.title || 'Выберите мероприятие'}</h2>
+          <p>
+            {selectedEvent
+              ? `${selectedEvent.shortDescription} ${selectedEvent.location ? `Локация: ${selectedEvent.location}.` : ''}`
+              : 'Сначала выберите нужное событие, затем заполните и сохраните анкету.'}
+          </p>
+        </div>
+
+        <div className="status-badge">
+          <span>Текущий статус</span>
+          <strong>{formatStatus(registration?.status)}</strong>
+        </div>
+      </header>
+
+      <section className="glass-card stack-form">
+        <div className="section-inline">
+          <div>
+            <p className="mini-eyebrow">Выбор события</p>
+            <h3>Сезоны, выезды и другие мероприятия</h3>
+          </div>
+          <p className="form-muted">Можно переключаться между событиями без потери логики регистрации и статусов.</p>
+        </div>
+
+        <div className="event-switch-grid">
+          {events.map((eventItem) => (
+            <button
+              key={eventItem.id}
+              className={`event-switch-card${selectedEventSlug === eventItem.slug ? ' active' : ''}`}
+              type="button"
+              onClick={() => {
+                setSelectedEventSlug(eventItem.slug);
+                navigate(
+                  {
+                    pathname: '/camp-registration',
+                    search: `?event=${eventItem.slug}`,
+                  },
+                  { replace: true },
+                );
+              }}
+            >
+              <span className="mini-eyebrow">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
+              <strong>{eventItem.title}</strong>
+              <span>{formatDateRangeCompact(eventItem.startsAtUtc, eventItem.endsAtUtc)}</span>
+              <span>{eventItem.location || 'Локация уточняется'}</span>
+              <span>
+                {eventItem.priceFromAmount != null
+                  ? `от ${formatMoney(eventItem.priceFromAmount, eventItem.priceCurrency || 'RUB')}`
+                  : 'Цена уточняется'}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {!events.length && !isLoadingEvents ? (
+          <p className="form-muted">Пока нет опубликованных мероприятий, доступных для регистрации.</p>
+        ) : null}
+      </section>
+
+      <div className="glass-card stack-form">
+        {isLoadingEvents || isLoadingRegistration ? (
+          <p className="form-muted">Загружаем выбранное мероприятие и вашу текущую анкету...</p>
+        ) : selectedEvent ? (
+          <>
+            <div className="user-info-grid">
+              <div>
+                <span>Даты</span>
+                <strong>{formatDateRangeCompact(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc)}</strong>
+              </div>
+              <div>
+                <span>Регистрация до</span>
+                <strong>{formatDateTime(selectedEvent.registrationClosesAtUtc)}</strong>
+              </div>
+              <div>
+                <span>Места</span>
+                <strong>
+                  {selectedEvent.remainingCapacity ?? selectedEvent.capacity ?? 'Без лимита'}
+                </strong>
+              </div>
+              <div>
+                <span>Статус окна</span>
+                <strong>
+                  {selectedEvent.isRegistrationOpen
+                    ? selectedEvent.isRegistrationClosingSoon
+                      ? 'Скоро закрывается'
+                      : 'Регистрация открыта'
+                    : 'Регистрация закрыта'}
+                </strong>
+              </div>
+            </div>
+
+            {availablePriceOptions.length ? (
+              <div className="price-option-list">
+                {availablePriceOptions.map((option) => {
+                  const isAvailable = isPriceOptionCurrentlyAvailable(option);
+                  const isSelected = form.selectedPriceOptionId === option.id;
+
+                  return (
+                    <label className={`price-option-card${isSelected ? ' active' : ''}`} key={option.id}>
+                      <input
+                        type="radio"
+                        name="priceOption"
+                        value={option.id}
+                        checked={isSelected}
+                        onChange={() => setForm((current) => ({ ...current, selectedPriceOptionId: option.id }))}
+                      />
+                      <span>{option.title}</span>
+                      <strong>{formatMoney(option.amount, option.currency)}</strong>
+                      <em>{option.description || (isAvailable ? 'Тариф доступен для выбора' : 'Тариф пока недоступен')}</em>
+                    </label>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            <div className="form-grid">
+              <label>
+                <span>Имя и фамилия</span>
+                <input
+                  value={form.fullName}
+                  onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Дата рождения</span>
+                <input
+                  type="date"
+                  value={form.birthDate}
+                  onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Город</span>
+                <input
+                  value={form.city}
+                  onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Церковь</span>
+                <input
+                  value={form.churchName}
+                  onChange={(event) => setForm((current) => ({ ...current, churchName: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Телефон</span>
+                <input
+                  value={form.phoneNumber}
+                  onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Предпочтение по размещению</span>
+                <select
+                  value={form.accommodationPreference}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      accommodationPreference: event.target.value as AccommodationPreference,
+                    }))
+                  }
+                >
+                  <option value="Either">Подойдет любой формат</option>
+                  <option value="Tent">Палатка</option>
+                  <option value="Cabin">Домик</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Контакт доверенного лица</span>
+                <input
+                  value={form.emergencyContactName}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, emergencyContactName: event.target.value }))
+                  }
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Телефон доверенного лица</span>
+                <input
+                  value={form.emergencyContactPhone}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))
+                  }
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="form-grid single-column">
+              <label>
+                <span>Особенности здоровья</span>
+                <textarea
+                  rows={4}
+                  value={form.healthNotes}
+                  onChange={(event) => setForm((current) => ({ ...current, healthNotes: event.target.value }))}
+                />
+              </label>
+
+              <label>
+                <span>Аллергии или ограничения</span>
+                <textarea
+                  rows={4}
+                  value={form.allergyNotes}
+                  onChange={(event) => setForm((current) => ({ ...current, allergyNotes: event.target.value }))}
+                />
+              </label>
+
+              <label>
+                <span>Особые нужды</span>
+                <textarea
+                  rows={4}
+                  value={form.specialNeeds}
+                  onChange={(event) => setForm((current) => ({ ...current, specialNeeds: event.target.value }))}
+                />
+              </label>
+
+              <label>
+                <span>Почему вы хотите поехать</span>
+                <textarea
+                  rows={5}
+                  value={form.motivation}
+                  onChange={(event) => setForm((current) => ({ ...current, motivation: event.target.value }))}
+                />
+              </label>
+            </div>
+
+            <label className="checkbox-row">
+              <input
+                type="checkbox"
+                checked={form.consentAccepted}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, consentAccepted: event.target.checked }))
+                }
+              />
+              <span>Соглашаюсь на обработку персональных данных и передачу анкеты команде мероприятия.</span>
+            </label>
+
+            {message ? <p className="form-success">{message}</p> : null}
+            {error ? <p className="form-error">{error}</p> : null}
+
+            <div className="action-row">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={isSaving}
+                onClick={async () => submit(false)}
+              >
+                {isSaving ? 'Сохраняем...' : 'Сохранить черновик'}
+              </button>
+
+              <button
+                className="primary-button"
+                type="button"
+                disabled={isSaving}
+                onClick={async () => submit(true)}
+              >
+                {isSaving ? 'Отправляем...' : 'Отправить заявку'}
+              </button>
+            </div>
+          </>
+        ) : (
+          <p className="form-muted">Выберите мероприятие из списка выше, чтобы открыть анкету.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AdminPage() {
   const auth = useAuth();
   const toast = useToast();
@@ -1672,6 +2356,7 @@ function AdminPage() {
   const canOpenAdmin = isAdmin(auth.account?.user.roles);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [authSettings, setAuthSettings] = useState<AdminExternalAuthSettings | null>(null);
+  const [adminEvents, setAdminEvents] = useState<AdminEventSummary[]>([]);
   const [usersPage, setUsersPage] = useState<PaginatedResponse<AdminUser> | null>(null);
   const [registrationsPage, setRegistrationsPage] = useState<PaginatedResponse<AdminUser> | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, UpdateExternalAuthProviderRequest>>({});
@@ -1696,6 +2381,7 @@ function AdminPage() {
   const [userPageSize, setUserPageSize] = useState(20);
   const [registrationSearch, setRegistrationSearch] = useState('');
   const [registrationStatusFilter, setRegistrationStatusFilter] = useState<'all' | RegistrationStatus>('all');
+  const [registrationEventFilter, setRegistrationEventFilter] = useState<'all' | string>('all');
   const [registrationPage, setRegistrationPage] = useState(1);
   const [registrationPageSize, setRegistrationPageSize] = useState(20);
   const debouncedUserSearch = useDebouncedValue(userSearch);
@@ -1742,12 +2428,14 @@ function AdminPage() {
       return;
     }
 
+    void loadAdminEventsList();
     void loadRegistrationsPage();
   }, [
     adminSection,
     auth.session?.accessToken,
     canOpenAdmin,
     debouncedRegistrationSearch,
+    registrationEventFilter,
     registrationPage,
     registrationPageSize,
     registrationStatusFilter,
@@ -1807,6 +2495,19 @@ function AdminPage() {
     }
   }
 
+  async function loadAdminEventsList() {
+    if (!auth.session) {
+      return;
+    }
+
+    try {
+      const response = await getAdminEvents(auth.session.accessToken);
+      setAdminEvents(response.events);
+    } catch {
+      // keep registrations usable even if the filter list fails to refresh
+    }
+  }
+
   async function loadUsersPage() {
     if (!auth.session) {
       return;
@@ -1848,6 +2549,7 @@ function AdminPage() {
         pageSize: registrationPageSize,
         search: debouncedRegistrationSearch,
         status: registrationStatusFilter,
+        eventEditionId: registrationEventFilter,
       });
 
       setRegistrationsPage(loadedRegistrations);
@@ -2200,7 +2902,9 @@ function AdminPage() {
         </div>
       ) : overview ? (
         <>
-          <AdminEventsSection accessToken={auth.session?.accessToken ?? null} isActive={adminSection === 'events'} />
+          {adminSection === 'events' ? (
+            <AdminEventsSection accessToken={auth.session?.accessToken ?? null} isActive />
+          ) : null}
 
           <section className="dashboard-grid admin-stats-grid" hidden={adminSection !== 'overview'}>
             <article className="glass-card metric-card">
@@ -2315,6 +3019,24 @@ function AdminPage() {
                   <option value="Cancelled">Отменено</option>
                 </select>
               </label>
+
+              <label>
+                <span>Мероприятие</span>
+                <select
+                  value={registrationEventFilter}
+                  onChange={(event) => {
+                    setRegistrationEventFilter(event.target.value);
+                    setRegistrationPage(1);
+                  }}
+                >
+                  <option value="all">Все мероприятия</option>
+                  {adminEvents.map((eventItem) => (
+                    <option key={eventItem.id} value={eventItem.id}>
+                      {eventItem.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             <div className="role-pills">
@@ -2350,7 +3072,10 @@ function AdminPage() {
                   <div className="user-card-head">
                     <div>
                       <strong className="user-name">{user.displayName}</strong>
-                      <p className="user-meta">{user.email}</p>
+                      <p className="user-meta">
+                        {user.email}
+                        {user.registrationEventTitle ? ` • ${user.registrationEventTitle}` : ''}
+                      </p>
                     </div>
 
                     <div className="role-pills">
@@ -2662,7 +3387,10 @@ function AdminPage() {
                     <div className="user-card-head">
                       <div>
                         <strong className="user-name">{user.displayName}</strong>
-                        <p className="user-meta">{user.email}</p>
+                        <p className="user-meta">
+                          {user.email}
+                          {user.registrationEventTitle ? ` • ${user.registrationEventTitle}` : ''}
+                        </p>
                       </div>
 
                       <div className="role-pills">

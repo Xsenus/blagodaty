@@ -34,21 +34,21 @@ public sealed class CampController : ControllerBase
     private readonly AppDbContext _dbContext;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly CampOptions _campOptions;
-    private readonly TimeProvider _timeProvider;
     private readonly EventCatalogService _eventCatalogService;
+    private readonly EventRegistrationService _eventRegistrationService;
 
     public CampController(
         AppDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         IOptions<CampOptions> campOptions,
-        TimeProvider timeProvider,
-        EventCatalogService eventCatalogService)
+        EventCatalogService eventCatalogService,
+        EventRegistrationService eventRegistrationService)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _campOptions = campOptions.Value;
-        _timeProvider = timeProvider;
         _eventCatalogService = eventCatalogService;
+        _eventRegistrationService = eventRegistrationService;
     }
 
     [HttpGet("overview")]
@@ -90,8 +90,8 @@ public sealed class CampController : ControllerBase
             EndsAtUtc = activeCamp.EndsAtUtc,
             RegistrationOpensAtUtc = activeCamp.RegistrationOpensAtUtc,
             RegistrationClosesAtUtc = activeCamp.RegistrationClosesAtUtc,
-            IsRegistrationOpen = IsRegistrationOpen(activeCamp, remainingCapacity),
-            IsRegistrationClosingSoon = IsRegistrationClosingSoon(activeCamp, remainingCapacity),
+            IsRegistrationOpen = _eventCatalogService.IsRegistrationOpen(activeCamp, remainingCapacity),
+            IsRegistrationClosingSoon = _eventCatalogService.IsRegistrationClosingSoon(activeCamp, remainingCapacity),
             Capacity = activeCamp.Capacity,
             RemainingCapacity = remainingCapacity,
             Highlights = highlights.Length == 0 ? FallbackHighlights : highlights,
@@ -115,17 +115,12 @@ public sealed class CampController : ControllerBase
             return NotFound();
         }
 
-        var registration = await _dbContext.CampRegistrations
-            .AsNoTracking()
-            .Include(item => item.EventEdition)
-            .FirstOrDefaultAsync(x => x.UserId == user.Id && x.EventEditionId == activeCampEditionId, HttpContext.RequestAborted);
+        var registration = await _eventRegistrationService.GetRegistrationAsync(
+            user.Id,
+            activeCampEditionId.Value,
+            HttpContext.RequestAborted);
 
-        if (registration is null)
-        {
-            return NotFound();
-        }
-
-        return Ok(MapRegistration(registration));
+        return registration is null ? NotFound() : Ok(registration);
     }
 
     [HttpPut("registration")]
@@ -146,7 +141,7 @@ public sealed class CampController : ControllerBase
         var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
         if (activeCampEditionId is null)
         {
-            return BadRequest(new { message = "Сейчас для лагеря не настроен активный выпуск." });
+            return BadRequest(new { message = "Сейчас для лагеря не настроен активный выпуск мероприятия." });
         }
 
         var activeCamp = await _dbContext.EventEditions
@@ -156,72 +151,24 @@ public sealed class CampController : ControllerBase
 
         if (activeCamp is null)
         {
-            return BadRequest(new { message = "Сейчас для лагеря не настроен активный выпуск." });
+            return BadRequest(new { message = "Сейчас для лагеря не настроен активный выпуск мероприятия." });
         }
 
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var remainingCapacity = await _eventCatalogService.GetRemainingCapacityAsync(activeCamp.Id, HttpContext.RequestAborted);
-        if (request.Submit && !IsRegistrationOpen(activeCamp, remainingCapacity))
+        try
         {
-            return BadRequest(new { message = "Регистрация на текущий лагерь сейчас закрыта или лимит мест уже достигнут." });
+            var registration = await _eventRegistrationService.UpsertRegistrationAsync(
+                user.Id,
+                activeCamp,
+                request,
+                allowLegacyDraftMigration: true,
+                HttpContext.RequestAborted);
+
+            return Ok(registration);
         }
-
-        var registration = await _dbContext.CampRegistrations
-            .FirstOrDefaultAsync(x => x.UserId == user.Id && x.EventEditionId == activeCamp.Id, HttpContext.RequestAborted);
-
-        registration ??= await _dbContext.CampRegistrations
-            .FirstOrDefaultAsync(x => x.UserId == user.Id && x.EventEditionId == null, HttpContext.RequestAborted);
-
-        if (registration is null)
+        catch (InvalidOperationException exception)
         {
-            registration = new CampRegistration
-            {
-                UserId = user.Id,
-                CreatedAtUtc = now
-            };
-
-            _dbContext.CampRegistrations.Add(registration);
+            return BadRequest(new { message = exception.Message });
         }
-
-        EventPriceOption? selectedPriceOption = null;
-        if (request.SelectedPriceOptionId is not null)
-        {
-            selectedPriceOption = activeCamp.PriceOptions
-                .FirstOrDefault(option => option.Id == request.SelectedPriceOptionId.Value && option.IsActive);
-
-            if (selectedPriceOption is null)
-            {
-                return BadRequest(new { message = "Выбранный тариф не найден в текущем мероприятии." });
-            }
-        }
-
-        registration.EventEditionId = activeCamp.Id;
-        registration.SelectedPriceOptionId = selectedPriceOption?.Id;
-        registration.FullName = request.FullName.Trim();
-        registration.BirthDate = request.BirthDate;
-        registration.City = request.City.Trim();
-        registration.ChurchName = request.ChurchName.Trim();
-        registration.PhoneNumber = request.PhoneNumber.Trim();
-        registration.EmergencyContactName = request.EmergencyContactName.Trim();
-        registration.EmergencyContactPhone = request.EmergencyContactPhone.Trim();
-        registration.AccommodationPreference = request.AccommodationPreference;
-        registration.HealthNotes = request.HealthNotes?.Trim();
-        registration.AllergyNotes = request.AllergyNotes?.Trim();
-        registration.SpecialNeeds = request.SpecialNeeds?.Trim();
-        registration.Motivation = request.Motivation?.Trim();
-        registration.ConsentAccepted = request.ConsentAccepted;
-        registration.Status = request.Submit ? RegistrationStatus.Submitted : RegistrationStatus.Draft;
-        registration.UpdatedAtUtc = now;
-        registration.SubmittedAtUtc = request.Submit ? now : null;
-
-        await _dbContext.SaveChangesAsync();
-
-        registration = await _dbContext.CampRegistrations
-            .AsNoTracking()
-            .Include(item => item.EventEdition)
-            .FirstAsync(item => item.Id == registration.Id, HttpContext.RequestAborted);
-
-        return Ok(MapRegistration(registration));
     }
 
     [HttpGet("registrations")]
@@ -236,21 +183,21 @@ public sealed class CampController : ControllerBase
 
         var registrations = await _dbContext.CampRegistrations
             .AsNoTracking()
-            .Include(x => x.User)
-            .Where(x => x.EventEditionId == activeCampEditionId)
-            .OrderByDescending(x => x.UpdatedAtUtc)
-            .Select(x => new
+            .Include(item => item.User)
+            .Where(item => item.EventEditionId == activeCampEditionId)
+            .OrderByDescending(item => item.UpdatedAtUtc)
+            .Select(item => new
             {
-                x.Id,
-                x.EventEditionId,
-                x.Status,
-                x.FullName,
-                x.City,
-                x.ChurchName,
-                x.PhoneNumber,
-                x.UpdatedAtUtc,
-                AccountEmail = x.User.Email,
-                AccountDisplayName = x.User.DisplayName
+                item.Id,
+                item.EventEditionId,
+                item.Status,
+                item.FullName,
+                item.City,
+                item.ChurchName,
+                item.PhoneNumber,
+                item.UpdatedAtUtc,
+                AccountEmail = item.User.Email,
+                AccountDisplayName = item.User.DisplayName
             })
             .ToListAsync();
 
@@ -287,36 +234,7 @@ public sealed class CampController : ControllerBase
             return null;
         }
 
-        return await _userManager.Users.FirstOrDefaultAsync(x => x.Id == userId);
-    }
-
-    private bool IsRegistrationOpen(EventEdition edition, int? remainingCapacity)
-    {
-        if (edition.Status != EventEditionStatus.RegistrationOpen)
-        {
-            return false;
-        }
-
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-        if (edition.RegistrationOpensAtUtc.HasValue && edition.RegistrationOpensAtUtc.Value > now)
-        {
-            return false;
-        }
-
-        if (edition.RegistrationClosesAtUtc.HasValue && edition.RegistrationClosesAtUtc.Value < now)
-        {
-            return false;
-        }
-
-        return remainingCapacity is null || remainingCapacity > 0 || edition.WaitlistEnabled;
-    }
-
-    private bool IsRegistrationClosingSoon(EventEdition edition, int? remainingCapacity)
-    {
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-        return IsRegistrationOpen(edition, remainingCapacity) &&
-               edition.RegistrationClosesAtUtc.HasValue &&
-               edition.RegistrationClosesAtUtc.Value <= now.AddDays(5);
+        return await _userManager.Users.FirstOrDefaultAsync(item => item.Id == userId);
     }
 
     private static DateTime NormalizeConfiguredUtc(DateTime value)
@@ -337,33 +255,5 @@ public sealed class CampController : ControllerBase
     private static DateTime? NormalizeConfiguredUtc(DateTime? value)
     {
         return value.HasValue ? NormalizeConfiguredUtc(value.Value) : null;
-    }
-
-    private static CampRegistrationResponse MapRegistration(CampRegistration registration)
-    {
-        return new CampRegistrationResponse
-        {
-            Id = registration.Id,
-            EventEditionId = registration.EventEditionId,
-            EventSlug = registration.EventEdition?.Slug,
-            SelectedPriceOptionId = registration.SelectedPriceOptionId,
-            Status = registration.Status,
-            FullName = registration.FullName,
-            BirthDate = registration.BirthDate,
-            City = registration.City,
-            ChurchName = registration.ChurchName,
-            PhoneNumber = registration.PhoneNumber,
-            EmergencyContactName = registration.EmergencyContactName,
-            EmergencyContactPhone = registration.EmergencyContactPhone,
-            AccommodationPreference = registration.AccommodationPreference,
-            HealthNotes = registration.HealthNotes,
-            AllergyNotes = registration.AllergyNotes,
-            SpecialNeeds = registration.SpecialNeeds,
-            Motivation = registration.Motivation,
-            ConsentAccepted = registration.ConsentAccepted,
-            CreatedAtUtc = registration.CreatedAtUtc,
-            UpdatedAtUtc = registration.UpdatedAtUtc,
-            SubmittedAtUtc = registration.SubmittedAtUtc
-        };
     }
 }

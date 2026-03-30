@@ -1,111 +1,99 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getCampOverview } from './lib/api';
+import { getPublicEvent, getPublicEvents } from './lib/api';
 import { lkBaseUrl } from './lib/config';
-import type { CampOverview } from './types';
+import type { PublicEventContentBlock, PublicEventDetails } from './types';
 
-const fallbackOverview: CampOverview = {
-  name: 'Blagodaty Camp',
-  season: 'Лето 2026',
-  tagline:
-    'Поездка церковью в Горный Алтай: горы, палатки, домики, костры, молитва и теплое братское общение.',
-  location: 'Горный Алтай',
-  suggestedDonation: 32000,
-  startsAtUtc: '2026-07-15T08:00:00Z',
-  endsAtUtc: '2026-07-23T08:00:00Z',
-  highlights: [
-    'Походы, прогулки по горным маршрутам и время вдали от городской суеты.',
-    'Сочетание палаточного формата и спокойных домиков для разных участников поездки.',
-    'Живая церковная атмосфера: молитва, наставничество, вечерние беседы и служение.',
-  ],
-  thingsToBring: [
-    'Спальник, коврик, фонарик и базовую походную одежду.',
-    'Теплые вещи, дождевик, удобную обувь и личную гигиену.',
-    'Библию, блокнот, ручку и открытость к Богу и людям.',
-  ],
-};
-
-const timeline = [
-  {
-    title: 'До выезда',
-    text: 'Регистрируемся, подтверждаем поездку и собираем важную медицинскую и контактную информацию.',
-  },
-  {
-    title: 'Путь и размещение',
-    text: 'Команда встречает участников, помогает с заселением и знакомит с пространством лагеря.',
-  },
-  {
-    title: 'Дни в лагере',
-    text: 'Молитвы, общие собрания, прогулки, походные активности, костры и время для настоящего общения.',
-  },
-  {
-    title: 'После возвращения',
-    text: 'В личном кабинете сохраняются статусы заявки, оргсообщения и дальнейшая коммуникация команды.',
-  },
+const fallbackHighlights = [
+  'Походы и выезды в горы Алтая вместе с церковной командой.',
+  'Палатки, домики, костры и теплые вечерние встречи под открытым небом.',
+  'Поклонение, молитва, наставничество и живое братское общение.',
 ];
 
-const experienceCards = [
-  {
-    label: 'Что это за проект',
-    value: 'Летняя поездка церкви на Алтай',
-  },
-  {
-    label: 'Для кого',
-    value: 'Для молодежи, семей и друзей церкви',
-  },
-  {
-    label: 'Формат проживания',
-    value: 'Палатки и домики',
-  },
-  {
-    label: 'Ключевая цель',
-    value: 'Сообщество, вера, отдых и регистрация в одном пространстве',
-  },
+const fallbackThingsToBring = [
+  'Спальник, коврик, фонарик и базовую походную одежду.',
+  'Средства личной гигиены, теплые вещи и дождевик на случай перемены погоды.',
+  'Библию, блокнот, ручку и открытое сердце к Богу и людям.',
 ];
 
-const faqItems = [
+const fallbackFaq = [
   {
     question: 'Зачем отдельный личный кабинет?',
     answer:
       'Через кабинет участник сможет заполнить анкету, получить подтверждение, видеть статус заявки и позже читать организационные сообщения.',
   },
   {
-    question: 'Можно сначала просто посмотреть лагерь?',
+    question: 'Можно сначала просто посмотреть мероприятия?',
     answer:
-      'Да. Camp-сайт работает как понятная входная точка: описание поездки, атмосфера, условия и переход в кабинет тогда, когда человек готов.',
+      'Да. Эта страница нужна как понятная входная точка: описание события, атмосфера, даты, тарифы и переход к регистрации тогда, когда человек уже готов.',
   },
   {
-    question: 'Что будет дальше по проекту?',
+    question: 'Будут ли здесь и другие события?',
     answer:
-      'Следующие этапы: полноценная регистрация, админка команды, уведомления, сценарии оплаты и расширенная работа с участниками.',
+      'Да. Теперь сайт умеет показывать не только один лагерь, но и сезоны, ретриты, конференции и другие церковные поездки.',
   },
 ];
 
-function formatDateRange(startsAtUtc: string, endsAtUtc: string) {
+function formatDateRange(startsAtUtc?: string | null, endsAtUtc?: string | null) {
+  if (!startsAtUtc) {
+    return 'Даты уточняются';
+  }
+
   const formatter = new Intl.DateTimeFormat('ru-RU', {
     day: 'numeric',
     month: 'long',
+    year: 'numeric',
   });
 
-  return `${formatter.format(new Date(startsAtUtc))} - ${formatter.format(new Date(endsAtUtc))}`;
+  const starts = formatter.format(new Date(startsAtUtc));
+  return endsAtUtc ? `${starts} - ${formatter.format(new Date(endsAtUtc))}` : starts;
 }
 
-function formatCurrency(value: number) {
+function formatCurrency(value?: number | null, currency = 'RUB') {
+  if (value === null || value === undefined) {
+    return 'По запросу';
+  }
+
   return new Intl.NumberFormat('ru-RU', {
     style: 'currency',
-    currency: 'RUB',
+    currency,
     maximumFractionDigits: 0,
   }).format(value);
 }
 
+function getBlocks(details: PublicEventDetails | undefined, blockType: PublicEventContentBlock['blockType']) {
+  return details?.contentBlocks.filter((block) => block.blockType === blockType).map((block) => block.body) ?? [];
+}
+
 export default function App() {
-  const overviewQuery = useQuery({
-    queryKey: ['camp-overview'],
-    queryFn: getCampOverview,
+  const eventsQuery = useQuery({
+    queryKey: ['public-events'],
+    queryFn: getPublicEvents,
     retry: false,
   });
 
-  const overview = overviewQuery.data ?? fallbackOverview;
-  const dateRange = formatDateRange(overview.startsAtUtc, overview.endsAtUtc);
+  const featuredEvent = useMemo(() => {
+    const events = eventsQuery.data?.events ?? [];
+    return events.find((event) => event.isRegistrationOpen) ?? events[0] ?? null;
+  }, [eventsQuery.data]);
+
+  const featuredEventQuery = useQuery({
+    queryKey: ['public-event', featuredEvent?.slug],
+    queryFn: () => getPublicEvent(featuredEvent!.slug),
+    enabled: Boolean(featuredEvent?.slug),
+    retry: false,
+  });
+
+  const events = eventsQuery.data?.events ?? [];
+  const details = featuredEventQuery.data;
+  const highlights = getBlocks(details, 'Highlight');
+  const thingsToBring = getBlocks(details, 'WhatToBring');
+  const faqBlocks = details?.contentBlocks
+    .filter((block) => block.blockType === 'Faq')
+    .map((block) => ({
+      question: block.title || 'Вопрос',
+      answer: block.body,
+    })) ?? [];
 
   return (
     <div className="page-shell">
@@ -118,15 +106,15 @@ export default function App() {
           <span className="brand-mark">B</span>
           <div>
             <p className="brand-kicker">Blagodaty</p>
-            <p className="brand-title">Camp</p>
+            <p className="brand-title">Events</p>
           </div>
         </div>
 
         <nav className="site-nav">
+          <a href="#events">События</a>
           <a href="#program">Программа</a>
-          <a href="#conditions">Условия</a>
           <a href="#faq">FAQ</a>
-          <a className="nav-cta" href={`${lkBaseUrl}/register`}>
+          <a className="nav-cta" href={featuredEvent ? `${lkBaseUrl}/camp-registration?event=${featuredEvent.slug}` : `${lkBaseUrl}/register`}>
             Регистрация
           </a>
         </nav>
@@ -135,12 +123,17 @@ export default function App() {
       <main>
         <section className="hero-section">
           <div className="hero-copy">
-            <p className="eyebrow">{overview.season}</p>
-            <h1>{overview.name}</h1>
-            <p className="hero-lead">{overview.tagline}</p>
+            <p className="eyebrow">{featuredEvent?.seasonLabel || featuredEvent?.seriesTitle || 'Blagodaty events'}</p>
+            <h1>{featuredEvent?.title || 'Сезоны, поездки и церковные события'}</h1>
+            <p className="hero-lead">
+              {details?.shortDescription || featuredEvent?.shortDescription || 'Система мероприятий с понятными датами, тарифами, заявками и личным кабинетом для участников.'}
+            </p>
 
             <div className="hero-actions">
-              <a className="button button-primary" href={`${lkBaseUrl}/register`}>
+              <a
+                className="button button-primary"
+                href={featuredEvent ? `${lkBaseUrl}/camp-registration?event=${featuredEvent.slug}` : `${lkBaseUrl}/register`}
+              >
                 Подать заявку
               </a>
               <a className="button button-secondary" href={`${lkBaseUrl}/login`}>
@@ -149,9 +142,9 @@ export default function App() {
             </div>
 
             <div className="hero-meta">
-              <span>{overview.location}</span>
-              <span>{dateRange}</span>
-              <span>{formatCurrency(overview.suggestedDonation)}</span>
+              <span>{details?.location || featuredEvent?.location || 'Локация уточняется'}</span>
+              <span>{formatDateRange(details?.startsAtUtc || featuredEvent?.startsAtUtc, details?.endsAtUtc || featuredEvent?.endsAtUtc)}</span>
+              <span>{formatCurrency(featuredEvent?.priceFromAmount, featuredEvent?.priceCurrency || 'RUB')}</span>
             </div>
           </div>
 
@@ -166,79 +159,115 @@ export default function App() {
             <div className="hero-panel">
               <p className="panel-title">Зачем этот сайт</p>
               <p className="panel-text">
-                Мы строим не просто лендинг, а понятную современную систему: описание поездки,
-                регистрация, личный кабинет и дальнейшая коммуникация с участниками.
+                Теперь здесь можно вести не один лагерь, а сразу несколько сезонов и событий: открывать регистрацию по датам,
+                показывать тарифы и направлять человека прямо в нужную анкету.
               </p>
             </div>
           </div>
         </section>
 
         <section className="facts-grid">
-          {experienceCards.map((item) => (
-            <article className="fact-card" key={item.label}>
-              <p>{item.label}</p>
-              <strong>{item.value}</strong>
-            </article>
-          ))}
+          <article className="fact-card">
+            <p>Активных событий</p>
+            <strong>{events.length}</strong>
+          </article>
+          <article className="fact-card">
+            <p>Ближайшая серия</p>
+            <strong>{featuredEvent?.seriesTitle || 'Blagodaty events'}</strong>
+          </article>
+          <article className="fact-card">
+            <p>Статус окна</p>
+            <strong>
+              {featuredEvent?.isRegistrationOpen
+                ? featuredEvent.isRegistrationClosingSoon
+                  ? 'Скоро закрывается'
+                  : 'Регистрация открыта'
+                : 'Регистрация закрыта'}
+            </strong>
+          </article>
+          <article className="fact-card">
+            <p>Мест осталось</p>
+            <strong>{featuredEvent?.remainingCapacity ?? featuredEvent?.capacity ?? 'Без лимита'}</strong>
+          </article>
+        </section>
+
+        <section className="timeline-section" id="events">
+          <div className="section-heading">
+            <p className="section-kicker">События</p>
+            <h2>Текущие сезоны и предстоящие мероприятия</h2>
+          </div>
+
+          <div className="timeline-grid">
+            {events.length ? (
+              events.map((eventItem) => (
+                <article className="timeline-card" key={eventItem.id}>
+                  <h3>{eventItem.title}</h3>
+                  <p>{eventItem.shortDescription}</p>
+                  <p>{formatDateRange(eventItem.startsAtUtc, eventItem.endsAtUtc)}</p>
+                  <p>{eventItem.location || 'Локация уточняется'}</p>
+                  <p>{formatCurrency(eventItem.priceFromAmount, eventItem.priceCurrency || 'RUB')}</p>
+                  <div className="hero-actions" style={{ marginTop: 12 }}>
+                    <a className="button button-secondary" href={`${lkBaseUrl}/camp-registration?event=${eventItem.slug}`}>
+                      Открыть регистрацию
+                    </a>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <article className="timeline-card">
+                <h3>События скоро появятся</h3>
+                <p>Команда уже готовит новые карточки мероприятий. Пока можно открыть личный кабинет и следить за обновлениями.</p>
+              </article>
+            )}
+          </div>
         </section>
 
         <section className="content-grid" id="program">
           <article className="content-panel">
-            <p className="section-kicker">Основа структуры</p>
-            <h2>Сайт будет не про формальную анкету, а про путь участника</h2>
-            <p>
-              Мы сохраняем важное: описание поездки, даты, условия, список вещей, регистрацию и
-              кабинет. Но визуально проект уходит в более живую, теплую и современную сторону.
-            </p>
+            <p className="section-kicker">Что важно сразу</p>
+            <h2>{featuredEvent?.title || 'Главное о ближайшем событии'}</h2>
+            <ul>
+              {(highlights.length ? highlights : fallbackHighlights).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
           </article>
 
           <article className="content-panel checklist-panel">
-            <p className="section-kicker">Что важно сразу</p>
+            <p className="section-kicker">Что взять с собой</p>
+            <h2>Организационная часть останется ясной и спокойной</h2>
             <ul>
-              {overview.highlights.map((item) => (
+              {(thingsToBring.length ? thingsToBring : fallbackThingsToBring).map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
           </article>
         </section>
 
-        <section className="timeline-section" id="conditions">
+        <section className="timeline-section">
           <div className="section-heading">
-            <p className="section-kicker">Маршрут продукта</p>
-            <h2>Мы сразу строим не просто промостраницу, а систему лагеря</h2>
+            <p className="section-kicker">Программа</p>
+            <h2>Ключевые этапы ближайшего события</h2>
           </div>
 
           <div className="timeline-grid">
-            {timeline.map((step) => (
-              <article className="timeline-card" key={step.title}>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
-              </article>
-            ))}
+            {details?.scheduleItems.length ? (
+              details.scheduleItems.slice(0, 4).map((item) => (
+                <article className="timeline-card" key={item.id}>
+                  <h3>{item.title}</h3>
+                  <p>{formatDateRange(item.startsAtUtc, item.endsAtUtc || item.startsAtUtc)}</p>
+                  <p>{item.location || item.notes || 'Подробности появятся ближе к дате события.'}</p>
+                </article>
+              ))
+            ) : (
+              fallbackHighlights.map((item) => (
+                <article className="timeline-card" key={item}>
+                  <h3>Ближайшая программа</h3>
+                  <p>{item}</p>
+                </article>
+              ))
+            )}
           </div>
-        </section>
-
-        <section className="content-grid dual-layout">
-          <article className="content-panel">
-            <p className="section-kicker">Список вещей</p>
-            <h2>Организационная часть останется ясной и спокойной</h2>
-            <ul>
-              {overview.thingsToBring.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </article>
-
-          <article className="content-panel status-panel">
-            <p className="section-kicker">Личный кабинет</p>
-            <h2>Через lk участник сможет</h2>
-            <ul>
-              <li>создать аккаунт и войти</li>
-              <li>заполнить анкету для поездки</li>
-              <li>обновлять профиль и контакты</li>
-              <li>видеть статус своей заявки</li>
-            </ul>
-          </article>
         </section>
 
         <section className="faq-section" id="faq">
@@ -248,7 +277,7 @@ export default function App() {
           </div>
 
           <div className="faq-grid">
-            {faqItems.map((item) => (
+            {(faqBlocks.length ? faqBlocks : fallbackFaq).map((item) => (
               <article className="faq-card" key={item.question}>
                 <h3>{item.question}</h3>
                 <p>{item.answer}</p>
@@ -260,11 +289,14 @@ export default function App() {
         <section className="cta-section">
           <div>
             <p className="section-kicker">Следующий шаг</p>
-            <h2>Регистрация и дальнейшее сопровождение уже идут через личный кабинет</h2>
+            <h2>Выберите нужное событие и переходите к анкете уже в нужный сезон</h2>
           </div>
 
           <div className="hero-actions">
-            <a className="button button-primary" href={`${lkBaseUrl}/register`}>
+            <a
+              className="button button-primary"
+              href={featuredEvent ? `${lkBaseUrl}/camp-registration?event=${featuredEvent.slug}` : `${lkBaseUrl}/register`}
+            >
               Перейти к регистрации
             </a>
             <a className="button button-secondary" href={`${lkBaseUrl}/dashboard`}>

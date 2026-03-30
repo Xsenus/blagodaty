@@ -1,8 +1,8 @@
 using Blagodaty.Api.Models;
 
-namespace Blagodaty.Api.Contracts.Camp;
+namespace Blagodaty.Api.Contracts.Account;
 
-public sealed class CampRegistrationResponse
+public sealed class AccountRegistrationSummaryDto
 {
     public required Guid Id { get; init; }
     public Guid? EventEditionId { get; init; }
@@ -11,24 +11,18 @@ public sealed class CampRegistrationResponse
     public string? EventSeasonLabel { get; init; }
     public string? EventSeriesTitle { get; init; }
     public string? EventLocation { get; init; }
+    public DateTime? EventStartsAtUtc { get; init; }
+    public DateTime? EventEndsAtUtc { get; init; }
+    public DateTime? RegistrationOpensAtUtc { get; init; }
+    public DateTime? RegistrationClosesAtUtc { get; init; }
+    public bool IsRegistrationOpen { get; init; }
+    public bool IsRegistrationClosingSoon { get; init; }
+    public int? RemainingCapacity { get; init; }
     public Guid? SelectedPriceOptionId { get; init; }
     public string? SelectedPriceOptionTitle { get; init; }
     public decimal? SelectedPriceOptionAmount { get; init; }
     public string? SelectedPriceOptionCurrency { get; init; }
     public required RegistrationStatus Status { get; init; }
-    public required string FullName { get; init; }
-    public required DateOnly BirthDate { get; init; }
-    public required string City { get; init; }
-    public required string ChurchName { get; init; }
-    public required string PhoneNumber { get; init; }
-    public required string EmergencyContactName { get; init; }
-    public required string EmergencyContactPhone { get; init; }
-    public required AccommodationPreference AccommodationPreference { get; init; }
-    public string? HealthNotes { get; init; }
-    public string? AllergyNotes { get; init; }
-    public string? SpecialNeeds { get; init; }
-    public string? Motivation { get; init; }
-    public required bool ConsentAccepted { get; init; }
     public required DateTime CreatedAtUtc { get; init; }
     public required DateTime UpdatedAtUtc { get; init; }
     public DateTime? SubmittedAtUtc { get; init; }

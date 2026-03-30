@@ -7,6 +7,7 @@ public sealed class CurrentAccountResponse
 {
     public required UserSummaryDto User { get; init; }
     public CampRegistrationSnapshotDto? Registration { get; init; }
+    public required IReadOnlyCollection<AccountRegistrationSummaryDto> Registrations { get; init; }
     public required IReadOnlyCollection<ExternalIdentityDto> ExternalIdentities { get; init; }
     public required IReadOnlyCollection<PublicExternalAuthProviderDto> AvailableExternalAuthProviders { get; init; }
     public bool HasPassword { get; init; }

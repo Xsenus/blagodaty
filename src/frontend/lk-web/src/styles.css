@@ -27,6 +27,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   min-width: 320px;
@@ -846,6 +850,76 @@ select {
 .user-info-grid strong {
   color: var(--text-main);
   word-break: break-word;
+}
+
+.event-switch-grid,
+.price-option-list {
+  display: grid;
+  gap: 14px;
+}
+
+.event-switch-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.event-switch-card,
+.price-option-card {
+  display: grid;
+  gap: 10px;
+  text-align: left;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--text-soft);
+}
+
+.event-switch-card {
+  padding: 18px;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.event-switch-card:hover,
+.price-option-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(216, 154, 104, 0.35);
+  box-shadow: 0 14px 32px rgba(152, 126, 97, 0.08);
+}
+
+.event-switch-card strong,
+.price-option-card strong {
+  color: var(--text-main);
+}
+
+.event-switch-card.active,
+.price-option-card.active {
+  border-color: rgba(216, 154, 104, 0.45);
+  background: linear-gradient(180deg, rgba(255, 251, 244, 0.94), rgba(248, 236, 215, 0.82));
+}
+
+.price-option-list {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.price-option-card {
+  position: relative;
+  padding: 18px 18px 18px 44px;
+}
+
+.price-option-card input {
+  position: absolute;
+  top: 20px;
+  left: 18px;
+}
+
+.price-option-card span,
+.price-option-card em {
+  display: block;
+}
+
+.price-option-card em {
+  font-style: normal;
+  color: var(--text-soft);
 }
 
 .provider-help-block,
