@@ -266,10 +266,10 @@ public sealed class CampController : ControllerBase
             Tagline = _campOptions.Tagline,
             Location = _campOptions.Location,
             SuggestedDonation = _campOptions.SuggestedDonation,
-            StartsAtUtc = _campOptions.StartsAtUtc,
-            EndsAtUtc = _campOptions.EndsAtUtc,
-            RegistrationOpensAtUtc = _campOptions.RegistrationOpensAtUtc,
-            RegistrationClosesAtUtc = _campOptions.RegistrationClosesAtUtc,
+            StartsAtUtc = NormalizeConfiguredUtc(_campOptions.StartsAtUtc),
+            EndsAtUtc = NormalizeConfiguredUtc(_campOptions.EndsAtUtc),
+            RegistrationOpensAtUtc = NormalizeConfiguredUtc(_campOptions.RegistrationOpensAtUtc),
+            RegistrationClosesAtUtc = NormalizeConfiguredUtc(_campOptions.RegistrationClosesAtUtc),
             IsRegistrationOpen = true,
             IsRegistrationClosingSoon = false,
             Capacity = _campOptions.Capacity,
@@ -317,6 +317,26 @@ public sealed class CampController : ControllerBase
         return IsRegistrationOpen(edition, remainingCapacity) &&
                edition.RegistrationClosesAtUtc.HasValue &&
                edition.RegistrationClosesAtUtc.Value <= now.AddDays(5);
+    }
+
+    private static DateTime NormalizeConfiguredUtc(DateTime value)
+    {
+        if (value == default)
+        {
+            return value;
+        }
+
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+    }
+
+    private static DateTime? NormalizeConfiguredUtc(DateTime? value)
+    {
+        return value.HasValue ? NormalizeConfiguredUtc(value.Value) : null;
     }
 
     private static CampRegistrationResponse MapRegistration(CampRegistration registration)

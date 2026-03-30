@@ -118,6 +118,10 @@ public static class AppDbSeeder
     {
         var now = DateTime.UtcNow;
         const string defaultSeriesSlug = "blagodaty-camp";
+        var startsAtUtc = NormalizeConfiguredUtc(campOptions.StartsAtUtc);
+        var endsAtUtc = NormalizeConfiguredUtc(campOptions.EndsAtUtc);
+        var registrationOpensAtUtc = NormalizeConfiguredUtc(campOptions.RegistrationOpensAtUtc);
+        var registrationClosesAtUtc = NormalizeConfiguredUtc(campOptions.RegistrationClosesAtUtc);
         var series = await dbContext.EventSeries
             .FirstOrDefaultAsync(item => item.Slug == defaultSeriesSlug);
 
@@ -137,7 +141,7 @@ public static class AppDbSeeder
             dbContext.EventSeries.Add(series);
         }
 
-        var year = campOptions.StartsAtUtc == default ? DateTime.UtcNow.Year : campOptions.StartsAtUtc.Year;
+        var year = startsAtUtc == default ? DateTime.UtcNow.Year : startsAtUtc.Year;
         var editionSlug = $"{defaultSeriesSlug}-{year}";
         var edition = await dbContext.EventEditions
             .Include(item => item.PriceOptions)
@@ -161,10 +165,10 @@ public static class AppDbSeeder
                 Location = string.IsNullOrWhiteSpace(campOptions.Location) ? null : campOptions.Location.Trim(),
                 Timezone = "Asia/Novosibirsk",
                 Status = EventEditionStatus.RegistrationOpen,
-                StartsAtUtc = campOptions.StartsAtUtc == default ? new DateTime(year, 7, 15, 8, 0, 0, DateTimeKind.Utc) : campOptions.StartsAtUtc,
-                EndsAtUtc = campOptions.EndsAtUtc == default ? new DateTime(year, 7, 23, 8, 0, 0, DateTimeKind.Utc) : campOptions.EndsAtUtc,
-                RegistrationOpensAtUtc = campOptions.RegistrationOpensAtUtc,
-                RegistrationClosesAtUtc = campOptions.RegistrationClosesAtUtc,
+                StartsAtUtc = startsAtUtc == default ? new DateTime(year, 7, 15, 8, 0, 0, DateTimeKind.Utc) : startsAtUtc,
+                EndsAtUtc = endsAtUtc == default ? new DateTime(year, 7, 23, 8, 0, 0, DateTimeKind.Utc) : endsAtUtc,
+                RegistrationOpensAtUtc = registrationOpensAtUtc,
+                RegistrationClosesAtUtc = registrationClosesAtUtc,
                 Capacity = campOptions.Capacity,
                 WaitlistEnabled = campOptions.WaitlistEnabled,
                 SortOrder = 0,
@@ -293,5 +297,25 @@ public static class AppDbSeeder
         }
 
         return $"Blagodaty Camp {year}";
+    }
+
+    private static DateTime NormalizeConfiguredUtc(DateTime value)
+    {
+        if (value == default)
+        {
+            return value;
+        }
+
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+    }
+
+    private static DateTime? NormalizeConfiguredUtc(DateTime? value)
+    {
+        return value.HasValue ? NormalizeConfiguredUtc(value.Value) : null;
     }
 }
