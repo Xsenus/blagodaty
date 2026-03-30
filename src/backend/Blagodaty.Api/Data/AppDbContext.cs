@@ -31,6 +31,8 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.Property(x => x.DisplayName).HasMaxLength(120);
             entity.Property(x => x.City).HasMaxLength(120);
             entity.Property(x => x.ChurchName).HasMaxLength(180);
+            entity.HasIndex(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.LastLoginAtUtc);
             entity.HasMany(x => x.ExternalIdentities)
                 .WithOne(x => x.User)
                 .HasForeignKey(x => x.UserId)
@@ -48,6 +50,9 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         builder.Entity<CampRegistration>(entity =>
         {
             entity.HasIndex(x => x.UserId).IsUnique();
+            entity.HasIndex(x => x.Status);
+            entity.HasIndex(x => x.UpdatedAtUtc);
+            entity.HasIndex(x => new { x.Status, x.UpdatedAtUtc });
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(24);
             entity.Property(x => x.AccommodationPreference).HasConversion<string>().HasMaxLength(24);
             entity.Property(x => x.FullName).HasMaxLength(180);

@@ -146,6 +146,8 @@ export type AdminRoleDefinition = {
   id: AppRole;
   title: string;
   description: string;
+  assignedUserCount: number;
+  memberDisplayNames: string[];
 };
 
 export type AdminUser = {
@@ -168,7 +170,14 @@ export type AdminUser = {
 export type AdminOverview = {
   stats: AdminStats;
   roles: AdminRoleDefinition[];
-  users: AdminUser[];
+};
+
+export type PaginatedResponse<T> = {
+  items: T[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
 };
 
 export type AdminExternalAuthProvider = {

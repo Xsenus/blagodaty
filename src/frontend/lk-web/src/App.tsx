@@ -14,6 +14,8 @@ import {
   ApiError,
   getAdminExternalAuthSettings,
   getAdminOverview,
+  getAdminRegistrations,
+  getAdminUsers,
   getExternalAuthStatus,
   getPublicExternalAuthProviders,
   getTelegramAuthStatus,
@@ -37,6 +39,7 @@ import type {
   CampRegistration,
   ExternalAuthStartResponse,
   ExternalIdentity,
+  PaginatedResponse,
   PublicExternalAuthProvider,
   RegistrationStatus,
   SaveRegistrationRequest,
@@ -121,6 +124,99 @@ function formatDateTime(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function useDebouncedValue<T>(value: T, delay = 350) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedValue(value), delay);
+    return () => window.clearTimeout(timer);
+  }, [delay, value]);
+
+  return debouncedValue;
+}
+
+function buildPaginationPages(currentPage: number, totalPages: number) {
+  const pages = new Set<number>([1, totalPages, currentPage, currentPage - 1, currentPage + 1]);
+
+  return [...pages]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((left, right) => left - right);
+}
+
+function PaginationBar({
+  page,
+  pageSize,
+  totalItems,
+  totalPages,
+  isLoading,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  isLoading: boolean;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
+  const visiblePages = buildPaginationPages(page, totalPages);
+  const rangeStart = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
+  const rangeEnd = totalItems === 0 ? 0 : Math.min(page * pageSize, totalItems);
+
+  return (
+    <div className="pagination-bar">
+      <div className="pagination-summary">
+        <strong>{totalItems ? `${rangeStart}-${rangeEnd} из ${totalItems}` : 'Пока ничего не найдено'}</strong>
+        <span>{isLoading ? 'Обновляем список...' : `Страница ${page} из ${totalPages}`}</span>
+      </div>
+
+      <div className="pagination-actions">
+        <label className="pagination-size">
+          <span>На странице</span>
+          <select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </label>
+
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => onPageChange(page - 1)}
+          disabled={isLoading || page <= 1}
+        >
+          Назад
+        </button>
+
+        <div className="pagination-pages">
+          {visiblePages.map((pageNumber) => (
+            <button
+              className={`pagination-page${pageNumber === page ? ' active' : ''}`}
+              type="button"
+              key={pageNumber}
+              onClick={() => onPageChange(pageNumber)}
+              disabled={isLoading || pageNumber === page}
+            >
+              {pageNumber}
+            </button>
+          ))}
+        </div>
+
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => onPageChange(page + 1)}
+          disabled={isLoading || page >= totalPages}
+        >
+          Дальше
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function findIdentity(identities: ExternalIdentity[] | undefined, provider: string) {
@@ -1336,9 +1432,14 @@ function AdminPage() {
   const canOpenAdmin = isAdmin(auth.account?.user.roles);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [authSettings, setAuthSettings] = useState<AdminExternalAuthSettings | null>(null);
+  const [usersPage, setUsersPage] = useState<PaginatedResponse<AdminUser> | null>(null);
+  const [registrationsPage, setRegistrationsPage] = useState<PaginatedResponse<AdminUser> | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, UpdateExternalAuthProviderRequest>>({});
   const [roleDrafts, setRoleDrafts] = useState<Record<string, AppRole[]>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [isUsersLoading, setIsUsersLoading] = useState(false);
+  const [isRegistrationsLoading, setIsRegistrationsLoading] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [savingProvider, setSavingProvider] = useState<string | null>(null);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
@@ -1349,10 +1450,24 @@ function AdminPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | AppRole>('all');
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(20);
+  const [registrationSearch, setRegistrationSearch] = useState('');
+  const [registrationStatusFilter, setRegistrationStatusFilter] = useState<'all' | RegistrationStatus>('all');
+  const [registrationPage, setRegistrationPage] = useState(1);
+  const [registrationPageSize, setRegistrationPageSize] = useState(20);
+  const debouncedUserSearch = useDebouncedValue(userSearch);
+  const debouncedRegistrationSearch = useDebouncedValue(registrationSearch);
   const adminSection = location.pathname.startsWith('/admin/auth')
     ? 'auth'
-    : location.pathname.startsWith('/admin/access')
-      ? 'access'
+    : location.pathname.startsWith('/admin/roles')
+      ? 'roles'
+      : location.pathname.startsWith('/admin/registrations')
+        ? 'registrations'
+        : location.pathname.startsWith('/admin/users') || location.pathname.startsWith('/admin/access')
+          ? 'users'
       : 'overview';
 
   useEffect(() => {
@@ -1364,39 +1479,166 @@ function AdminPage() {
     void loadOverview();
   }, [auth.session?.accessToken, canOpenAdmin]);
 
-  async function loadOverview() {
+  useEffect(() => {
+    if (!canOpenAdmin || !auth.session || adminSection !== 'auth') {
+      return;
+    }
+
+    void loadAuthSettings();
+  }, [adminSection, auth.session?.accessToken, canOpenAdmin]);
+
+  useEffect(() => {
+    if (!canOpenAdmin || !auth.session || adminSection !== 'users') {
+      return;
+    }
+
+    void loadUsersPage();
+  }, [adminSection, auth.session?.accessToken, canOpenAdmin, debouncedUserSearch, userPage, userPageSize, userRoleFilter]);
+
+  useEffect(() => {
+    if (!canOpenAdmin || !auth.session || adminSection !== 'registrations') {
+      return;
+    }
+
+    void loadRegistrationsPage();
+  }, [
+    adminSection,
+    auth.session?.accessToken,
+    canOpenAdmin,
+    debouncedRegistrationSearch,
+    registrationPage,
+    registrationPageSize,
+    registrationStatusFilter,
+  ]);
+
+  async function loadOverview(silent = false) {
     if (!auth.session) {
       return;
     }
 
-    setIsLoading(true);
+    if (!silent) {
+      setIsLoading(true);
+    }
     setError(null);
 
     try {
-      const [loaded, loadedAuthSettings] = await Promise.all([
-        getAdminOverview(auth.session.accessToken),
-        getAdminExternalAuthSettings(auth.session.accessToken),
-      ]);
+      const loaded = await getAdminOverview(auth.session.accessToken);
       setOverview(loaded);
+    } catch (loadError) {
+      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить админский раздел.';
+      setError(nextError);
+      toast.error('Не удалось открыть админку', nextError);
+    } finally {
+      if (!silent) {
+        setIsLoading(false);
+      }
+    }
+  }
+
+  async function loadAuthSettings(silent = false) {
+    if (!auth.session) {
+      return;
+    }
+
+    if (!silent) {
+      setIsAuthLoading(true);
+    }
+
+    setError(null);
+
+    try {
+      const loadedAuthSettings = await getAdminExternalAuthSettings(auth.session.accessToken);
       setAuthSettings(loadedAuthSettings);
-      setRoleDrafts(
-        Object.fromEntries(loaded.users.map((user) => [user.id, orderRoles([...user.roles])])) as Record<
-          string,
-          AppRole[]
-        >,
-      );
       setProviderDrafts(
         Object.fromEntries(
           loadedAuthSettings.providers.map((provider) => [provider.provider, createExternalAuthProviderDraft(provider)]),
         ) as Record<string, UpdateExternalAuthProviderRequest>,
       );
     } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить админский раздел.';
+      const nextError = loadError instanceof Error ? loadError.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РЅР°СЃС‚СЂРѕР№РєРё РІРЅРµС€РЅРµР№ Р°РІС‚РѕСЂРёР·Р°С†РёРё.';
       setError(nextError);
-      toast.error('Не удалось открыть админку', nextError);
+      toast.error('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ auth-РЅР°СЃС‚СЂРѕР№РєРё', nextError);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsAuthLoading(false);
+      }
     }
+  }
+
+  async function loadUsersPage() {
+    if (!auth.session) {
+      return;
+    }
+
+    setIsUsersLoading(true);
+    setError(null);
+
+    try {
+      const loadedUsers = await getAdminUsers(auth.session.accessToken, {
+        page: userPage,
+        pageSize: userPageSize,
+        search: debouncedUserSearch,
+        role: userRoleFilter,
+      });
+
+      setUsersPage(loadedUsers);
+      syncRoleDrafts(loadedUsers.items);
+    } catch (loadError) {
+      const nextError = loadError instanceof Error ? loadError.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№.';
+      setError(nextError);
+      toast.error('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РїРѕР»СЊР·РѕРІР°С‚РµР»РµР№', nextError);
+    } finally {
+      setIsUsersLoading(false);
+    }
+  }
+
+  async function loadRegistrationsPage() {
+    if (!auth.session) {
+      return;
+    }
+
+    setIsRegistrationsLoading(true);
+    setError(null);
+
+    try {
+      const loadedRegistrations = await getAdminRegistrations(auth.session.accessToken, {
+        page: registrationPage,
+        pageSize: registrationPageSize,
+        search: debouncedRegistrationSearch,
+        status: registrationStatusFilter,
+      });
+
+      setRegistrationsPage(loadedRegistrations);
+    } catch (loadError) {
+      const nextError = loadError instanceof Error ? loadError.message : 'РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїРёСЃРѕРє Р°РЅРєРµС‚.';
+      setError(nextError);
+      toast.error('РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ Р°РЅРєРµС‚С‹', nextError);
+    } finally {
+      setIsRegistrationsLoading(false);
+    }
+  }
+
+  function syncRoleDrafts(users: AdminUser[]) {
+    if (!users.length) {
+      return;
+    }
+
+    setRoleDrafts((current) => ({
+      ...current,
+      ...Object.fromEntries(users.map((user) => [user.id, orderRoles([...user.roles])])) as Record<string, AppRole[]>,
+    }));
+  }
+
+  function replacePagedUser(
+    currentPage: PaginatedResponse<AdminUser> | null,
+    updatedUser: AdminUser,
+  ): PaginatedResponse<AdminUser> | null {
+    return currentPage
+      ? {
+          ...currentPage,
+          items: currentPage.items.map((item) => (item.id === updatedUser.id ? updatedUser : item)),
+        }
+      : currentPage;
   }
 
   useEffect(() => {
@@ -1404,7 +1646,6 @@ function AdminPage() {
       return;
     }
 
-    const accessToken = auth.session.accessToken;
     let cancelled = false;
 
     const poll = async () => {
@@ -1435,9 +1676,9 @@ function AdminPage() {
         setPendingProviderTest(null);
         setTestingProvider(null);
 
-        const refreshedAuthSettings = await getAdminExternalAuthSettings(accessToken);
-        if (!cancelled) {
-          setAuthSettings(refreshedAuthSettings);
+        await loadAuthSettings(true);
+        if (cancelled) {
+          return;
         }
       } catch (testError) {
         if (!cancelled) {
@@ -1511,18 +1752,13 @@ function AdminPage() {
 
     try {
       const updatedUser = await updateUserRoles(auth.session.accessToken, user.id, getDraftRoles(user));
-      setOverview((current) =>
-        current
-          ? {
-              ...current,
-              users: current.users.map((item) => (item.id === updatedUser.id ? updatedUser : item)),
-            }
-          : current,
-      );
+      setUsersPage((current) => replacePagedUser(current, updatedUser));
+      setRegistrationsPage((current) => replacePagedUser(current, updatedUser));
       setRoleDrafts((current) => ({
         ...current,
         [updatedUser.id]: orderRoles([...updatedUser.roles]),
       }));
+      await loadOverview(true);
       const successMessage = `Права пользователя ${updatedUser.displayName} обновлены.`;
       setMessage(successMessage);
       toast.success('Роли обновлены', successMessage);
@@ -1614,6 +1850,9 @@ function AdminPage() {
     }
   }
 
+  const filteredUsers = usersPage?.items ?? [];
+  const filteredRegistrations = registrationsPage?.items ?? [];
+
   if (!canOpenAdmin) {
     return <Navigate replace to="/dashboard" />;
   }
@@ -1624,17 +1863,29 @@ function AdminPage() {
         title: 'Провайдеры входа и журнал проверок',
         description: 'Здесь удобно настраивать Google, VK, Yandex и Telegram, а затем сразу проверять каждый способ входа.',
       }
-    : adminSection === 'access'
+    : adminSection === 'roles'
       ? {
-          eyebrow: 'Доступ и роли',
-          title: 'Пользователи, роли и права доступа',
-          description: 'Этот раздел собран для спокойного управления доступами: роли видны отдельно, а права пользователей редактируются ниже.',
+          eyebrow: 'Роли команды',
+          title: 'Роли, зоны ответственности и состав',
+          description: 'Здесь видно, какие роли есть в системе, сколько людей сейчас в каждой из них и как распределена команда.',
         }
-      : {
-          eyebrow: 'Администрирование',
-          title: 'Панель управления лагерем',
-          description: 'Здесь собран общий обзор по системе: ключевые цифры, роли команды и быстрые переходы в нужные административные разделы.',
-        };
+      : adminSection === 'registrations'
+        ? {
+            eyebrow: 'Заявки и участие',
+            title: 'Заявки в лагерь и их статусы',
+            description: 'Этот экран собран для спокойной работы с анкетами: удобно смотреть статусы, искать участников и быстро понимать общую картину.',
+          }
+        : adminSection === 'users'
+          ? {
+              eyebrow: 'Доступ и пользователи',
+              title: 'Пользователи, права и доступ',
+              description: 'Здесь собраны аккаунты, роли, внешние входы и статусы заявок, чтобы права было удобно редактировать без хаоса.',
+            }
+          : {
+              eyebrow: 'Администрирование',
+              title: 'Панель управления лагерем',
+              description: 'Здесь собран общий обзор по системе: ключевые цифры, роли команды и быстрые переходы в нужные административные разделы.',
+            };
 
   return (
     <div className="page-stack">
@@ -1658,10 +1909,22 @@ function AdminPage() {
           <p>Ключевые цифры по системе, роли команды и быстрые переходы к основным административным разделам.</p>
         </NavLink>
 
-        <NavLink to="/admin/access" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
-          <p className="mini-eyebrow">Доступ</p>
+        <NavLink to="/admin/users" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">Пользователи</p>
           <h3>Пользователи и права</h3>
           <p>Все аккаунты в одном месте: роли, статус заявки, последнее посещение и управление доступом.</p>
+        </NavLink>
+
+        <NavLink to="/admin/registrations" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">Заявки</p>
+          <h3>Анкеты и участие</h3>
+          <p>Статусы анкет, поиск по участникам и быстрый обзор того, что уже отправлено и подтверждено.</p>
+        </NavLink>
+
+        <NavLink to="/admin/roles" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">Роли</p>
+          <h3>Команда и ответственность</h3>
+          <p>Состав ролей, распределение людей по ним и более спокойный обзор зоны ответственности команды.</p>
         </NavLink>
 
         <NavLink to="/admin/auth" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
@@ -1706,7 +1969,7 @@ function AdminPage() {
             </article>
           </section>
 
-          <section className="role-grid" hidden={adminSection === 'auth'}>
+          <section className="role-grid" hidden={adminSection !== 'overview' && adminSection !== 'roles'}>
             {overview.roles.map((role) => (
               <article className="glass-card role-card" key={role.id}>
                 <p className="mini-eyebrow">Роль</p>
@@ -1715,6 +1978,162 @@ function AdminPage() {
               </article>
             ))}
           </section>
+
+          <section className="glass-card stack-form" hidden={adminSection !== 'roles'}>
+            <div className="section-inline">
+              <div>
+                <p className="mini-eyebrow">Роли</p>
+                <h3>Состав команды по ролям</h3>
+              </div>
+              <p className="form-muted">
+                Здесь видно, сколько людей сейчас в каждой роли и кто именно входит в этот контур ответственности.
+              </p>
+            </div>
+
+            <div className="admin-nav-grid">
+              {overview.roles.map((role) => {
+                const usersInRole = role.memberDisplayNames;
+
+                return (
+                  <article className="glass-card admin-nav-card" key={role.id}>
+                    <p className="mini-eyebrow">{role.title}</p>
+                    <h3>{role.assignedUserCount}</h3>
+                    <p>{role.description}</p>
+                    <div className="role-pills">
+                      {usersInRole.length ? (
+                        usersInRole.map((memberName) => (
+                          <span className="role-pill" key={`${role.id}-${memberName}`}>
+                            {memberName}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="role-pill muted-pill">Пока никого нет</span>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="glass-card stack-form" hidden={adminSection !== 'registrations'}>
+            <div className="section-inline">
+              <div>
+                <p className="mini-eyebrow">Заявки</p>
+                <h3>Анкеты и статусы участия</h3>
+              </div>
+              <p className="form-muted">
+                Здесь собраны только те пользователи, у которых уже есть анкета или статус участия.
+              </p>
+            </div>
+
+            <div className="admin-filter-bar">
+              <label>
+                <span>Поиск</span>
+                <input
+                  value={registrationSearch}
+                  onChange={(event) => {
+                    setRegistrationSearch(event.target.value);
+                    setRegistrationPage(1);
+                  }}
+                  placeholder="Имя, email, город или церковь"
+                />
+              </label>
+
+              <label>
+                <span>Статус</span>
+                <select
+                  value={registrationStatusFilter}
+                  onChange={(event) => {
+                    setRegistrationStatusFilter(event.target.value as 'all' | RegistrationStatus);
+                    setRegistrationPage(1);
+                  }}
+                >
+                  <option value="all">Все статусы</option>
+                  <option value="Draft">Черновик</option>
+                  <option value="Submitted">Отправлено</option>
+                  <option value="Confirmed">Подтверждено</option>
+                  <option value="Cancelled">Отменено</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="role-pills">
+              <span className="role-pill">Анкет найдено: {registrationsPage?.totalItems ?? 0}</span>
+              <span className="role-pill muted-pill">На этой странице: {filteredRegistrations.length}</span>
+            </div>
+
+            {registrationsPage ? (
+              <PaginationBar
+                page={registrationsPage.page}
+                pageSize={registrationsPage.pageSize}
+                totalItems={registrationsPage.totalItems}
+                totalPages={registrationsPage.totalPages}
+                isLoading={isRegistrationsLoading}
+                onPageChange={setRegistrationPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setRegistrationPageSize(nextPageSize);
+                  setRegistrationPage(1);
+                }}
+              />
+            ) : null}
+
+            <div className="user-list">
+              {isRegistrationsLoading && !registrationsPage ? (
+                <article className="user-card admin-empty-state">
+                  <strong className="user-name">Загружаем анкеты</strong>
+                  <p className="form-muted">Собираем страницу заявок и готовим фильтры.</p>
+                </article>
+              ) : null}
+
+              {filteredRegistrations.map((user) => (
+                <article className="user-card" key={`registration-${user.id}`}>
+                  <div className="user-card-head">
+                    <div>
+                      <strong className="user-name">{user.displayName}</strong>
+                      <p className="user-meta">{user.email}</p>
+                    </div>
+
+                    <div className="role-pills">
+                      <span className="role-pill">{formatStatus(user.registrationStatus)}</span>
+                    </div>
+                  </div>
+
+                  <div className="user-info-grid">
+                    <div>
+                      <span>Город</span>
+                      <strong>{user.city || 'Не указан'}</strong>
+                    </div>
+                    <div>
+                      <span>Церковь</span>
+                      <strong>{user.churchName || 'Не указана'}</strong>
+                    </div>
+                    <div>
+                      <span>Роли</span>
+                      <strong>{formatRoleList(user.roles)}</strong>
+                    </div>
+                    <div>
+                      <span>Последний вход</span>
+                      <strong>{formatDateTime(user.lastLoginAtUtc)}</strong>
+                    </div>
+                  </div>
+                </article>
+              ))}
+
+              {!filteredRegistrations.length && !isRegistrationsLoading ? (
+                <article className="user-card admin-empty-state">
+                  <strong className="user-name">Подходящих анкет не найдено</strong>
+                  <p className="form-muted">Попробуйте изменить строку поиска или выбрать другой статус.</p>
+                </article>
+              ) : null}
+            </div>
+          </section>
+
+          {!authSettings && adminSection === 'auth' && isAuthLoading ? (
+            <section className="glass-card stack-form">
+              <p className="form-muted">Загружаем настройки и журнал внешней авторизации...</p>
+            </section>
+          ) : null}
 
           {authSettings ? (
             <section className="glass-card stack-form" hidden={adminSection !== 'auth'}>
@@ -1905,19 +2324,76 @@ function AdminPage() {
             </section>
           ) : null}
 
-          <section className="glass-card stack-form" hidden={adminSection !== 'access'}>
+          <section className="glass-card stack-form" hidden={adminSection !== 'users'}>
             <div className="section-inline">
               <div>
                 <p className="mini-eyebrow">Пользователи</p>
-                <h3>Настройка прав доступа</h3>
+                <h3>Аккаунты, роли и доступ</h3>
               </div>
               <p className="form-muted">
-                Последний администратор защищен от случайного снятия прав.
+                Последний администратор защищен от случайного снятия прав. Здесь можно искать людей, фильтровать по ролям и спокойно править доступ.
               </p>
             </div>
 
+            <div className="admin-filter-bar">
+              <label>
+                <span>Поиск</span>
+                <input
+                  value={userSearch}
+                  onChange={(event) => {
+                    setUserSearch(event.target.value);
+                    setUserPage(1);
+                  }}
+                  placeholder="Имя, email, город или церковь"
+                />
+              </label>
+
+              <label>
+                <span>Роль</span>
+                <select
+                  value={userRoleFilter}
+                  onChange={(event) => {
+                    setUserRoleFilter(event.target.value as 'all' | AppRole);
+                    setUserPage(1);
+                  }}
+                >
+                  <option value="all">Все роли</option>
+                  <option value="Member">Участник</option>
+                  <option value="CampManager">Координатор лагеря</option>
+                  <option value="Admin">Администратор</option>
+                </select>
+              </label>
+            </div>
+
+            <div className="role-pills">
+              <span className="role-pill">Найдено: {usersPage?.totalItems ?? 0}</span>
+              <span className="role-pill muted-pill">На этой странице: {filteredUsers.length}</span>
+            </div>
+
+            {usersPage ? (
+              <PaginationBar
+                page={usersPage.page}
+                pageSize={usersPage.pageSize}
+                totalItems={usersPage.totalItems}
+                totalPages={usersPage.totalPages}
+                isLoading={isUsersLoading}
+                onPageChange={setUserPage}
+                onPageSizeChange={(nextPageSize) => {
+                  setUserPageSize(nextPageSize);
+                  setUserPage(1);
+                }}
+              />
+            ) : null}
+
             <div className="user-list">
-              {overview.users.map((user) => {
+              {isUsersLoading && !usersPage ? (
+                <article className="user-card admin-empty-state">
+                  <strong className="user-name">Загружаем пользователей</strong>
+                  <p className="form-muted">Собираем страницу аккаунтов и применяем фильтры.</p>
+                </article>
+              ) : null}
+
+              {filteredUsers.map((user) => {
                 const draftRoles = getDraftRoles(user);
                 const isDirty = !rolesEqual(draftRoles, orderRoles([...user.roles]));
                 const isSavingThisUser = savingUserId === user.id;
@@ -1962,6 +2438,18 @@ function AdminPage() {
                       </div>
                     </div>
 
+                    <div className="role-pills">
+                      {user.externalIdentities.length ? (
+                        user.externalIdentities.map((identity) => (
+                          <span className="role-pill muted-pill" key={`${user.id}-${identity.provider}`}>
+                            {formatProviderLabel(identity.provider)}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="role-pill muted-pill">Без внешних входов</span>
+                      )}
+                    </div>
+
                     <div className="role-editor">
                       {overview.roles.map((role) => (
                         <label className="role-toggle" key={role.id}>
@@ -2001,6 +2489,13 @@ function AdminPage() {
                   </article>
                 );
               })}
+
+              {!filteredUsers.length && !isUsersLoading ? (
+                <article className="user-card admin-empty-state">
+                  <strong className="user-name">Пользователи не найдены</strong>
+                  <p className="form-muted">Попробуйте изменить строку поиска или сбросить фильтр по ролям.</p>
+                </article>
+              ) : null}
             </div>
           </section>
         </>
@@ -2032,6 +2527,9 @@ export default function App() {
         <Route path="/camp-registration" element={<CampRegistrationPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/access" element={<AdminPage />} />
+        <Route path="/admin/users" element={<AdminPage />} />
+        <Route path="/admin/registrations" element={<AdminPage />} />
+        <Route path="/admin/roles" element={<AdminPage />} />
         <Route path="/admin/auth" element={<AdminPage />} />
       </Route>
 

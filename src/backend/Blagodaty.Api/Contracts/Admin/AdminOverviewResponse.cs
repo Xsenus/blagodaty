@@ -7,7 +7,6 @@ public sealed class AdminOverviewResponse
 {
     public required AdminStatsDto Stats { get; init; }
     public required IReadOnlyCollection<AdminRoleDto> Roles { get; init; }
-    public required IReadOnlyCollection<AdminUserDto> Users { get; init; }
 }
 
 public sealed class AdminStatsDto
@@ -23,6 +22,8 @@ public sealed class AdminRoleDto
     public required string Id { get; init; }
     public required string Title { get; init; }
     public required string Description { get; init; }
+    public required int AssignedUserCount { get; init; }
+    public required IReadOnlyCollection<string> MemberDisplayNames { get; init; }
 }
 
 public sealed class AdminUserDto

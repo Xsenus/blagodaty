@@ -9,6 +9,7 @@ import type {
   CurrentAccount,
   ExternalAuthStartResponse,
   ExternalAuthStatusResponse,
+  PaginatedResponse,
   PublicExternalAuthProvider,
   SaveRegistrationRequest,
   SessionState,
@@ -193,6 +194,56 @@ export function saveRegistration(accessToken: string, payload: SaveRegistrationR
 
 export function getAdminOverview(accessToken: string) {
   return request<AdminOverview>('/api/admin/overview', {}, accessToken);
+}
+
+export function getAdminUsers(
+  accessToken: string,
+  params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    role?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+
+  if (params.search?.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.role && params.role !== 'all') {
+    query.set('role', params.role);
+  }
+
+  return request<PaginatedResponse<AdminUser>>(`/api/admin/users?${query.toString()}`, {}, accessToken);
+}
+
+export function getAdminRegistrations(
+  accessToken: string,
+  params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+    status?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+
+  if (params.search?.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  if (params.status && params.status !== 'all') {
+    query.set('status', params.status);
+  }
+
+  return request<PaginatedResponse<AdminUser>>(`/api/admin/registrations?${query.toString()}`, {}, accessToken);
 }
 
 export function updateUserRoles(accessToken: string, userId: string, roles: string[]) {

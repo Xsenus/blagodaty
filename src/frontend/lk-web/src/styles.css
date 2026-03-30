@@ -406,7 +406,7 @@ select {
 
 .admin-nav-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 18px;
 }
 
@@ -431,12 +431,101 @@ select {
 }
 
 .admin-nav-card h3 {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   color: var(--text-main);
 }
 
 .admin-shortcut-card {
   text-decoration: none;
+}
+
+.admin-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-empty-state {
+  text-align: center;
+  justify-items: center;
+}
+
+.pagination-bar,
+.pagination-actions,
+.pagination-pages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pagination-bar {
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.pagination-summary {
+  display: grid;
+  gap: 4px;
+}
+
+.pagination-summary strong {
+  color: var(--text-main);
+}
+
+.pagination-summary span,
+.pagination-size span {
+  color: var(--text-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.72rem;
+}
+
+.pagination-actions {
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.pagination-pages {
+  align-items: center;
+}
+
+.pagination-size {
+  display: grid;
+  gap: 8px;
+}
+
+.pagination-size select {
+  min-width: 84px;
+}
+
+.pagination-page {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 154, 104, 0.22);
+  background: rgba(255, 255, 255, 0.82);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.pagination-page:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.pagination-page.active {
+  border-color: rgba(216, 154, 104, 0.4);
+  background: rgba(248, 228, 191, 0.74);
+}
+
+.pagination-page:disabled {
+  cursor: default;
+  opacity: 0.7;
 }
 
 .page-stack {
@@ -785,6 +874,7 @@ select {
   .dashboard-grid,
   .admin-stats-grid,
   .admin-nav-grid,
+  .admin-filter-bar,
   .form-grid,
   .auth-layout,
   .role-grid,
@@ -816,7 +906,8 @@ select {
 
   .page-hero,
   .section-inline,
-  .user-card-head {
+  .user-card-head,
+  .pagination-bar {
     display: grid;
   }
 
@@ -831,6 +922,10 @@ select {
   }
 
   .role-pills {
+    justify-content: flex-start;
+  }
+
+  .pagination-actions {
     justify-content: flex-start;
   }
 
