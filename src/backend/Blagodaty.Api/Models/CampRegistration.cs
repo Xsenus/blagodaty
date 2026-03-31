@@ -11,11 +11,15 @@ public sealed class CampRegistration
     public EventPriceOption? SelectedPriceOption { get; set; }
 
     public RegistrationStatus Status { get; set; } = RegistrationStatus.Draft;
+    public string ContactEmail { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public DateOnly BirthDate { get; set; }
     public string City { get; set; } = string.Empty;
     public string ChurchName { get; set; } = string.Empty;
     public string PhoneNumber { get; set; } = string.Empty;
+    public bool HasCar { get; set; }
+    public bool HasChildren { get; set; }
+    public int ParticipantsCount { get; set; } = 1;
     public string EmergencyContactName { get; set; } = string.Empty;
     public string EmergencyContactPhone { get; set; } = string.Empty;
     public AccommodationPreference AccommodationPreference { get; set; } = AccommodationPreference.Either;
@@ -27,6 +31,8 @@ public sealed class CampRegistration
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? SubmittedAtUtc { get; set; }
+
+    public ICollection<CampRegistrationParticipant> Participants { get; set; } = [];
 }
 
 public enum RegistrationStatus

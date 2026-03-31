@@ -16,11 +16,17 @@ public sealed class CampRegistrationResponse
     public decimal? SelectedPriceOptionAmount { get; init; }
     public string? SelectedPriceOptionCurrency { get; init; }
     public required RegistrationStatus Status { get; init; }
+    public required string ContactEmail { get; init; }
     public required string FullName { get; init; }
     public required DateOnly BirthDate { get; init; }
     public required string City { get; init; }
     public required string ChurchName { get; init; }
     public required string PhoneNumber { get; init; }
+    public required bool PhoneNumberConfirmed { get; init; }
+    public required bool HasCar { get; init; }
+    public required bool HasChildren { get; init; }
+    public required int ParticipantsCount { get; init; }
+    public required IReadOnlyCollection<CampRegistrationParticipantDto> Participants { get; init; }
     public required string EmergencyContactName { get; init; }
     public required string EmergencyContactPhone { get; init; }
     public required AccommodationPreference AccommodationPreference { get; init; }
@@ -32,4 +38,12 @@ public sealed class CampRegistrationResponse
     public required DateTime CreatedAtUtc { get; init; }
     public required DateTime UpdatedAtUtc { get; init; }
     public DateTime? SubmittedAtUtc { get; init; }
+}
+
+public sealed class CampRegistrationParticipantDto
+{
+    public required Guid Id { get; init; }
+    public required string FullName { get; init; }
+    public required bool IsChild { get; init; }
+    public required int SortOrder { get; init; }
 }

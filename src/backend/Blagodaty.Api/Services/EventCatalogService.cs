@@ -252,7 +252,7 @@ public sealed class EventCatalogService
             .Select(group => new
             {
                 EventEditionId = group.Key,
-                Count = group.Count()
+                Count = group.Sum(registration => registration.ParticipantsCount)
             })
             .ToListAsync(cancellationToken);
 

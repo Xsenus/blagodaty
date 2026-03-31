@@ -10,6 +10,9 @@ public sealed class UpsertCampRegistrationRequest
     [Required, MaxLength(180)]
     public string FullName { get; set; } = string.Empty;
 
+    [Required, EmailAddress, MaxLength(320)]
+    public string ContactEmail { get; set; } = string.Empty;
+
     [Required]
     public DateOnly BirthDate { get; set; }
 
@@ -21,6 +24,12 @@ public sealed class UpsertCampRegistrationRequest
 
     [Required, Phone, MaxLength(32)]
     public string PhoneNumber { get; set; } = string.Empty;
+
+    public bool HasCar { get; set; }
+    public bool HasChildren { get; set; }
+
+    public IReadOnlyCollection<UpsertCampRegistrationParticipantRequest> Participants { get; set; } =
+        Array.Empty<UpsertCampRegistrationParticipantRequest>();
 
     [Required, MaxLength(180)]
     public string EmergencyContactName { get; set; } = string.Empty;
@@ -47,4 +56,12 @@ public sealed class UpsertCampRegistrationRequest
 
     [Range(typeof(bool), "true", "true", ErrorMessage = "Consent must be accepted.")]
     public bool ConsentAccepted { get; set; }
+}
+
+public sealed class UpsertCampRegistrationParticipantRequest
+{
+    [Required, MaxLength(180)]
+    public string FullName { get; set; } = string.Empty;
+
+    public bool IsChild { get; set; }
 }

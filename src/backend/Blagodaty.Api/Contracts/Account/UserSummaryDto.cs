@@ -10,5 +10,6 @@ public sealed class UserSummaryDto
     public string? City { get; init; }
     public string? ChurchName { get; init; }
     public string? PhoneNumber { get; init; }
+    public bool PhoneNumberConfirmed { get; init; }
     public required IReadOnlyCollection<string> Roles { get; init; }
 }

@@ -36,6 +36,7 @@ import { AdminBackupsSection } from './admin/AdminBackupsSection';
 import { AdminGallerySection } from './admin/AdminGallerySection';
 import { AdminSiteSettingsSection } from './admin/AdminSiteSettingsSection';
 import { AdminTelegramSection } from './admin/AdminTelegramSection';
+import { CampRegistrationFlowPage } from './camp/CampRegistrationPage';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
 import type {
@@ -1619,11 +1620,15 @@ function CampRegistrationPageLegacy() {
   const [error, setError] = useState<string | null>(null);
   const [registration, setRegistration] = useState<CampRegistration | null>(null);
   const [form, setForm] = useState<SaveRegistrationRequest>({
+    contactEmail: '',
     fullName: '',
     birthDate: '',
     city: '',
     churchName: '',
     phoneNumber: '',
+    hasCar: false,
+    hasChildren: false,
+    participants: [],
     emergencyContactName: '',
     emergencyContactPhone: '',
     accommodationPreference: 'Either',
@@ -1648,15 +1653,19 @@ function CampRegistrationPageLegacy() {
       setRegistration(loaded);
 
       if (loaded) {
-        setForm({
-          fullName: loaded.fullName,
-          birthDate: loaded.birthDate,
-          city: loaded.city,
-          churchName: loaded.churchName,
-          phoneNumber: loaded.phoneNumber,
-          emergencyContactName: loaded.emergencyContactName,
-          emergencyContactPhone: loaded.emergencyContactPhone,
-          accommodationPreference: loaded.accommodationPreference,
+          setForm({
+            contactEmail: '',
+            fullName: loaded.fullName,
+            birthDate: loaded.birthDate,
+            city: loaded.city,
+            churchName: loaded.churchName,
+            phoneNumber: loaded.phoneNumber,
+            hasCar: false,
+            hasChildren: false,
+            participants: [],
+            emergencyContactName: loaded.emergencyContactName,
+            emergencyContactPhone: loaded.emergencyContactPhone,
+            accommodationPreference: loaded.accommodationPreference,
           healthNotes: loaded.healthNotes ?? '',
           allergyNotes: loaded.allergyNotes ?? '',
           specialNeeds: loaded.specialNeeds ?? '',
@@ -1918,11 +1927,15 @@ function CampRegistrationPage() {
   const [registration, setRegistration] = useState<CampRegistration | null>(null);
   const [form, setForm] = useState<SaveRegistrationRequest>({
     selectedPriceOptionId: null,
+    contactEmail: '',
     fullName: '',
     birthDate: '',
     city: '',
     churchName: '',
     phoneNumber: '',
+    hasCar: false,
+    hasChildren: false,
+    participants: [],
     emergencyContactName: '',
     emergencyContactPhone: '',
     accommodationPreference: 'Either',
@@ -1996,17 +2009,21 @@ function CampRegistrationPage() {
       setSelectedEvent(eventDetails);
       setRegistration(currentRegistration);
 
-      if (currentRegistration) {
-        setForm({
-          selectedPriceOptionId: currentRegistration.selectedPriceOptionId ?? null,
-          fullName: currentRegistration.fullName,
-          birthDate: currentRegistration.birthDate,
-          city: currentRegistration.city,
-          churchName: currentRegistration.churchName,
-          phoneNumber: currentRegistration.phoneNumber,
-          emergencyContactName: currentRegistration.emergencyContactName,
-          emergencyContactPhone: currentRegistration.emergencyContactPhone,
-          accommodationPreference: currentRegistration.accommodationPreference,
+        if (currentRegistration) {
+          setForm({
+            selectedPriceOptionId: currentRegistration.selectedPriceOptionId ?? null,
+            contactEmail: currentRegistration.contactEmail ?? '',
+            fullName: currentRegistration.fullName,
+            birthDate: currentRegistration.birthDate,
+            city: currentRegistration.city,
+            churchName: currentRegistration.churchName,
+            phoneNumber: currentRegistration.phoneNumber,
+            hasCar: currentRegistration.hasCar ?? false,
+            hasChildren: currentRegistration.hasChildren ?? false,
+            participants: currentRegistration.participants ?? [],
+            emergencyContactName: currentRegistration.emergencyContactName,
+            emergencyContactPhone: currentRegistration.emergencyContactPhone,
+            accommodationPreference: currentRegistration.accommodationPreference,
           healthNotes: currentRegistration.healthNotes ?? '',
           allergyNotes: currentRegistration.allergyNotes ?? '',
           specialNeeds: currentRegistration.specialNeeds ?? '',
@@ -2369,6 +2386,8 @@ function CampRegistrationPage() {
     </div>
   );
 }
+
+void CampRegistrationPage;
 
 function AdminPage() {
   const auth = useAuth();
@@ -3717,7 +3736,7 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/camp-registration" element={<CampRegistrationPage />} />
+        <Route path="/camp-registration" element={<CampRegistrationFlowPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/access" element={<AdminPage />} />
         <Route path="/admin/events" element={<AdminPage />} />

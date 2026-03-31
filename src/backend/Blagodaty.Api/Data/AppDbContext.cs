@@ -13,6 +13,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     }
 
     public DbSet<CampRegistration> CampRegistrations => Set<CampRegistration>();
+    public DbSet<CampRegistrationParticipant> CampRegistrationParticipants => Set<CampRegistrationParticipant>();
     public DbSet<EventSeries> EventSeries => Set<EventSeries>();
     public DbSet<EventEdition> EventEditions => Set<EventEdition>();
     public DbSet<EventPriceOption> EventPriceOptions => Set<EventPriceOption>();
@@ -169,6 +170,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.HasIndex(x => new { x.EventEditionId, x.Status, x.UpdatedAtUtc });
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(24);
             entity.Property(x => x.AccommodationPreference).HasConversion<string>().HasMaxLength(24);
+            entity.Property(x => x.ContactEmail).HasMaxLength(320);
             entity.Property(x => x.FullName).HasMaxLength(180);
             entity.Property(x => x.City).HasMaxLength(120);
             entity.Property(x => x.ChurchName).HasMaxLength(180);
@@ -187,6 +189,16 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
                 .WithMany(x => x.Registrations)
                 .HasForeignKey(x => x.SelectedPriceOptionId)
                 .OnDelete(DeleteBehavior.SetNull);
+            entity.HasMany(x => x.Participants)
+                .WithOne(x => x.CampRegistration)
+                .HasForeignKey(x => x.CampRegistrationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<CampRegistrationParticipant>(entity =>
+        {
+            entity.HasIndex(x => new { x.CampRegistrationId, x.SortOrder });
+            entity.Property(x => x.FullName).HasMaxLength(180);
         });
 
         builder.Entity<AppSetting>(entity =>

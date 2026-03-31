@@ -38,10 +38,15 @@ public sealed class TelegramGroupNotificationService
         var text = string.Join("\n", new[]
         {
             $"Новая заявка на «{registration.EventEdition.Title}»",
-            $"Участник: {registration.FullName}",
+            $"Контакт: {registration.FullName}",
+            string.IsNullOrWhiteSpace(registration.ContactEmail) ? null : $"Email: {registration.ContactEmail}",
+            string.IsNullOrWhiteSpace(registration.PhoneNumber) ? null : $"Телефон: {registration.PhoneNumber}",
+            $"Участников: {EventRegistrationService.GetParticipantsCount(registration)}",
+            registration.HasChildren ? "Есть дети: да" : null,
+            registration.HasCar ? "Автомобиль: да" : null,
             string.IsNullOrWhiteSpace(registration.City) ? null : $"Город: {registration.City}",
             string.IsNullOrWhiteSpace(registration.ChurchName) ? null : $"Церковь: {registration.ChurchName}",
-            string.IsNullOrWhiteSpace(registration.PhoneNumber) ? null : $"Телефон: {registration.PhoneNumber}",
+            $"Размещение: {FormatAccommodation(registration.AccommodationPreference)}",
             $"Статус: {FormatRegistrationStatus(registration.Status)}",
             BuildCabinetLink("/admin/registrations")
         }.Where(item => !string.IsNullOrWhiteSpace(item)));
@@ -67,7 +72,8 @@ public sealed class TelegramGroupNotificationService
         var text = string.Join("\n", new[]
         {
             $"Изменён статус заявки на «{registration.EventEdition.Title}»",
-            $"Участник: {registration.FullName}",
+            $"Контакт: {registration.FullName}",
+            $"Участников: {EventRegistrationService.GetParticipantsCount(registration)}",
             $"Было: {FormatRegistrationStatus(previousStatus)}",
             $"Стало: {FormatRegistrationStatus(registration.Status)}",
             BuildCabinetLink("/admin/registrations")
@@ -165,7 +171,11 @@ public sealed class TelegramGroupNotificationService
             }
             catch (DbUpdateException exception)
             {
-                _logger.LogDebug(exception, "Telegram delivery log for subscription {SubscriptionId} and key {NotificationKey} already exists.", target.Id, notificationKey);
+                _logger.LogDebug(
+                    exception,
+                    "Telegram delivery log for subscription {SubscriptionId} and key {NotificationKey} already exists.",
+                    target.Id,
+                    notificationKey);
             }
         }
     }
@@ -189,5 +199,13 @@ public sealed class TelegramGroupNotificationService
         RegistrationStatus.Confirmed => "Подтверждено",
         RegistrationStatus.Cancelled => "Отменено",
         _ => status.ToString()
+    };
+
+    private static string FormatAccommodation(AccommodationPreference preference) => preference switch
+    {
+        AccommodationPreference.Tent => "палатка",
+        AccommodationPreference.Cabin => "домик",
+        AccommodationPreference.Either => "без разницы",
+        _ => preference.ToString()
     };
 }

@@ -74,6 +74,7 @@ public sealed class AccountController : ControllerBase
                     EventEditionId = registration.EventEditionId,
                     EventSlug = registration.EventSlug,
                     Status = registration.Status,
+                    ParticipantsCount = registration.ParticipantsCount,
                     UpdatedAtUtc = registration.UpdatedAtUtc,
                     SubmittedAtUtc = registration.SubmittedAtUtc
                 },
@@ -157,7 +158,13 @@ public sealed class AccountController : ControllerBase
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
         user.DisplayName = request.DisplayName.Trim();
-        user.PhoneNumber = request.PhoneNumber?.Trim();
+        var nextPhoneNumber = request.PhoneNumber?.Trim();
+        if (!string.Equals(user.PhoneNumber, nextPhoneNumber, StringComparison.Ordinal))
+        {
+            user.PhoneNumberConfirmed = false;
+        }
+
+        user.PhoneNumber = nextPhoneNumber;
         user.City = request.City?.Trim();
         user.ChurchName = request.ChurchName?.Trim();
 

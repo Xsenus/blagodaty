@@ -7,6 +7,7 @@ export type UserSummary = {
   city?: string | null;
   churchName?: string | null;
   phoneNumber?: string | null;
+  phoneNumberConfirmed: boolean;
   roles: string[];
 };
 
@@ -54,6 +55,7 @@ export type CampRegistrationSnapshot = {
   eventEditionId?: string | null;
   eventSlug?: string | null;
   status: RegistrationStatus;
+  participantsCount: number;
   updatedAtUtc: string;
   submittedAtUtc?: string | null;
 };
@@ -77,6 +79,7 @@ export type AccountRegistrationSummary = {
   selectedPriceOptionTitle?: string | null;
   selectedPriceOptionAmount?: number | null;
   selectedPriceOptionCurrency?: string | null;
+  participantsCount: number;
   status: RegistrationStatus;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -161,6 +164,13 @@ export type SessionState = {
   refreshTokenExpiresAtUtc: string;
 };
 
+export type CampRegistrationParticipant = {
+  id: string;
+  fullName: string;
+  isChild: boolean;
+  sortOrder: number;
+};
+
 export type CampRegistration = {
   id: string;
   eventEditionId?: string | null;
@@ -174,11 +184,17 @@ export type CampRegistration = {
   selectedPriceOptionAmount?: number | null;
   selectedPriceOptionCurrency?: string | null;
   status: RegistrationStatus;
+  contactEmail: string;
   fullName: string;
   birthDate: string;
   city: string;
   churchName: string;
   phoneNumber: string;
+  phoneNumberConfirmed: boolean;
+  hasCar: boolean;
+  hasChildren: boolean;
+  participantsCount: number;
+  participants: CampRegistrationParticipant[];
   emergencyContactName: string;
   emergencyContactPhone: string;
   accommodationPreference: AccommodationPreference;
@@ -194,11 +210,18 @@ export type CampRegistration = {
 
 export type SaveRegistrationRequest = {
   selectedPriceOptionId?: string | null;
+  contactEmail: string;
   fullName: string;
   birthDate: string;
   city: string;
   churchName: string;
   phoneNumber: string;
+  hasCar: boolean;
+  hasChildren: boolean;
+  participants: Array<{
+    fullName: string;
+    isChild: boolean;
+  }>;
   emergencyContactName: string;
   emergencyContactPhone: string;
   accommodationPreference: AccommodationPreference;
@@ -251,6 +274,10 @@ export type AdminUser = {
   registrationEventSlug?: string | null;
   registrationEventTitle?: string | null;
   registrationStatus?: RegistrationStatus | null;
+  registrationContactEmail?: string | null;
+  registrationParticipantsCount?: number | null;
+  registrationHasCar?: boolean | null;
+  registrationHasChildren?: boolean | null;
   registrationUpdatedAtUtc?: string | null;
   externalIdentities: ExternalIdentity[];
 };

@@ -22,6 +22,7 @@ public sealed class AccountRegistrationSummaryDto
     public string? SelectedPriceOptionTitle { get; init; }
     public decimal? SelectedPriceOptionAmount { get; init; }
     public string? SelectedPriceOptionCurrency { get; init; }
+    public int ParticipantsCount { get; init; }
     public required RegistrationStatus Status { get; init; }
     public required DateTime CreatedAtUtc { get; init; }
     public required DateTime UpdatedAtUtc { get; init; }

@@ -18,6 +18,7 @@ public static class AccountMapper
             City = user.City,
             ChurchName = user.ChurchName,
             PhoneNumber = user.PhoneNumber,
+            PhoneNumberConfirmed = user.PhoneNumberConfirmed,
             Roles = roles
         };
     }
@@ -60,6 +61,10 @@ public static class AccountMapper
             CreatedAtUtc = user.CreatedAtUtc,
             LastLoginAtUtc = user.LastLoginAtUtc,
             RegistrationStatus = registrationStatus,
+            RegistrationContactEmail = null,
+            RegistrationParticipantsCount = null,
+            RegistrationHasCar = null,
+            RegistrationHasChildren = null,
             RegistrationUpdatedAtUtc = registrationUpdatedAtUtc,
             ExternalIdentities = externalIdentities
         };

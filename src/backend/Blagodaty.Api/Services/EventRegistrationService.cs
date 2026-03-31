@@ -46,9 +46,11 @@ public sealed class EventRegistrationService
     {
         var registration = await _dbContext.CampRegistrations
             .AsNoTracking()
+            .Include(item => item.User)
             .Include(item => item.EventEdition)
             .ThenInclude(item => item!.EventSeries)
             .Include(item => item.SelectedPriceOption)
+            .Include(item => item.Participants.OrderBy(participant => participant.SortOrder))
             .FirstOrDefaultAsync(
                 item => item.UserId == userId && item.EventEditionId == eventEditionId,
                 cancellationToken);
@@ -64,11 +66,6 @@ public sealed class EventRegistrationService
         CancellationToken cancellationToken = default)
     {
         var now = _timeProvider.GetUtcNow().UtcDateTime;
-        var remainingCapacity = await _eventCatalogService.GetRemainingCapacityAsync(eventEdition.Id, cancellationToken);
-        if (request.Submit && !_eventCatalogService.IsRegistrationOpen(eventEdition, remainingCapacity))
-        {
-            throw new InvalidOperationException("Регистрация на выбранное мероприятие сейчас закрыта или лимит мест уже достигнут.");
-        }
 
         EventPriceOption? selectedPriceOption = null;
         if (request.SelectedPriceOptionId is not null)
@@ -86,6 +83,7 @@ public sealed class EventRegistrationService
         }
 
         var registration = await _dbContext.CampRegistrations
+            .Include(item => item.Participants)
             .FirstOrDefaultAsync(
                 item => item.UserId == userId && item.EventEditionId == eventEdition.Id,
                 cancellationToken);
@@ -93,9 +91,34 @@ public sealed class EventRegistrationService
         if (registration is null && allowLegacyDraftMigration && eventEdition.EventSeries.Kind == EventKind.Camp)
         {
             registration = await _dbContext.CampRegistrations
+                .Include(item => item.Participants)
                 .FirstOrDefaultAsync(
                     item => item.UserId == userId && item.EventEditionId == null,
                     cancellationToken);
+        }
+
+        var normalizedParticipants = NormalizeParticipants(request);
+        var normalizedParticipantsCount = normalizedParticipants.Count;
+        var existingOccupiedSeats = registration is not null && CountsAgainstCapacity(registration.Status)
+            ? GetParticipantsCount(registration)
+            : 0;
+        var remainingCapacity = await _eventCatalogService.GetRemainingCapacityAsync(eventEdition.Id, cancellationToken);
+        int? editableRemainingCapacity = remainingCapacity.HasValue
+            ? remainingCapacity.Value + existingOccupiedSeats
+            : null;
+
+        if (request.Submit && !_eventCatalogService.IsRegistrationOpen(eventEdition, editableRemainingCapacity))
+        {
+            throw new InvalidOperationException("Регистрация на выбранное мероприятие сейчас закрыта или лимит мест уже достигнут.");
+        }
+
+        if (request.Submit &&
+            !eventEdition.WaitlistEnabled &&
+            editableRemainingCapacity.HasValue &&
+            normalizedParticipantsCount > editableRemainingCapacity.Value)
+        {
+            throw new InvalidOperationException(
+                $"Для этой заявки сейчас доступно только {editableRemainingCapacity.Value} мест, а вы указали {normalizedParticipantsCount}.");
         }
 
         if (registration is null)
@@ -109,14 +132,20 @@ public sealed class EventRegistrationService
             _dbContext.CampRegistrations.Add(registration);
         }
 
+        var user = await _dbContext.Users.FirstAsync(item => item.Id == userId, cancellationToken);
         var previousStatus = registration.Status;
+
         registration.EventEditionId = eventEdition.Id;
         registration.SelectedPriceOptionId = selectedPriceOption?.Id;
-        registration.FullName = request.FullName.Trim();
+        registration.ContactEmail = request.ContactEmail.Trim();
+        registration.FullName = normalizedParticipants[0].FullName;
         registration.BirthDate = request.BirthDate;
         registration.City = request.City.Trim();
         registration.ChurchName = request.ChurchName.Trim();
         registration.PhoneNumber = request.PhoneNumber.Trim();
+        registration.HasCar = request.HasCar;
+        registration.HasChildren = request.HasChildren || normalizedParticipants.Any(item => item.IsChild);
+        registration.ParticipantsCount = normalizedParticipantsCount;
         registration.EmergencyContactName = request.EmergencyContactName.Trim();
         registration.EmergencyContactPhone = request.EmergencyContactPhone.Trim();
         registration.AccommodationPreference = request.AccommodationPreference;
@@ -129,13 +158,35 @@ public sealed class EventRegistrationService
         registration.UpdatedAtUtc = now;
         registration.SubmittedAtUtc = request.Submit ? now : null;
 
+        if (!string.Equals(user.PhoneNumber, registration.PhoneNumber, StringComparison.Ordinal))
+        {
+            user.PhoneNumberConfirmed = false;
+        }
+
+        user.PhoneNumber = registration.PhoneNumber;
+        user.City = registration.City;
+        user.ChurchName = registration.ChurchName;
+
+        registration.Participants.Clear();
+        foreach (var participant in normalizedParticipants)
+        {
+            registration.Participants.Add(new CampRegistrationParticipant
+            {
+                FullName = participant.FullName,
+                IsChild = participant.IsChild,
+                SortOrder = participant.SortOrder
+            });
+        }
+
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var saved = await _dbContext.CampRegistrations
             .AsNoTracking()
+            .Include(item => item.User)
             .Include(item => item.EventEdition)
             .ThenInclude(item => item!.EventSeries)
             .Include(item => item.SelectedPriceOption)
+            .Include(item => item.Participants.OrderBy(participant => participant.SortOrder))
             .FirstAsync(item => item.Id == registration.Id, cancellationToken);
 
         if (request.Submit && previousStatus != RegistrationStatus.Submitted)
@@ -181,7 +232,7 @@ public sealed class EventRegistrationService
             .Select(group => new
             {
                 EventEditionId = group.Key,
-                Count = group.Count()
+                Count = group.Sum(item => item.ParticipantsCount)
             })
             .ToListAsync(cancellationToken);
 
@@ -217,6 +268,7 @@ public sealed class EventRegistrationService
                     SelectedPriceOptionTitle = registration.SelectedPriceOption?.Title,
                     SelectedPriceOptionAmount = registration.SelectedPriceOption?.Amount,
                     SelectedPriceOptionCurrency = registration.SelectedPriceOption?.Currency,
+                    ParticipantsCount = GetParticipantsCount(registration),
                     Status = registration.Status,
                     CreatedAtUtc = registration.CreatedAtUtc,
                     UpdatedAtUtc = registration.UpdatedAtUtc,
@@ -228,6 +280,8 @@ public sealed class EventRegistrationService
 
     public static CampRegistrationResponse MapRegistration(CampRegistration registration)
     {
+        var participants = BuildParticipantDtos(registration);
+
         return new CampRegistrationResponse
         {
             Id = registration.Id,
@@ -242,11 +296,19 @@ public sealed class EventRegistrationService
             SelectedPriceOptionAmount = registration.SelectedPriceOption?.Amount,
             SelectedPriceOptionCurrency = registration.SelectedPriceOption?.Currency,
             Status = registration.Status,
+            ContactEmail = !string.IsNullOrWhiteSpace(registration.ContactEmail)
+                ? registration.ContactEmail
+                : TechnicalEmailHelper.ToVisibleEmail(registration.User?.Email),
             FullName = registration.FullName,
             BirthDate = registration.BirthDate,
             City = registration.City,
             ChurchName = registration.ChurchName,
             PhoneNumber = registration.PhoneNumber,
+            PhoneNumberConfirmed = registration.User?.PhoneNumberConfirmed ?? false,
+            HasCar = registration.HasCar,
+            HasChildren = registration.HasChildren || participants.Any(item => item.IsChild),
+            ParticipantsCount = participants.Count,
+            Participants = participants,
             EmergencyContactName = registration.EmergencyContactName,
             EmergencyContactPhone = registration.EmergencyContactPhone,
             AccommodationPreference = registration.AccommodationPreference,
@@ -259,5 +321,95 @@ public sealed class EventRegistrationService
             UpdatedAtUtc = registration.UpdatedAtUtc,
             SubmittedAtUtc = registration.SubmittedAtUtc
         };
+    }
+
+    public static int GetParticipantsCount(CampRegistration registration)
+    {
+        if (registration.ParticipantsCount > 0)
+        {
+            return registration.ParticipantsCount;
+        }
+
+        if (registration.Participants.Count > 0)
+        {
+            return registration.Participants.Count;
+        }
+
+        return string.IsNullOrWhiteSpace(registration.FullName) ? 0 : 1;
+    }
+
+    public static bool CountsAgainstCapacity(RegistrationStatus status)
+    {
+        return status != RegistrationStatus.Draft && status != RegistrationStatus.Cancelled;
+    }
+
+    private static List<CampRegistrationParticipantDto> BuildParticipantDtos(CampRegistration registration)
+    {
+        if (registration.Participants.Count > 0)
+        {
+            return registration.Participants
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.FullName)
+                .Select(item => new CampRegistrationParticipantDto
+                {
+                    Id = item.Id,
+                    FullName = item.FullName,
+                    IsChild = item.IsChild,
+                    SortOrder = item.SortOrder
+                })
+                .ToList();
+        }
+
+        return
+        [
+            new CampRegistrationParticipantDto
+            {
+                Id = registration.Id,
+                FullName = registration.FullName,
+                IsChild = registration.HasChildren,
+                SortOrder = 0
+            }
+        ];
+    }
+
+    private static List<NormalizedParticipant> NormalizeParticipants(UpsertCampRegistrationRequest request)
+    {
+        var sourceParticipants = request.Participants
+            .Select((participant, index) => new NormalizedParticipant
+            {
+                FullName = participant.FullName.Trim(),
+                IsChild = participant.IsChild,
+                SortOrder = index
+            })
+            .Where(participant => !string.IsNullOrWhiteSpace(participant.FullName))
+            .ToList();
+
+        if (sourceParticipants.Count > 0)
+        {
+            return sourceParticipants;
+        }
+
+        var primaryFullName = request.FullName.Trim();
+        if (string.IsNullOrWhiteSpace(primaryFullName))
+        {
+            throw new InvalidOperationException("Укажите хотя бы одного участника для заявки.");
+        }
+
+        return
+        [
+            new NormalizedParticipant
+            {
+                FullName = primaryFullName,
+                IsChild = false,
+                SortOrder = 0
+            }
+        ];
+    }
+
+    private sealed class NormalizedParticipant
+    {
+        public required string FullName { get; init; }
+        public required bool IsChild { get; init; }
+        public required int SortOrder { get; init; }
     }
 }

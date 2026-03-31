@@ -190,6 +190,10 @@ public sealed class AdminController : ControllerBase
                 EventEditionId = registration.EventEditionId,
                 EventSlug = registration.EventEdition!.Slug,
                 EventTitle = registration.EventEdition.Title,
+                ContactEmail = registration.ContactEmail,
+                ParticipantsCount = registration.ParticipantsCount,
+                HasCar = registration.HasCar,
+                HasChildren = registration.HasChildren,
                 Status = registration.Status,
                 UpdatedAtUtc = registration.UpdatedAtUtc
             })
@@ -353,6 +357,10 @@ public sealed class AdminController : ControllerBase
                     EventEditionId = registration.EventEditionId,
                     EventSlug = registration.EventEdition?.Slug,
                     EventTitle = registration.EventEdition?.Title,
+                    ContactEmail = registration.ContactEmail,
+                    ParticipantsCount = registration.ParticipantsCount,
+                    HasCar = registration.HasCar,
+                    HasChildren = registration.HasChildren,
                     Status = registration.Status,
                     UpdatedAtUtc = registration.UpdatedAtUtc
                 }
@@ -413,8 +421,10 @@ public sealed class AdminController : ControllerBase
             EF.Functions.ILike(registration.User.FirstName, pattern) ||
             EF.Functions.ILike(registration.User.LastName, pattern) ||
             (registration.User.Email != null && EF.Functions.ILike(registration.User.Email, pattern)) ||
+            EF.Functions.ILike(registration.ContactEmail, pattern) ||
             (registration.User.City != null && EF.Functions.ILike(registration.User.City, pattern)) ||
-            (registration.User.ChurchName != null && EF.Functions.ILike(registration.User.ChurchName, pattern)));
+            (registration.User.ChurchName != null && EF.Functions.ILike(registration.User.ChurchName, pattern)) ||
+            registration.Participants.Any(participant => EF.Functions.ILike(participant.FullName, pattern)));
     }
 
     private async Task<IReadOnlyCollection<AdminUserDto>> MapAdminUsersAsync(
@@ -462,6 +472,10 @@ public sealed class AdminController : ControllerBase
                     RegistrationEventSlug = registration?.EventSlug,
                     RegistrationEventTitle = registration?.EventTitle,
                     RegistrationStatus = registration?.Status,
+                    RegistrationContactEmail = registration?.ContactEmail,
+                    RegistrationParticipantsCount = registration?.ParticipantsCount,
+                    RegistrationHasCar = registration?.HasCar,
+                    RegistrationHasChildren = registration?.HasChildren,
                     RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc,
                     ExternalIdentities = externalIdentitiesByUserId.GetValueOrDefault(
                         user.Id,
@@ -508,6 +522,10 @@ public sealed class AdminController : ControllerBase
                 EventEditionId = registration.EventEditionId,
                 EventSlug = registration.EventEdition!.Slug,
                 EventTitle = registration.EventEdition.Title,
+                ContactEmail = registration.ContactEmail,
+                ParticipantsCount = registration.ParticipantsCount,
+                HasCar = registration.HasCar,
+                HasChildren = registration.HasChildren,
                 Status = registration.Status,
                 UpdatedAtUtc = registration.UpdatedAtUtc
             })
@@ -584,6 +602,10 @@ public sealed class AdminController : ControllerBase
         public Guid? EventEditionId { get; init; }
         public string? EventSlug { get; init; }
         public string? EventTitle { get; init; }
+        public string? ContactEmail { get; init; }
+        public int ParticipantsCount { get; init; }
+        public bool HasCar { get; init; }
+        public bool HasChildren { get; init; }
         public required RegistrationStatus Status { get; init; }
         public required DateTime UpdatedAtUtc { get; init; }
     }

@@ -44,6 +44,10 @@ public sealed class AdminUserDto
     public string? RegistrationEventSlug { get; init; }
     public string? RegistrationEventTitle { get; init; }
     public RegistrationStatus? RegistrationStatus { get; init; }
+    public string? RegistrationContactEmail { get; init; }
+    public int? RegistrationParticipantsCount { get; init; }
+    public bool? RegistrationHasCar { get; init; }
+    public bool? RegistrationHasChildren { get; init; }
     public DateTime? RegistrationUpdatedAtUtc { get; init; }
     public required IReadOnlyCollection<ExternalIdentityDto> ExternalIdentities { get; init; }
 }

@@ -8,6 +8,7 @@ public sealed class CampRegistrationSnapshotDto
     public Guid? EventEditionId { get; init; }
     public string? EventSlug { get; init; }
     public required RegistrationStatus Status { get; init; }
+    public int ParticipantsCount { get; init; }
     public required DateTime UpdatedAtUtc { get; init; }
     public DateTime? SubmittedAtUtc { get; init; }
 }

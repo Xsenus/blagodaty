@@ -40,7 +40,12 @@ public sealed class AdminEventsController : ControllerBase
                 EventEditionId = group.Key,
                 RegistrationsCount = group.Count(),
                 SubmittedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Submitted),
-                ConfirmedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Confirmed)
+                ConfirmedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Confirmed),
+                OccupiedSpots = group
+                    .Where(registration =>
+                        registration.Status == RegistrationStatus.Submitted ||
+                        registration.Status == RegistrationStatus.Confirmed)
+                    .Sum(registration => registration.ParticipantsCount)
             })
             .ToListAsync();
 
@@ -72,7 +77,7 @@ public sealed class AdminEventsController : ControllerBase
                     ConfirmedRegistrations = stats?.ConfirmedRegistrations ?? 0,
                     RemainingCapacity = edition.Capacity is null
                         ? null
-                        : Math.Max(edition.Capacity.Value - (stats?.SubmittedRegistrations ?? 0) - (stats?.ConfirmedRegistrations ?? 0), 0),
+                        : Math.Max(edition.Capacity.Value - (stats?.OccupiedSpots ?? 0), 0),
                     PrimaryImageUrl = SelectPrimaryImageUrl(edition.MediaItems)
                 };
             }).ToArray()
