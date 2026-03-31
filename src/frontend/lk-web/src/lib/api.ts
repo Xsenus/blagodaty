@@ -1,9 +1,12 @@
 import { apiBaseUrl } from './config';
 import type {
+  AdminDatabaseBackupDelivery,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
   AdminEventDetails,
   AdminEventsResponse,
+  AdminDatabaseBackupsOverview,
+  AdminDatabaseBackupCreateResponse,
   AdminOverview,
   AdminUser,
   AccountNotificationsResponse,
@@ -20,6 +23,7 @@ import type {
   SaveRegistrationRequest,
   SessionState,
   UpsertAdminEventRequest,
+  UpdateAdminDatabaseBackupSettingsRequest,
   UpdateProfileRequest,
   UpdateExternalAuthProviderRequest,
   UserSummary,
@@ -68,6 +72,41 @@ async function request<T>(path: string, init: RequestInit = {}, accessToken?: st
   }
 
   return (await response.json()) as T;
+}
+
+async function download(path: string, accessToken?: string): Promise<{ blob: Blob; fileName: string | null }> {
+  const headers = new Headers();
+
+  if (accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
+  }
+
+  const response = await fetch(`${apiBaseUrl}${path}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+
+    try {
+      const errorBody = (await response.json()) as { message?: string; title?: string };
+      message = errorBody.message ?? errorBody.title ?? message;
+    } catch {
+      // ignore malformed error body
+    }
+
+    throw new ApiError(message, response.status);
+  }
+
+  const contentDisposition = response.headers.get('Content-Disposition') ?? response.headers.get('content-disposition');
+  const fileNameMatch = contentDisposition?.match(/filename\*?=(?:UTF-8''|"?)([^";]+)/i);
+  const fileName = fileNameMatch?.[1] ? decodeURIComponent(fileNameMatch[1].replace(/"/g, '').trim()) : null;
+
+  return {
+    blob: await response.blob(),
+    fileName,
+  };
 }
 
 export function register(payload: {
@@ -357,6 +396,60 @@ export function getAdminEvents(accessToken: string) {
 
 export function getAdminEventDetails(accessToken: string, eventId: string) {
   return request<AdminEventDetails>(`/api/admin/events/${eventId}`, {}, accessToken);
+}
+
+export function getAdminBackups(accessToken: string) {
+  return request<AdminDatabaseBackupsOverview>('/api/admin/backups', {}, accessToken);
+}
+
+export function updateAdminBackupSettings(
+  accessToken: string,
+  payload: UpdateAdminDatabaseBackupSettingsRequest,
+) {
+  return request<AdminDatabaseBackupsOverview>(
+    '/api/admin/backups/settings',
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function createAdminBackup(accessToken: string, sendToTelegramAdmins = false) {
+  return request<AdminDatabaseBackupCreateResponse>(
+    '/api/admin/backups',
+    {
+      method: 'POST',
+      body: JSON.stringify({ sendToTelegramAdmins }),
+    },
+    accessToken,
+  );
+}
+
+export function sendAdminBackupToTelegram(accessToken: string, relativePath?: string) {
+  return request<AdminDatabaseBackupDelivery>(
+    '/api/admin/backups/send',
+    {
+      method: 'POST',
+      body: JSON.stringify({ relativePath }),
+    },
+    accessToken,
+  );
+}
+
+export async function downloadAdminBackup(accessToken: string, relativePath: string) {
+  const query = new URLSearchParams({ relativePath });
+  const { blob, fileName } = await download(`/api/admin/backups/download?${query.toString()}`, accessToken);
+
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName ?? 'backup.dump';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(objectUrl);
 }
 
 export function createAdminEvent(accessToken: string, payload: UpsertAdminEventRequest) {

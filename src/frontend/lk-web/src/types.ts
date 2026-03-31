@@ -340,6 +340,47 @@ export type AdminEventsResponse = {
   events: AdminEventSummary[];
 };
 
+export type AdminDatabaseBackupItem = {
+  fileName: string;
+  relativePath: string;
+  sizeBytes: number;
+  createdAtUtc: string;
+  trigger: string;
+};
+
+export type AdminDatabaseBackupDelivery = {
+  fileName: string;
+  candidateRecipients: number;
+  deliveredCount: number;
+};
+
+export type AdminDatabaseBackupsOverview = {
+  automaticEnabled: boolean;
+  scheduleLocal: string;
+  retentionDays: number;
+  rootDirectory: string;
+  timeZone: string;
+  pgDumpCommand: string;
+  telegramDeliveryEnabled: boolean;
+  adminTelegramRecipientsCount: number;
+  items: AdminDatabaseBackupItem[];
+};
+
+export type AdminDatabaseBackupCreateResponse = {
+  backup: AdminDatabaseBackupItem;
+  downloadUrl: string;
+  delivery?: AdminDatabaseBackupDelivery | null;
+};
+
+export type UpdateAdminDatabaseBackupSettingsRequest = {
+  automaticEnabled: boolean;
+  scheduleLocal: string;
+  retentionDays: number;
+  telegramDeliveryEnabled: boolean;
+  directory?: string;
+  pgDumpPath?: string;
+};
+
 export type PublicEventPriceOption = {
   id: string;
   code: string;

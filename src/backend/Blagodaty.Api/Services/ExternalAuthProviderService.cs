@@ -457,6 +457,49 @@ public sealed class ExternalAuthProviderService
         }
     }
 
+    public async Task<bool> SendTelegramDocumentAsync(
+        long chatId,
+        string filePath,
+        string fileName,
+        string? caption = null,
+        CancellationToken cancellationToken = default)
+    {
+        var botToken = await GetTelegramBotTokenAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(botToken) || string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return false;
+        }
+
+        var client = _httpClientFactory.CreateClient();
+        await using var fileStream = File.OpenRead(filePath);
+        using var content = new MultipartFormDataContent();
+        content.Add(new StringContent(chatId.ToString()), "chat_id");
+
+        if (!string.IsNullOrWhiteSpace(caption))
+        {
+            content.Add(new StringContent(caption.Trim()), "caption");
+        }
+
+        var streamContent = new StreamContent(fileStream);
+        streamContent.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        content.Add(streamContent, "document", fileName);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.telegram.org/bot{botToken}/sendDocument")
+        {
+            Content = content
+        };
+
+        try
+        {
+            using var response = await client.SendAsync(request, cancellationToken);
+            return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public string BuildAbsoluteUrl(HttpContext httpContext, string relativePath)
     {
         var normalizedPath = relativePath.StartsWith("/", StringComparison.Ordinal)

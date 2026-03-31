@@ -85,7 +85,13 @@ public static class AppDbSeeder
             [ExternalAuthSettingKeys.TelegramWidgetEnabled] = ("false", "Telegram widget login enabled", false),
             [ExternalAuthSettingKeys.TelegramBotUsername] = (null, "Telegram bot username", false),
             [ExternalAuthSettingKeys.TelegramBotToken] = (null, "Telegram bot token", true),
-            [ExternalAuthSettingKeys.TelegramWebhookSecret] = (null, "Telegram webhook secret", true)
+            [ExternalAuthSettingKeys.TelegramWebhookSecret] = (null, "Telegram webhook secret", true),
+            [DatabaseBackupSettingKeys.Enabled] = ("false", "Database backups enabled", false),
+            [DatabaseBackupSettingKeys.ScheduleLocal] = ("03:00", "Database backup local schedule", false),
+            [DatabaseBackupSettingKeys.RetentionDays] = ("14", "Database backup retention days", false),
+            [DatabaseBackupSettingKeys.TelegramDeliveryEnabled] = ("false", "Send database backups to Telegram admins", false),
+            [DatabaseBackupSettingKeys.Directory] = (null, "Database backup directory", false),
+            [DatabaseBackupSettingKeys.PgDumpPath] = (null, "Database backup pg_dump command", false)
         };
 
         var existing = await dbContext.AppSettings

@@ -26,7 +26,9 @@ builder.Services.AddScoped<ExternalAuthProviderService>();
 builder.Services.AddScoped<EventCatalogService>();
 builder.Services.AddScoped<EventRegistrationService>();
 builder.Services.AddScoped<UserNotificationService>();
+builder.Services.AddSingleton<DatabaseBackupService>();
 builder.Services.AddHostedService<EventNotificationBackgroundService>();
+builder.Services.AddHostedService<DatabaseBackupBackgroundService>();
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
