@@ -26,6 +26,7 @@ public sealed class AdminEventsController : ControllerBase
         var editions = await _dbContext.EventEditions
             .AsNoTracking()
             .Include(edition => edition.EventSeries)
+            .Include(edition => edition.MediaItems)
             .OrderByDescending(edition => edition.StartsAtUtc)
             .ThenBy(edition => edition.SortOrder)
             .ToListAsync();
@@ -71,7 +72,8 @@ public sealed class AdminEventsController : ControllerBase
                     ConfirmedRegistrations = stats?.ConfirmedRegistrations ?? 0,
                     RemainingCapacity = edition.Capacity is null
                         ? null
-                        : Math.Max(edition.Capacity.Value - (stats?.SubmittedRegistrations ?? 0) - (stats?.ConfirmedRegistrations ?? 0), 0)
+                        : Math.Max(edition.Capacity.Value - (stats?.SubmittedRegistrations ?? 0) - (stats?.ConfirmedRegistrations ?? 0), 0),
+                    PrimaryImageUrl = SelectPrimaryImageUrl(edition.MediaItems)
                 };
             }).ToArray()
         });
@@ -134,6 +136,7 @@ public sealed class AdminEventsController : ControllerBase
             .Include(edition => edition.PriceOptions)
             .Include(edition => edition.ScheduleItems)
             .Include(edition => edition.ContentBlocks)
+            .Include(edition => edition.MediaItems)
             .FirstOrDefaultAsync(edition => edition.Id == eventId);
     }
 
@@ -164,11 +167,6 @@ public sealed class AdminEventsController : ControllerBase
                     CreatedAtUtc = now
                 };
 
-            if (series.Id == default)
-            {
-                series.Id = Guid.NewGuid();
-            }
-
             if (_dbContext.Entry(series).State == EntityState.Detached)
             {
                 _dbContext.EventSeries.Add(series);
@@ -189,6 +187,7 @@ public sealed class AdminEventsController : ControllerBase
                 .Include(item => item.PriceOptions)
                 .Include(item => item.ScheduleItems)
                 .Include(item => item.ContentBlocks)
+                .Include(item => item.MediaItems)
                 .FirstOrDefaultAsync(item => item.Id == eventId.Value)
                 ?? throw new KeyNotFoundException();
 
@@ -230,9 +229,11 @@ public sealed class AdminEventsController : ControllerBase
             _dbContext.EventPriceOptions.RemoveRange(edition.PriceOptions);
             _dbContext.EventScheduleItems.RemoveRange(edition.ScheduleItems);
             _dbContext.EventContentBlocks.RemoveRange(edition.ContentBlocks);
+            _dbContext.EventMediaItems.RemoveRange(edition.MediaItems);
             edition.PriceOptions.Clear();
             edition.ScheduleItems.Clear();
             edition.ContentBlocks.Clear();
+            edition.MediaItems.Clear();
         }
 
         foreach (var option in request.PriceOptions.OrderBy(item => item.SortOrder).ThenBy(item => item.Title, StringComparer.OrdinalIgnoreCase))
@@ -284,9 +285,24 @@ public sealed class AdminEventsController : ControllerBase
             });
         }
 
+        foreach (var mediaItem in request.MediaItems.OrderBy(item => item.SortOrder).ThenBy(item => item.Type))
+        {
+            edition.MediaItems.Add(new EventMediaItem
+            {
+                Id = Guid.NewGuid(),
+                Type = mediaItem.Type,
+                Url = mediaItem.Url.Trim(),
+                ThumbnailUrl = mediaItem.ThumbnailUrl?.Trim(),
+                Title = mediaItem.Title?.Trim(),
+                Caption = mediaItem.Caption?.Trim(),
+                IsPublished = mediaItem.IsPublished,
+                SortOrder = mediaItem.SortOrder
+            });
+        }
+
         await _dbContext.SaveChangesAsync();
 
-        return await FindEditionAsync(edition.Id) ?? throw new InvalidOperationException("Не удалось перечитать сохраненное мероприятие.");
+        return await FindEditionAsync(edition.Id) ?? throw new InvalidOperationException("Не удалось перечитать сохранённое мероприятие.");
     }
 
     private static void ValidateEventRequest(UpsertAdminEventRequest request)
@@ -306,6 +322,11 @@ public sealed class AdminEventsController : ControllerBase
         if (request.PriceOptions.GroupBy(item => NormalizeSlug(item.Code), StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
         {
             throw new InvalidOperationException("Коды тарифов должны быть уникальны внутри мероприятия.");
+        }
+
+        if (request.MediaItems.Any(item => string.IsNullOrWhiteSpace(item.Url)))
+        {
+            throw new InvalidOperationException("У каждого медиа-элемента события должен быть заполнен URL.");
         }
     }
 
@@ -385,7 +406,32 @@ public sealed class AdminEventsController : ControllerBase
                     IsPublished = block.IsPublished,
                     SortOrder = block.SortOrder
                 })
+                .ToArray(),
+            MediaItems = edition.MediaItems
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Type)
+                .Select(item => new AdminEventMediaItemDto
+                {
+                    Id = item.Id,
+                    Type = item.Type,
+                    Url = item.Url,
+                    ThumbnailUrl = item.ThumbnailUrl,
+                    Title = item.Title,
+                    Caption = item.Caption,
+                    IsPublished = item.IsPublished,
+                    SortOrder = item.SortOrder
+                })
                 .ToArray()
         };
+    }
+
+    private static string? SelectPrimaryImageUrl(IEnumerable<EventMediaItem> mediaItems)
+    {
+        return mediaItems
+            .Where(item => item.IsPublished)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Type)
+            .Select(item => item.Type == EventMediaType.Image ? item.Url : item.ThumbnailUrl)
+            .FirstOrDefault(url => !string.IsNullOrWhiteSpace(url));
     }
 }

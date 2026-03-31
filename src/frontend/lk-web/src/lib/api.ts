@@ -5,9 +5,12 @@ import type {
   AdminExternalAuthSettings,
   AdminEventDetails,
   AdminEventsResponse,
+  AdminGalleryAsset,
+  AdminGalleryAssetsResponse,
   AdminDatabaseBackupsOverview,
   AdminDatabaseBackupCreateResponse,
   AdminOverview,
+  AdminSiteSettings,
   AdminUser,
   AccountNotificationsResponse,
   AccountRegistrationSummary,
@@ -24,6 +27,7 @@ import type {
   SessionState,
   UpsertAdminEventRequest,
   UpdateAdminDatabaseBackupSettingsRequest,
+  UpdateAdminSiteSettingsRequest,
   UpdateProfileRequest,
   UpdateExternalAuthProviderRequest,
   UserSummary,
@@ -41,7 +45,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, init: RequestInit = {}, accessToken?: string): Promise<T> {
   const headers = new Headers(init.headers);
 
-  if (!headers.has('Content-Type') && init.body) {
+  if (!headers.has('Content-Type') && init.body && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -398,6 +402,70 @@ export function getAdminEventDetails(accessToken: string, eventId: string) {
   return request<AdminEventDetails>(`/api/admin/events/${eventId}`, {}, accessToken);
 }
 
+export function getAdminGallery(
+  accessToken: string,
+  params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+  },
+) {
+  const query = new URLSearchParams({
+    page: String(params.page),
+    pageSize: String(params.pageSize),
+  });
+
+  if (params.search?.trim()) {
+    query.set('search', params.search.trim());
+  }
+
+  return request<PaginatedResponse<AdminGalleryAsset>>(`/api/admin/gallery?${query.toString()}`, {}, accessToken);
+}
+
+export function uploadAdminGalleryAssets(accessToken: string, files: File[]) {
+  const body = new FormData();
+  for (const file of files) {
+    body.append('files', file);
+  }
+
+  return request<AdminGalleryAssetsResponse>(
+    '/api/admin/gallery',
+    {
+      method: 'POST',
+      body,
+    },
+    accessToken,
+  );
+}
+
+export function updateAdminGalleryAsset(
+  accessToken: string,
+  assetId: string,
+  payload: {
+    name?: string;
+    description?: string;
+  },
+) {
+  return request<AdminGalleryAsset>(
+    `/api/admin/gallery/${assetId}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function deleteAdminGalleryAsset(accessToken: string, assetId: string) {
+  return request<{ ok: boolean }>(
+    `/api/admin/gallery/${assetId}`,
+    {
+      method: 'DELETE',
+    },
+    accessToken,
+  );
+}
+
 export function getAdminBackups(accessToken: string) {
   return request<AdminDatabaseBackupsOverview>('/api/admin/backups', {}, accessToken);
 }
@@ -466,6 +534,21 @@ export function createAdminEvent(accessToken: string, payload: UpsertAdminEventR
 export function updateAdminEvent(accessToken: string, eventId: string, payload: UpsertAdminEventRequest) {
   return request<AdminEventDetails>(
     `/api/admin/events/${eventId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function getAdminSiteSettings(accessToken: string) {
+  return request<AdminSiteSettings>('/api/admin/site-settings', {}, accessToken);
+}
+
+export function updateAdminSiteSettings(accessToken: string, payload: UpdateAdminSiteSettingsRequest) {
+  return request<AdminSiteSettings>(
+    '/api/admin/site-settings',
     {
       method: 'PUT',
       body: JSON.stringify(payload),

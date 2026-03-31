@@ -18,6 +18,8 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<EventPriceOption> EventPriceOptions => Set<EventPriceOption>();
     public DbSet<EventScheduleItem> EventScheduleItems => Set<EventScheduleItem>();
     public DbSet<EventContentBlock> EventContentBlocks => Set<EventContentBlock>();
+    public DbSet<EventMediaItem> EventMediaItems => Set<EventMediaItem>();
+    public DbSet<GalleryAsset> GalleryAssets => Set<GalleryAsset>();
     public DbSet<RefreshSession> RefreshSessions => Set<RefreshSession>();
     public DbSet<AppSetting> AppSettings => Set<AppSetting>();
     public DbSet<UserExternalIdentity> UserExternalIdentities => Set<UserExternalIdentity>();
@@ -118,6 +120,32 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
                 .WithMany(x => x.ContentBlocks)
                 .HasForeignKey(x => x.EventEditionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<EventMediaItem>(entity =>
+        {
+            entity.HasIndex(x => new { x.EventEditionId, x.SortOrder });
+            entity.Property(x => x.Type).HasConversion<string>().HasMaxLength(16);
+            entity.Property(x => x.Url).HasMaxLength(2000);
+            entity.Property(x => x.ThumbnailUrl).HasMaxLength(2000);
+            entity.Property(x => x.Title).HasMaxLength(180);
+            entity.Property(x => x.Caption).HasMaxLength(1000);
+            entity.HasOne(x => x.EventEdition)
+                .WithMany(x => x.MediaItems)
+                .HasForeignKey(x => x.EventEditionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<GalleryAsset>(entity =>
+        {
+            entity.HasIndex(x => x.CreatedAtUtc);
+            entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(16);
+            entity.Property(x => x.Name).HasMaxLength(180);
+            entity.Property(x => x.Description).HasMaxLength(1000);
+            entity.Property(x => x.ContentType).HasMaxLength(200);
+            entity.Property(x => x.FileExtension).HasMaxLength(32);
+            entity.Property(x => x.OriginalFileName).HasMaxLength(260);
+            entity.Property(x => x.DiskPath).HasMaxLength(1024);
         });
 
         builder.Entity<RefreshSession>(entity =>

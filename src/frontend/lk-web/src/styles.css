@@ -611,6 +611,100 @@ select {
   background: rgba(255, 255, 255, 0.64);
 }
 
+.gallery-upload-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: end;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.gallery-filter-actions {
+  display: flex;
+  gap: 12px;
+  align-items: end;
+  justify-content: flex-end;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.gallery-card {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 26px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.gallery-card-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.gallery-card-head h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.35rem;
+}
+
+.gallery-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  overflow: hidden;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top, rgba(255, 247, 232, 0.9), rgba(242, 235, 226, 0.9)),
+    rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(216, 154, 104, 0.16);
+}
+
+.gallery-preview img,
+.gallery-preview video {
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  object-fit: cover;
+}
+
+.gallery-file-placeholder {
+  display: grid;
+  gap: 8px;
+  place-items: center;
+  text-align: center;
+  color: var(--text-main);
+}
+
+.gallery-file-placeholder strong {
+  font-size: 2.2rem;
+  letter-spacing: 0.08em;
+}
+
+.gallery-meta-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.danger-link {
+  border-color: rgba(192, 103, 86, 0.22);
+  color: #a55042;
+}
+
+.danger-link:hover {
+  border-color: rgba(192, 103, 86, 0.34);
+  background: rgba(250, 235, 231, 0.82);
+}
+
 .admin-empty-state {
   text-align: center;
   justify-items: center;
@@ -1147,12 +1241,21 @@ select {
   .event-inline-grid,
   .event-toggle-row,
   .user-info-grid,
-  .provider-diagnostics-grid {
+  .provider-diagnostics-grid,
+  .gallery-upload-panel,
+  .gallery-grid,
+  .gallery-meta-grid {
     grid-template-columns: 1fr;
   }
 
   .event-list-column {
     position: static;
+  }
+
+  .gallery-filter-actions {
+    justify-content: stretch;
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

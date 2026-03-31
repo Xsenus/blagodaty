@@ -33,6 +33,8 @@ import {
 } from './lib/api';
 import { AdminEventsSection } from './admin/AdminEventsSection';
 import { AdminBackupsSection } from './admin/AdminBackupsSection';
+import { AdminGallerySection } from './admin/AdminGallerySection';
+import { AdminSiteSettingsSection } from './admin/AdminSiteSettingsSection';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
 import type {
@@ -363,6 +365,7 @@ function createEmptyEventDraft(): UpsertAdminEventRequest {
     priceOptions: [createEmptyPriceOptionDraft(0)],
     scheduleItems: [createEmptyScheduleItemDraft(0)],
     contentBlocks: [createEmptyContentBlockDraft(0)],
+    mediaItems: [],
   };
 }
 
@@ -413,6 +416,15 @@ function createDraftFromEvent(event: AdminEventDetails): UpsertAdminEventRequest
       blockType: item.blockType,
       title: item.title ?? '',
       body: item.body,
+      isPublished: item.isPublished,
+      sortOrder: item.sortOrder,
+    })),
+    mediaItems: event.mediaItems.map((item) => ({
+      type: item.type,
+      url: item.url,
+      thumbnailUrl: item.thumbnailUrl ?? '',
+      title: item.title ?? '',
+      caption: item.caption ?? '',
       isPublished: item.isPublished,
       sortOrder: item.sortOrder,
     })),
@@ -2398,6 +2410,10 @@ function AdminPage() {
   const debouncedRegistrationSearch = useDebouncedValue(registrationSearch);
   const adminSection = location.pathname.startsWith('/admin/events')
     ? 'events'
+    : location.pathname.startsWith('/admin/gallery')
+    ? 'gallery'
+    : location.pathname.startsWith('/admin/site')
+    ? 'site'
     : location.pathname.startsWith('/admin/backups')
     ? 'backups'
     : location.pathname.startsWith('/admin/auth')
@@ -2886,6 +2902,20 @@ function AdminPage() {
       description:
         '\u0417\u0434\u0435\u0441\u044c \u043c\u043e\u0436\u043d\u043e \u0432\u0435\u0441\u0442\u0438 \u043b\u0430\u0433\u0435\u0440\u044f \u043f\u043e \u0433\u043e\u0434\u0430\u043c, \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u0442\u044c \u0434\u0440\u0443\u0433\u0438\u0435 \u0441\u043e\u0431\u044b\u0442\u0438\u044f, \u043d\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u0442\u044c \u0434\u0430\u0442\u044b, \u0442\u0430\u0440\u0438\u0444\u044b \u0438 \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u0434\u043b\u044f \u043a\u0430\u0436\u0434\u043e\u0439 \u043a\u0430\u0440\u0442\u043e\u0447\u043a\u0438.',
     }
+  : adminSection === 'gallery'
+  ? {
+      eyebrow: '\u0413\u0430\u043b\u0435\u0440\u0435\u044f',
+      title: '\u041c\u0435\u0434\u0438\u0430\u0442\u0435\u043a\u0430 \u0438 \u0444\u0430\u0439\u043b\u044b \u043d\u0430 \u0441\u0435\u0440\u0432\u0435\u0440\u0435',
+      description:
+        '\u0417\u0434\u0435\u0441\u044c \u043c\u043e\u0436\u043d\u043e \u0437\u0430\u0433\u0440\u0443\u0436\u0430\u0442\u044c \u0444\u043e\u0442\u043e, \u0432\u0438\u0434\u0435\u043e \u0438 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b \u043d\u0430 \u0441\u0435\u0440\u0432\u0435\u0440, \u043f\u043e\u043b\u0443\u0447\u0430\u0442\u044c \u0433\u043e\u0442\u043e\u0432\u044b\u0435 URL \u0438 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c \u0438\u0445 \u0432 \u043c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u044f\u0445 \u0438 \u043d\u0430 \u043f\u0443\u0431\u043b\u0438\u0447\u043d\u043e\u043c \u0441\u0430\u0439\u0442\u0435.',
+    }
+  : adminSection === 'site'
+  ? {
+      eyebrow: '\u0421\u0430\u0439\u0442',
+      title: '\u041f\u0443\u0431\u043b\u0438\u0447\u043d\u044b\u0435 \u0441\u0441\u044b\u043b\u043a\u0438 \u0438 \u0441\u043e\u0446\u0441\u0435\u0442\u0438',
+      description:
+        '\u0417\u0434\u0435\u0441\u044c \u043d\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u044e\u0442\u0441\u044f Telegram, VK, YouTube, официальный сайт и другие каналы, которые показываются на публичной странице.',
+    }
   : adminSection === 'backups'
   ? {
       eyebrow: '\u0420\u0435\u0437\u0435\u0440\u0432\u043d\u044b\u0435 \u043a\u043e\u043f\u0438\u0438',
@@ -2951,6 +2981,18 @@ function AdminPage() {
           <p>{'\u041b\u0430\u0433\u0435\u0440\u044f \u043f\u043e \u0433\u043e\u0434\u0430\u043c, \u0440\u0435\u0442\u0440\u0438\u0442\u044b, \u043f\u043e\u0435\u0437\u0434\u043a\u0438 \u0438 \u0438\u0445 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438: \u0434\u0430\u0442\u044b, \u043b\u0438\u043c\u0438\u0442\u044b, \u0442\u0430\u0440\u0438\u0444\u044b, \u043a\u043e\u043d\u0442\u0435\u043d\u0442 \u0438 \u043e\u043a\u043d\u043e \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438.'}</p>
         </NavLink>
 
+        <NavLink to="/admin/gallery" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">{'\u0413\u0430\u043b\u0435\u0440\u0435\u044f'}</p>
+          <h3>{'\u0424\u0430\u0439\u043b\u044b \u0438 \u043c\u0435\u0434\u0438\u0430'}</h3>
+          <p>{'\u0415\u0434\u0438\u043d\u0430\u044f \u043c\u0435\u0434\u0438\u0430\u0442\u0435\u043a\u0430 \u0434\u043b\u044f \u0444\u043e\u0442\u043e, \u0432\u0438\u0434\u0435\u043e \u0438 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u043e\u0432 \u0441 \u0437\u0430\u0433\u0440\u0443\u0437\u043a\u043e\u0439 \u043d\u0430 \u0441\u0435\u0440\u0432\u0435\u0440 \u0438 \u0433\u043e\u0442\u043e\u0432\u044b\u043c\u0438 URL \u0434\u043b\u044f \u0441\u0430\u0439\u0442\u0430.'}</p>
+        </NavLink>
+
+        <NavLink to="/admin/site" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">{'\u0421\u0430\u0439\u0442'}</p>
+          <h3>{'\u0421\u043e\u0446\u0441\u0435\u0442\u0438 \u0438 \u0441\u0441\u044b\u043b\u043a\u0438'}</h3>
+          <p>{'\u0428\u0430\u043f\u043a\u0430, \u043f\u043e\u0434\u0432\u0430\u043b \u0438 \u043e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u044b\u0435 \u043a\u0430\u043d\u0430\u043b\u044b \u043e\u0431\u0449\u0438\u043d\u044b: Telegram, VK, YouTube, сайт и другие внешние ссылки.'}</p>
+        </NavLink>
+
         <NavLink to="/admin/backups" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
           <p className="mini-eyebrow">{'\u0411\u044d\u043a\u0430\u043f\u044b'}</p>
           <h3>{'\u0411\u0430\u0437\u0430 \u0438 Telegram-\u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0430'}</h3>
@@ -2993,6 +3035,14 @@ function AdminPage() {
         <>
           {adminSection === 'events' ? (
             <AdminEventsSection accessToken={auth.session?.accessToken ?? null} isActive />
+          ) : null}
+
+          {adminSection === 'gallery' ? (
+            <AdminGallerySection accessToken={auth.session?.accessToken ?? null} isActive />
+          ) : null}
+
+          {adminSection === 'site' ? (
+            <AdminSiteSettingsSection accessToken={auth.session?.accessToken ?? null} isActive />
           ) : null}
 
           {adminSection === 'backups' ? (
@@ -3651,6 +3701,8 @@ export default function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/access" element={<AdminPage />} />
         <Route path="/admin/events" element={<AdminPage />} />
+        <Route path="/admin/gallery" element={<AdminPage />} />
+        <Route path="/admin/site" element={<AdminPage />} />
         <Route path="/admin/backups" element={<AdminPage />} />
         <Route path="/admin/users" element={<AdminPage />} />
         <Route path="/admin/registrations" element={<AdminPage />} />

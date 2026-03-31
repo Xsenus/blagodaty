@@ -1,5 +1,5 @@
 import { apiBaseUrl } from './config';
-import type { PublicEventDetails, PublicEventSummary } from '../types';
+import type { PublicEventDetails, PublicEventSummary, PublicSiteSettings } from '../types';
 
 async function request<T>(path: string): Promise<T> {
   const response = await fetch(`${apiBaseUrl}${path}`);
@@ -17,4 +17,8 @@ export function getPublicEvents() {
 
 export function getPublicEvent(slug: string) {
   return request<PublicEventDetails>(`/api/events/${slug}`);
+}
+
+export function getPublicSiteSettings() {
+  return request<PublicSiteSettings>('/api/public/site-settings');
 }

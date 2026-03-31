@@ -12,8 +12,10 @@ import type {
   EventContentBlockType,
   EventEditionStatus,
   EventKind,
+  EventMediaType,
   EventScheduleItemKind,
   UpsertAdminEventContentBlockRequest,
+  UpsertAdminEventMediaItemRequest,
   UpsertAdminEventPriceOptionRequest,
   UpsertAdminEventRequest,
   UpsertAdminEventScheduleItemRequest,
@@ -24,7 +26,7 @@ type AdminEventsSectionProps = {
   isActive: boolean;
 };
 
-type EventEditorTab = 'main' | 'dates' | 'pricing' | 'schedule' | 'content';
+type EventEditorTab = 'main' | 'dates' | 'pricing' | 'schedule' | 'media' | 'content';
 
 const eventEditorTabs: Array<{ id: EventEditorTab; label: string; description: string }> = [
   {
@@ -46,6 +48,11 @@ const eventEditorTabs: Array<{ id: EventEditorTab; label: string; description: s
     id: 'schedule',
     label: '\u0420\u0430\u0441\u043f\u0438\u0441\u0430\u043d\u0438\u0435',
     description: '\u041a\u043b\u044e\u0447\u0435\u0432\u044b\u0435 \u0434\u0430\u0442\u044b \u0438 \u044d\u0442\u0430\u043f\u044b',
+  },
+  {
+    id: 'media',
+    label: '\u041c\u0435\u0434\u0438\u0430',
+    description: '\u0424\u043e\u0442\u043e, \u0432\u0438\u0434\u0435\u043e \u0438 \u043f\u0440\u0435\u0432\u044c\u044e',
   },
   {
     id: 'content',
@@ -91,6 +98,11 @@ const contentBlockLabels: Record<EventContentBlockType, string> = {
   Faq: '\u0412\u043e\u043f\u0440\u043e\u0441\u044b \u0438 \u043e\u0442\u0432\u0435\u0442\u044b',
 };
 
+const mediaTypeLabels: Record<EventMediaType, string> = {
+  Image: '\u0424\u043e\u0442\u043e',
+  Video: '\u0412\u0438\u0434\u0435\u043e',
+};
+
 function formatEventKind(kind: EventKind) {
   return eventKindLabels[kind] ?? kind;
 }
@@ -105,6 +117,10 @@ function formatScheduleKind(kind: EventScheduleItemKind) {
 
 function formatContentBlockType(type: EventContentBlockType) {
   return contentBlockLabels[type] ?? type;
+}
+
+function formatMediaType(type: EventMediaType) {
+  return mediaTypeLabels[type] ?? type;
 }
 
 function formatDateTime(value?: string | null) {
@@ -176,6 +192,18 @@ function createEmptyContentBlock(sortOrder = 0): UpsertAdminEventContentBlockReq
   };
 }
 
+function createEmptyMediaItem(sortOrder = 0): UpsertAdminEventMediaItemRequest {
+  return {
+    type: sortOrder === 0 ? 'Image' : 'Video',
+    url: '',
+    thumbnailUrl: '',
+    title: '',
+    caption: '',
+    isPublished: true,
+    sortOrder,
+  };
+}
+
 function createEmptyEventDraft(): UpsertAdminEventRequest {
   const startsAt = new Date();
   const endsAt = new Date(startsAt.getTime() + 3 * 24 * 60 * 60 * 1000);
@@ -203,6 +231,7 @@ function createEmptyEventDraft(): UpsertAdminEventRequest {
     priceOptions: [createEmptyPriceOption(0)],
     scheduleItems: [createEmptyScheduleItem(0)],
     contentBlocks: [createEmptyContentBlock(0)],
+    mediaItems: [],
   };
 }
 
@@ -253,6 +282,15 @@ function createDraftFromEvent(eventItem: AdminEventDetails): UpsertAdminEventReq
       blockType: item.blockType,
       title: item.title ?? '',
       body: item.body,
+      isPublished: item.isPublished,
+      sortOrder: item.sortOrder,
+    })),
+    mediaItems: eventItem.mediaItems.map((item) => ({
+      type: item.type,
+      url: item.url,
+      thumbnailUrl: item.thumbnailUrl ?? '',
+      title: item.title ?? '',
+      caption: item.caption ?? '',
       isPublished: item.isPublished,
       sortOrder: item.sortOrder,
     })),
@@ -414,6 +452,20 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
     }));
   }
 
+  function updateMedia(index: number, patch: Partial<UpsertAdminEventMediaItemRequest>) {
+    setDraft((current) => ({
+      ...current,
+      mediaItems: current.mediaItems.map((item, itemIndex) =>
+        itemIndex === index
+          ? {
+              ...item,
+              ...patch,
+            }
+          : item,
+      ),
+    }));
+  }
+
   function removePrice(index: number) {
     setDraft((current) => ({
       ...current,
@@ -436,6 +488,15 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
     setDraft((current) => ({
       ...current,
       contentBlocks: current.contentBlocks
+        .filter((_, itemIndex) => itemIndex !== index)
+        .map((item, itemIndex) => ({ ...item, sortOrder: itemIndex })),
+    }));
+  }
+
+  function removeMedia(index: number) {
+    setDraft((current) => ({
+      ...current,
+      mediaItems: current.mediaItems
         .filter((_, itemIndex) => itemIndex !== index)
         .map((item, itemIndex) => ({ ...item, sortOrder: itemIndex })),
     }));
@@ -488,6 +549,14 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
         ...item,
         title: item.title?.trim() || '',
         body: item.body.trim(),
+        sortOrder: item.sortOrder ?? index,
+      })),
+      mediaItems: source.mediaItems.map((item, index) => ({
+        ...item,
+        url: item.url.trim(),
+        thumbnailUrl: item.thumbnailUrl?.trim() || '',
+        title: item.title?.trim() || '',
+        caption: item.caption?.trim() || '',
         sortOrder: item.sortOrder ?? index,
       })),
     };
@@ -823,6 +892,10 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
             </button>
           </div>
 
+          <div className="inline-links">
+            <a href="/admin/gallery">Открыть серверную галерею</a>
+          </div>
+
           <div className="event-collection">
             {draft.priceOptions.map((item, index) => (
               <article className="event-collection-item" key={`${item.code}-${index}`}>
@@ -989,6 +1062,111 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
                 </label>
               </article>
             ))}
+          </div>
+        </section>
+
+        <section className="event-subsection" hidden={activeTab !== 'media'}>
+          <div className="event-subsection-head">
+            <div>
+              <p className="mini-eyebrow">Медиа</p>
+              <h3>Фото, видео и превью</h3>
+            </div>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => setDraft((current) => ({
+                ...current,
+                mediaItems: [...current.mediaItems, createEmptyMediaItem(current.mediaItems.length)],
+              }))}
+            >
+              Добавить медиа
+            </button>
+          </div>
+
+          <p className="form-muted">
+            Для фото можно использовать прямые ссылки на изображения, а для видео подойдут ссылки на YouTube, RuTube,
+            Vimeo, VK Video, embed-адреса или прямые `mp4/webm`.
+          </p>
+
+          <div className="event-collection">
+            {draft.mediaItems.length ? (
+              draft.mediaItems.map((item, index) => (
+                <article className="event-collection-item" key={`${item.type}-${index}`}>
+                  <div className="event-subsection-head compact">
+                    <div>
+                      <strong>{item.title || `${formatMediaType(item.type)} ${index + 1}`}</strong>
+                      <p className="form-muted">{formatMediaType(item.type)}</p>
+                    </div>
+                    <button className="ghost-button" type="button" onClick={() => removeMedia(index)}>
+                      Удалить
+                    </button>
+                  </div>
+
+                  <div className="event-inline-grid">
+                    <label>
+                      <span>Тип</span>
+                      <select value={item.type} onChange={(event) => updateMedia(index, { type: event.target.value as EventMediaType })}>
+                        {Object.keys(mediaTypeLabels).map((mediaType) => (
+                          <option value={mediaType} key={mediaType}>
+                            {formatMediaType(mediaType as EventMediaType)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label>
+                      <span>Заголовок</span>
+                      <input value={item.title ?? ''} onChange={(event) => updateMedia(index, { title: event.target.value })} />
+                    </label>
+
+                    <label>
+                      <span>Порядок</span>
+                      <input type="number" value={item.sortOrder} onChange={(event) => updateMedia(index, { sortOrder: Number(event.target.value) })} />
+                    </label>
+                  </div>
+
+                  <label>
+                    <span>URL медиа</span>
+                    <input
+                      value={item.url}
+                      onChange={(event) => updateMedia(index, { url: event.target.value })}
+                      placeholder={item.type === 'Image' ? 'https://example.com/photo.jpg' : 'https://youtube.com/watch?v=...'}
+                      required
+                    />
+                  </label>
+
+                  <label>
+                    <span>URL превью</span>
+                    <input
+                      value={item.thumbnailUrl ?? ''}
+                      onChange={(event) => updateMedia(index, { thumbnailUrl: event.target.value })}
+                      placeholder={item.type === 'Video' ? 'https://example.com/video-cover.jpg' : 'Необязательно'}
+                    />
+                  </label>
+
+                  <label>
+                    <span>Подпись</span>
+                    <textarea rows={3} value={item.caption ?? ''} onChange={(event) => updateMedia(index, { caption: event.target.value })} />
+                  </label>
+
+                  <label className="role-toggle">
+                    <input type="checkbox" checked={item.isPublished} onChange={(event) => updateMedia(index, { isPublished: event.target.checked })} />
+                    <div>
+                      <strong>Опубликовано</strong>
+                      <span>Скрытые медиа остаются в редакторе, но не показываются на публичном сайте.</span>
+                    </div>
+                  </label>
+                </article>
+              ))
+            ) : (
+              <article className="event-collection-item">
+                <strong>Медиа пока не добавлены</strong>
+                <p className="form-muted">
+                  Добавьте фотографии атмосферы, ролики прошлых сезонов, превью сцены или проповеди, чтобы карточка
+                  события выглядела живой и убедительной.
+                </p>
+              </article>
+            )}
           </div>
         </section>
 

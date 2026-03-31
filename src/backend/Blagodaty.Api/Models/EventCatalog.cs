@@ -40,6 +40,7 @@ public sealed class EventEdition
     public ICollection<EventPriceOption> PriceOptions { get; set; } = [];
     public ICollection<EventScheduleItem> ScheduleItems { get; set; } = [];
     public ICollection<EventContentBlock> ContentBlocks { get; set; } = [];
+    public ICollection<EventMediaItem> MediaItems { get; set; } = [];
     public ICollection<CampRegistration> Registrations { get; set; } = [];
 }
 
@@ -94,6 +95,21 @@ public sealed class EventContentBlock
     public int SortOrder { get; set; }
 }
 
+public sealed class EventMediaItem
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid EventEditionId { get; set; }
+    public EventEdition EventEdition { get; set; } = null!;
+
+    public EventMediaType Type { get; set; } = EventMediaType.Image;
+    public string Url { get; set; } = string.Empty;
+    public string? ThumbnailUrl { get; set; }
+    public string? Title { get; set; }
+    public string? Caption { get; set; }
+    public bool IsPublished { get; set; } = true;
+    public int SortOrder { get; set; }
+}
+
 public enum EventKind
 {
     Camp = 0,
@@ -133,4 +149,10 @@ public enum EventContentBlockType
     Program = 4,
     ImportantNotice = 5,
     Faq = 6
+}
+
+public enum EventMediaType
+{
+    Image = 0,
+    Video = 1
 }

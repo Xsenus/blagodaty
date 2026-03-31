@@ -29,6 +29,7 @@ public sealed class PublicEventSummaryDto
     public required bool WaitlistEnabled { get; init; }
     public decimal? PriceFromAmount { get; init; }
     public string? PriceCurrency { get; init; }
+    public string? PrimaryImageUrl { get; init; }
 }
 
 public sealed class PublicEventDetailsResponse
@@ -57,6 +58,7 @@ public sealed class PublicEventDetailsResponse
     public required IReadOnlyCollection<PublicEventPriceOptionDto> PriceOptions { get; init; }
     public required IReadOnlyCollection<PublicEventScheduleItemDto> ScheduleItems { get; init; }
     public required IReadOnlyCollection<PublicEventContentBlockDto> ContentBlocks { get; init; }
+    public required IReadOnlyCollection<PublicEventMediaItemDto> MediaItems { get; init; }
 }
 
 public sealed class PublicEventPriceOptionDto
@@ -91,4 +93,14 @@ public sealed class PublicEventContentBlockDto
     public required EventContentBlockType BlockType { get; init; }
     public string? Title { get; init; }
     public required string Body { get; init; }
+}
+
+public sealed class PublicEventMediaItemDto
+{
+    public required Guid Id { get; init; }
+    public required EventMediaType Type { get; init; }
+    public required string Url { get; init; }
+    public string? ThumbnailUrl { get; init; }
+    public string? Title { get; init; }
+    public string? Caption { get; init; }
 }

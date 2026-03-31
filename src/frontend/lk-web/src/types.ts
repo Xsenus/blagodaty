@@ -44,6 +44,7 @@ export type EventEditionStatus =
   | 'Archived';
 export type EventScheduleItemKind = 'Arrival' | 'MainProgram' | 'Departure' | 'Meeting' | 'Deadline' | 'Other';
 export type EventContentBlockType = 'Hero' | 'About' | 'Highlight' | 'WhatToBring' | 'Program' | 'ImportantNotice' | 'Faq';
+export type EventMediaType = 'Image' | 'Video';
 
 export type RegistrationStatus = 'Draft' | 'Submitted' | 'Confirmed' | 'Cancelled';
 export type AccommodationPreference = 'Tent' | 'Cabin' | 'Either';
@@ -334,6 +335,7 @@ export type AdminEventSummary = {
   submittedRegistrations: number;
   confirmedRegistrations: number;
   remainingCapacity?: number | null;
+  primaryImageUrl?: string | null;
 };
 
 export type AdminEventsResponse = {
@@ -381,6 +383,81 @@ export type UpdateAdminDatabaseBackupSettingsRequest = {
   pgDumpPath?: string;
 };
 
+export type AdminSiteSocialLink = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  enabled: boolean;
+  showInHeader: boolean;
+  showInFooter: boolean;
+  sortOrder: number;
+};
+
+export type AdminSiteSettings = {
+  socialLinksEnabled: boolean;
+  socialLinksTitle?: string | null;
+  socialLinksDescription?: string | null;
+  socialLinks: AdminSiteSocialLink[];
+};
+
+export type GalleryAssetKind = 'Image' | 'Video' | 'File';
+
+export type AdminGalleryAsset = {
+  id: string;
+  kind: GalleryAssetKind;
+  name: string;
+  description?: string | null;
+  contentType: string;
+  fileExtension: string;
+  originalFileName: string;
+  diskPath: string;
+  fileSizeBytes: number;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  url: string;
+  existsOnDisk: boolean;
+};
+
+export type AdminGalleryAssetsResponse = {
+  items: AdminGalleryAsset[];
+};
+
+export type UpdateAdminSiteSocialLinkRequest = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  enabled: boolean;
+  showInHeader: boolean;
+  showInFooter: boolean;
+  sortOrder: number;
+};
+
+export type UpdateAdminSiteSettingsRequest = {
+  socialLinksEnabled: boolean;
+  socialLinksTitle?: string;
+  socialLinksDescription?: string;
+  socialLinks: UpdateAdminSiteSocialLinkRequest[];
+};
+
+export type PublicSiteSocialLink = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  showInHeader: boolean;
+  showInFooter: boolean;
+  sortOrder: number;
+};
+
+export type PublicSiteSettings = {
+  socialLinksEnabled: boolean;
+  socialLinksTitle?: string | null;
+  socialLinksDescription?: string | null;
+  socialLinks: PublicSiteSocialLink[];
+};
+
 export type PublicEventPriceOption = {
   id: string;
   code: string;
@@ -412,6 +489,15 @@ export type PublicEventContentBlock = {
   body: string;
 };
 
+export type PublicEventMediaItem = {
+  id: string;
+  type: EventMediaType;
+  url: string;
+  thumbnailUrl?: string | null;
+  title?: string | null;
+  caption?: string | null;
+};
+
 export type PublicEventSummary = {
   id: string;
   seriesSlug: string;
@@ -433,6 +519,7 @@ export type PublicEventSummary = {
   waitlistEnabled: boolean;
   priceFromAmount?: number | null;
   priceCurrency?: string | null;
+  primaryImageUrl?: string | null;
 };
 
 export type PublicEventDetails = {
@@ -460,6 +547,7 @@ export type PublicEventDetails = {
   priceOptions: PublicEventPriceOption[];
   scheduleItems: PublicEventScheduleItem[];
   contentBlocks: PublicEventContentBlock[];
+  mediaItems: PublicEventMediaItem[];
 };
 
 export type AdminEventPriceOption = {
@@ -497,6 +585,17 @@ export type AdminEventContentBlock = {
   sortOrder: number;
 };
 
+export type AdminEventMediaItem = {
+  id: string;
+  type: EventMediaType;
+  url: string;
+  thumbnailUrl?: string | null;
+  title?: string | null;
+  caption?: string | null;
+  isPublished: boolean;
+  sortOrder: number;
+};
+
 export type AdminEventDetails = {
   id: string;
   eventSeriesId: string;
@@ -522,6 +621,7 @@ export type AdminEventDetails = {
   priceOptions: AdminEventPriceOption[];
   scheduleItems: AdminEventScheduleItem[];
   contentBlocks: AdminEventContentBlock[];
+  mediaItems: AdminEventMediaItem[];
 };
 
 export type UpsertAdminEventPriceOptionRequest = {
@@ -556,6 +656,16 @@ export type UpsertAdminEventContentBlockRequest = {
   sortOrder: number;
 };
 
+export type UpsertAdminEventMediaItemRequest = {
+  type: EventMediaType;
+  url: string;
+  thumbnailUrl?: string;
+  title?: string;
+  caption?: string;
+  isPublished: boolean;
+  sortOrder: number;
+};
+
 export type UpsertAdminEventRequest = {
   seriesSlug: string;
   seriesTitle: string;
@@ -579,4 +689,5 @@ export type UpsertAdminEventRequest = {
   priceOptions: UpsertAdminEventPriceOptionRequest[];
   scheduleItems: UpsertAdminEventScheduleItemRequest[];
   contentBlocks: UpsertAdminEventContentBlockRequest[];
+  mediaItems: UpsertAdminEventMediaItemRequest[];
 };

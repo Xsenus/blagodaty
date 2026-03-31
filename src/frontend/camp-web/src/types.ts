@@ -10,6 +10,7 @@ export type EventEditionStatus =
 
 export type EventScheduleItemKind = 'Arrival' | 'MainProgram' | 'Departure' | 'Meeting' | 'Deadline' | 'Other';
 export type EventContentBlockType = 'Hero' | 'About' | 'Highlight' | 'WhatToBring' | 'Program' | 'ImportantNotice' | 'Faq';
+export type EventMediaType = 'Image' | 'Video';
 
 export type PublicEventSummary = {
   id: string;
@@ -32,6 +33,7 @@ export type PublicEventSummary = {
   waitlistEnabled: boolean;
   priceFromAmount?: number | null;
   priceCurrency?: string | null;
+  primaryImageUrl?: string | null;
 };
 
 export type PublicEventPriceOption = {
@@ -65,6 +67,32 @@ export type PublicEventContentBlock = {
   body: string;
 };
 
+export type PublicEventMediaItem = {
+  id: string;
+  type: EventMediaType;
+  url: string;
+  thumbnailUrl?: string | null;
+  title?: string | null;
+  caption?: string | null;
+};
+
+export type PublicSiteSocialLink = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  showInHeader: boolean;
+  showInFooter: boolean;
+  sortOrder: number;
+};
+
+export type PublicSiteSettings = {
+  socialLinksEnabled: boolean;
+  socialLinksTitle?: string | null;
+  socialLinksDescription?: string | null;
+  socialLinks: PublicSiteSocialLink[];
+};
+
 export type PublicEventDetails = {
   id: string;
   seriesSlug: string;
@@ -90,4 +118,5 @@ export type PublicEventDetails = {
   priceOptions: PublicEventPriceOption[];
   scheduleItems: PublicEventScheduleItem[];
   contentBlocks: PublicEventContentBlock[];
+  mediaItems: PublicEventMediaItem[];
 };

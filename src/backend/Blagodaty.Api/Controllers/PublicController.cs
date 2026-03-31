@@ -11,10 +11,14 @@ namespace Blagodaty.Api.Controllers;
 public sealed class PublicController : ControllerBase
 {
     private readonly ExternalAuthProviderService _externalAuthProviderService;
+    private readonly SiteSettingsService _siteSettingsService;
 
-    public PublicController(ExternalAuthProviderService externalAuthProviderService)
+    public PublicController(
+        ExternalAuthProviderService externalAuthProviderService,
+        SiteSettingsService siteSettingsService)
     {
         _externalAuthProviderService = externalAuthProviderService;
+        _siteSettingsService = siteSettingsService;
     }
 
     [HttpGet("auth/providers")]
@@ -24,5 +28,11 @@ public sealed class PublicController : ControllerBase
         {
             Providers = await _externalAuthProviderService.GetPublicProvidersAsync(HttpContext.RequestAborted)
         });
+    }
+
+    [HttpGet("site-settings")]
+    public async Task<ActionResult<PublicSiteSettingsResponse>> GetSiteSettings()
+    {
+        return Ok(await _siteSettingsService.GetPublicAsync(HttpContext.RequestAborted));
     }
 }

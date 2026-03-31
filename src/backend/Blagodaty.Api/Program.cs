@@ -6,7 +6,9 @@ using Blagodaty.Api.Options;
 using Blagodaty.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -23,9 +25,11 @@ builder.Services.AddScoped<AuthSessionService>();
 builder.Services.AddScoped<AppSettingsService>();
 builder.Services.AddScoped<ExternalIdentityService>();
 builder.Services.AddScoped<ExternalAuthProviderService>();
+builder.Services.AddScoped<SiteSettingsService>();
 builder.Services.AddScoped<EventCatalogService>();
 builder.Services.AddScoped<EventRegistrationService>();
 builder.Services.AddScoped<UserNotificationService>();
+builder.Services.AddSingleton<GalleryStorageService>();
 builder.Services.AddSingleton<DatabaseBackupService>();
 builder.Services.AddHostedService<EventNotificationBackgroundService>();
 builder.Services.AddHostedService<DatabaseBackupBackgroundService>();
@@ -123,6 +127,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+var galleryStorageService = app.Services.GetRequiredService<GalleryStorageService>();
+var uploadsContentTypeProvider = new FileExtensionContentTypeProvider();
+uploadsContentTypeProvider.Mappings[".webp"] = "image/webp";
+uploadsContentTypeProvider.Mappings[".avif"] = "image/avif";
+uploadsContentTypeProvider.Mappings[".jfif"] = "image/jpeg";
+uploadsContentTypeProvider.Mappings[".mkv"] = "video/x-matroska";
+Directory.CreateDirectory(galleryStorageService.RootDirectory);
 
 if (app.Environment.IsDevelopment())
 {
@@ -137,6 +148,12 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(galleryStorageService.RootDirectory),
+    RequestPath = "/uploads",
+    ContentTypeProvider = uploadsContentTypeProvider
+});
 app.UseCors("frontend");
 app.UseAuthentication();
 app.UseAuthorization();

@@ -27,6 +27,7 @@ public sealed class AdminEventSummaryDto
     public int SubmittedRegistrations { get; init; }
     public int ConfirmedRegistrations { get; init; }
     public int? RemainingCapacity { get; init; }
+    public string? PrimaryImageUrl { get; init; }
 }
 
 public sealed class AdminEventDetailsResponse
@@ -55,6 +56,7 @@ public sealed class AdminEventDetailsResponse
     public required IReadOnlyCollection<AdminEventPriceOptionDto> PriceOptions { get; init; }
     public required IReadOnlyCollection<AdminEventScheduleItemDto> ScheduleItems { get; init; }
     public required IReadOnlyCollection<AdminEventContentBlockDto> ContentBlocks { get; init; }
+    public required IReadOnlyCollection<AdminEventMediaItemDto> MediaItems { get; init; }
 }
 
 public sealed class AdminEventPriceOptionDto
@@ -91,6 +93,18 @@ public sealed class AdminEventContentBlockDto
     public required EventContentBlockType BlockType { get; init; }
     public string? Title { get; init; }
     public required string Body { get; init; }
+    public required bool IsPublished { get; init; }
+    public required int SortOrder { get; init; }
+}
+
+public sealed class AdminEventMediaItemDto
+{
+    public required Guid Id { get; init; }
+    public required EventMediaType Type { get; init; }
+    public required string Url { get; init; }
+    public string? ThumbnailUrl { get; init; }
+    public string? Title { get; init; }
+    public string? Caption { get; init; }
     public required bool IsPublished { get; init; }
     public required int SortOrder { get; init; }
 }
@@ -138,6 +152,7 @@ public sealed class UpsertAdminEventRequest
     public IReadOnlyCollection<UpsertAdminEventPriceOptionRequest> PriceOptions { get; init; } = Array.Empty<UpsertAdminEventPriceOptionRequest>();
     public IReadOnlyCollection<UpsertAdminEventScheduleItemRequest> ScheduleItems { get; init; } = Array.Empty<UpsertAdminEventScheduleItemRequest>();
     public IReadOnlyCollection<UpsertAdminEventContentBlockRequest> ContentBlocks { get; init; } = Array.Empty<UpsertAdminEventContentBlockRequest>();
+    public IReadOnlyCollection<UpsertAdminEventMediaItemRequest> MediaItems { get; init; } = Array.Empty<UpsertAdminEventMediaItemRequest>();
 }
 
 public sealed class UpsertAdminEventPriceOptionRequest
@@ -191,6 +206,26 @@ public sealed class UpsertAdminEventContentBlockRequest
 
     [Required, MaxLength(8000)]
     public string Body { get; init; } = string.Empty;
+
+    public bool IsPublished { get; init; } = true;
+    public int SortOrder { get; init; }
+}
+
+public sealed class UpsertAdminEventMediaItemRequest
+{
+    public EventMediaType Type { get; init; } = EventMediaType.Image;
+
+    [Required, MaxLength(2000)]
+    public string Url { get; init; } = string.Empty;
+
+    [MaxLength(2000)]
+    public string? ThumbnailUrl { get; init; }
+
+    [MaxLength(180)]
+    public string? Title { get; init; }
+
+    [MaxLength(1000)]
+    public string? Caption { get; init; }
 
     public bool IsPublished { get; init; } = true;
     public int SortOrder { get; init; }

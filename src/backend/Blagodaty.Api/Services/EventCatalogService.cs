@@ -23,6 +23,7 @@ public sealed class EventCatalogService
             .Include(edition => edition.EventSeries)
             .Include(edition => edition.PriceOptions)
             .Include(edition => edition.ContentBlocks)
+            .Include(edition => edition.MediaItems)
             .Where(edition =>
                 edition.EventSeries.IsActive &&
                 edition.EventSeries.Kind == EventKind.Camp &&
@@ -64,6 +65,7 @@ public sealed class EventCatalogService
             .AsNoTracking()
             .Include(edition => edition.EventSeries)
             .Include(edition => edition.PriceOptions)
+            .Include(edition => edition.MediaItems)
             .Where(edition =>
                 edition.EventSeries.IsActive &&
                 (edition.Status == EventEditionStatus.Published ||
@@ -90,6 +92,7 @@ public sealed class EventCatalogService
             .Include(item => item.PriceOptions)
             .Include(item => item.ScheduleItems)
             .Include(item => item.ContentBlocks)
+            .Include(item => item.MediaItems)
             .FirstOrDefaultAsync(item =>
                 item.Slug == slug &&
                 item.EventSeries.IsActive &&
@@ -173,6 +176,20 @@ public sealed class EventCatalogService
                     BlockType = block.BlockType,
                     Title = block.Title,
                     Body = block.Body
+                })
+                .ToArray(),
+            MediaItems = edition.MediaItems
+                .Where(item => item.IsPublished)
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Type)
+                .Select(item => new PublicEventMediaItemDto
+                {
+                    Id = item.Id,
+                    Type = item.Type,
+                    Url = item.Url,
+                    ThumbnailUrl = item.ThumbnailUrl,
+                    Title = item.Title,
+                    Caption = item.Caption
                 })
                 .ToArray()
         };
@@ -273,7 +290,8 @@ public sealed class EventCatalogService
             RemainingCapacity = remainingCapacity,
             WaitlistEnabled = edition.WaitlistEnabled,
             PriceFromAmount = activePrice?.Amount,
-            PriceCurrency = activePrice?.Currency
+            PriceCurrency = activePrice?.Currency,
+            PrimaryImageUrl = SelectPrimaryImageUrl(edition.MediaItems)
         };
     }
 
@@ -318,5 +336,15 @@ public sealed class EventCatalogService
         return IsRegistrationOpen(edition, remainingCapacity, now) &&
                edition.RegistrationClosesAtUtc.HasValue &&
                edition.RegistrationClosesAtUtc.Value <= now.AddDays(5);
+    }
+
+    private static string? SelectPrimaryImageUrl(IEnumerable<EventMediaItem> mediaItems)
+    {
+        return mediaItems
+            .Where(item => item.IsPublished)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Type)
+            .Select(item => item.Type == EventMediaType.Image ? item.Url : item.ThumbnailUrl)
+            .FirstOrDefault(url => !string.IsNullOrWhiteSpace(url));
     }
 }
