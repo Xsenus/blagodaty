@@ -15,6 +15,7 @@ public sealed class UserNotificationService
 
     private readonly AppDbContext _dbContext;
     private readonly ExternalAuthProviderService _externalAuthProviderService;
+    private readonly TelegramGroupNotificationService _telegramGroupNotificationService;
     private readonly TimeProvider _timeProvider;
     private readonly FrontendOptions _frontendOptions;
     private readonly ILogger<UserNotificationService> _logger;
@@ -22,12 +23,14 @@ public sealed class UserNotificationService
     public UserNotificationService(
         AppDbContext dbContext,
         ExternalAuthProviderService externalAuthProviderService,
+        TelegramGroupNotificationService telegramGroupNotificationService,
         TimeProvider timeProvider,
         IOptions<FrontendOptions> frontendOptions,
         ILogger<UserNotificationService> logger)
     {
         _dbContext = dbContext;
         _externalAuthProviderService = externalAuthProviderService;
+        _telegramGroupNotificationService = telegramGroupNotificationService;
         _timeProvider = timeProvider;
         _frontendOptions = frontendOptions.Value;
         _logger = logger;
@@ -179,6 +182,8 @@ public sealed class UserNotificationService
                 sendTelegram: true,
                 cancellationToken);
         }
+
+        await _telegramGroupNotificationService.NotifyRegistrationSubmittedAsync(registration, cancellationToken);
     }
 
     public async Task NotifyRegistrationStatusChangedAsync(
@@ -223,6 +228,8 @@ public sealed class UserNotificationService
             $"registration:{registration.Id}:status:{registration.Status}",
             sendTelegram: true,
             cancellationToken);
+
+        await _telegramGroupNotificationService.NotifyRegistrationStatusChangedAsync(registration, previousStatus, cancellationToken);
     }
 
     public async Task DispatchClosingSoonNotificationsAsync(CancellationToken cancellationToken = default)
@@ -304,6 +311,12 @@ public sealed class UserNotificationService
                     sendTelegram: true,
                     cancellationToken);
             }
+
+            await _telegramGroupNotificationService.NotifyRegistrationClosingSoonAsync(
+                eventItem.Id,
+                eventItem.Title,
+                eventItem.RegistrationClosesAtUtc,
+                cancellationToken);
         }
     }
 

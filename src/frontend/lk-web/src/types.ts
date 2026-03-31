@@ -307,6 +307,88 @@ export type AdminExternalAuthSettings = {
   recentEvents: AdminExternalAuthEvent[];
 };
 
+export type TelegramChatKind = 'Unknown' | 'Private' | 'Group' | 'Supergroup' | 'Channel';
+export type TelegramChatSubscriptionType = 'RegistrationSubmitted' | 'RegistrationStatusChanged' | 'RegistrationClosingSoon';
+export type TelegramCommandLogStatus = 'Handled' | 'Ignored' | 'Forbidden' | 'Failed';
+
+export type AdminTelegramSummary = {
+  totalChats: number;
+  activeChats: number;
+  totalSubscriptions: number;
+  recentCommandsCount: number;
+};
+
+export type AdminTelegramEventOption = {
+  id: string;
+  slug: string;
+  title: string;
+  status: EventEditionStatus;
+};
+
+export type AdminTelegramChatSubscription = {
+  id: string;
+  eventEditionId: string;
+  eventSlug: string;
+  eventTitle: string;
+  subscriptionType: TelegramChatSubscriptionType;
+  isEnabled: boolean;
+  messageThreadId?: number | null;
+  createdByUserId?: string | null;
+  createdByDisplayName?: string | null;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+};
+
+export type AdminTelegramChat = {
+  id: string;
+  chatId: number;
+  kind: TelegramChatKind;
+  title?: string | null;
+  username?: string | null;
+  isForum: boolean;
+  isActive: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  lastSeenAtUtc?: string | null;
+  subscriptions: AdminTelegramChatSubscription[];
+};
+
+export type AdminTelegramCommandLog = {
+  id: string;
+  telegramChatId?: string | null;
+  chatTitle?: string | null;
+  chatExternalId?: number | null;
+  telegramUserId?: number | null;
+  telegramUsername?: string | null;
+  userId?: string | null;
+  userDisplayName?: string | null;
+  command: string;
+  arguments?: string | null;
+  status: TelegramCommandLogStatus;
+  responsePreview?: string | null;
+  createdAtUtc: string;
+};
+
+export type AdminTelegramOverview = {
+  summary: AdminTelegramSummary;
+  events: AdminTelegramEventOption[];
+  chats: AdminTelegramChat[];
+  recentCommands: AdminTelegramCommandLog[];
+};
+
+export type CreateAdminTelegramSubscriptionRequest = {
+  telegramChatId: string;
+  eventEditionId: string;
+  subscriptionType: TelegramChatSubscriptionType;
+  messageThreadId?: number | null;
+  isEnabled: boolean;
+};
+
+export type UpdateAdminTelegramSubscriptionRequest = {
+  isEnabled: boolean;
+  messageThreadId?: number | null;
+};
+
 export type UpdateExternalAuthProviderRequest = {
   enabled: boolean;
   widgetEnabled?: boolean;

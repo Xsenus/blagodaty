@@ -428,12 +428,16 @@ public sealed class ExternalAuthProviderService
         return string.Equals(expectedHash, payload.Hash.Trim().ToLowerInvariant(), StringComparison.Ordinal);
     }
 
-    public async Task SendTelegramMessageAsync(long chatId, string text, CancellationToken cancellationToken = default)
+    public async Task<bool> TrySendTelegramMessageAsync(
+        long chatId,
+        string text,
+        long? messageThreadId = null,
+        CancellationToken cancellationToken = default)
     {
         var botToken = await GetTelegramBotTokenAsync(cancellationToken);
         if (string.IsNullOrWhiteSpace(botToken))
         {
-            return;
+            return false;
         }
 
         var client = _httpClientFactory.CreateClient();
@@ -442,26 +446,52 @@ public sealed class ExternalAuthProviderService
             Content = JsonContent.Create(new
             {
                 chat_id = chatId,
-                text
+                text,
+                message_thread_id = messageThreadId
             })
         };
 
         try
         {
             using var response = await client.SendAsync(request, cancellationToken);
-            _ = response.IsSuccessStatusCode;
+            return response.IsSuccessStatusCode;
         }
         catch
         {
-            // Notification failures should not break auth flow.
+            return false;
         }
+    }
+
+    public Task SendTelegramMessageAsync(long chatId, string text, CancellationToken cancellationToken = default)
+    {
+        return SendTelegramMessageAsync(chatId, text, null, cancellationToken);
+    }
+
+    public async Task SendTelegramMessageAsync(
+        long chatId,
+        string text,
+        long? messageThreadId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = await TrySendTelegramMessageAsync(chatId, text, messageThreadId, cancellationToken);
+    }
+
+    public Task<bool> SendTelegramDocumentAsync(
+        long chatId,
+        string filePath,
+        string fileName,
+        string? caption = null,
+        CancellationToken cancellationToken = default)
+    {
+        return SendTelegramDocumentAsync(chatId, filePath, fileName, caption, null, cancellationToken);
     }
 
     public async Task<bool> SendTelegramDocumentAsync(
         long chatId,
         string filePath,
         string fileName,
-        string? caption = null,
+        string? caption,
+        long? messageThreadId,
         CancellationToken cancellationToken = default)
     {
         var botToken = await GetTelegramBotTokenAsync(cancellationToken);
@@ -474,6 +504,10 @@ public sealed class ExternalAuthProviderService
         await using var fileStream = File.OpenRead(filePath);
         using var content = new MultipartFormDataContent();
         content.Add(new StringContent(chatId.ToString()), "chat_id");
+        if (messageThreadId.HasValue)
+        {
+            content.Add(new StringContent(messageThreadId.Value.ToString()), "message_thread_id");
+        }
 
         if (!string.IsNullOrWhiteSpace(caption))
         {
@@ -493,6 +527,59 @@ public sealed class ExternalAuthProviderService
         {
             using var response = await client.SendAsync(request, cancellationToken);
             return response.IsSuccessStatusCode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> IsTelegramChatAdminAsync(long chatId, long telegramUserId, CancellationToken cancellationToken = default)
+    {
+        var botToken = await GetTelegramBotTokenAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(botToken))
+        {
+            return false;
+        }
+
+        var client = _httpClientFactory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"https://api.telegram.org/bot{botToken}/getChatMember")
+        {
+            Content = JsonContent.Create(new
+            {
+                chat_id = chatId,
+                user_id = telegramUserId
+            })
+        };
+
+        try
+        {
+            using var response = await client.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            if (!document.RootElement.TryGetProperty("ok", out var okElement) || !okElement.GetBoolean())
+            {
+                return false;
+            }
+
+            if (!document.RootElement.TryGetProperty("result", out var resultElement) || resultElement.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            if (!resultElement.TryGetProperty("status", out var statusElement) || statusElement.ValueKind != JsonValueKind.String)
+            {
+                return false;
+            }
+
+            var status = statusElement.GetString()?.Trim();
+            return string.Equals(status, "administrator", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(status, "creator", StringComparison.OrdinalIgnoreCase);
         }
         catch
         {

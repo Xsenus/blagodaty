@@ -9,6 +9,9 @@ import type {
   AdminGalleryAssetsResponse,
   AdminDatabaseBackupsOverview,
   AdminDatabaseBackupCreateResponse,
+  AdminTelegramChat,
+  AdminTelegramChatSubscription,
+  AdminTelegramOverview,
   AdminOverview,
   AdminSiteSettings,
   AdminUser,
@@ -25,8 +28,10 @@ import type {
   PublicExternalAuthProvider,
   SaveRegistrationRequest,
   SessionState,
+  CreateAdminTelegramSubscriptionRequest,
   UpsertAdminEventRequest,
   UpdateAdminDatabaseBackupSettingsRequest,
+  UpdateAdminTelegramSubscriptionRequest,
   UpdateAdminSiteSettingsRequest,
   UpdateProfileRequest,
   UpdateExternalAuthProviderRequest,
@@ -468,6 +473,60 @@ export function deleteAdminGalleryAsset(accessToken: string, assetId: string) {
 
 export function getAdminBackups(accessToken: string) {
   return request<AdminDatabaseBackupsOverview>('/api/admin/backups', {}, accessToken);
+}
+
+export function getAdminTelegramOverview(accessToken: string) {
+  return request<AdminTelegramOverview>('/api/admin/telegram/overview', {}, accessToken);
+}
+
+export function createAdminTelegramSubscription(
+  accessToken: string,
+  payload: CreateAdminTelegramSubscriptionRequest,
+) {
+  return request<AdminTelegramChatSubscription>(
+    '/api/admin/telegram/subscriptions',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function updateAdminTelegramSubscription(
+  accessToken: string,
+  subscriptionId: string,
+  payload: UpdateAdminTelegramSubscriptionRequest,
+) {
+  return request<AdminTelegramChatSubscription>(
+    `/api/admin/telegram/subscriptions/${subscriptionId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function deleteAdminTelegramSubscription(accessToken: string, subscriptionId: string) {
+  return request<{ ok: boolean }>(
+    `/api/admin/telegram/subscriptions/${subscriptionId}`,
+    {
+      method: 'DELETE',
+    },
+    accessToken,
+  );
+}
+
+export function updateAdminTelegramChat(accessToken: string, chatId: string, payload: { isActive: boolean }) {
+  return request<AdminTelegramChat>(
+    `/api/admin/telegram/chats/${chatId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
 }
 
 export function updateAdminBackupSettings(

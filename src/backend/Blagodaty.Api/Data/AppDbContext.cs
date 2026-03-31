@@ -25,6 +25,10 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<UserExternalIdentity> UserExternalIdentities => Set<UserExternalIdentity>();
     public DbSet<ExternalAuthRequest> ExternalAuthRequests => Set<ExternalAuthRequest>();
     public DbSet<TelegramAuthRequest> TelegramAuthRequests => Set<TelegramAuthRequest>();
+    public DbSet<TelegramChat> TelegramChats => Set<TelegramChat>();
+    public DbSet<TelegramChatSubscription> TelegramChatSubscriptions => Set<TelegramChatSubscription>();
+    public DbSet<TelegramCommandLog> TelegramCommandLogs => Set<TelegramCommandLog>();
+    public DbSet<TelegramSubscriptionDeliveryLog> TelegramSubscriptionDeliveryLogs => Set<TelegramSubscriptionDeliveryLog>();
     public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
 
@@ -232,6 +236,64 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.Property(x => x.TelegramUserId).HasMaxLength(64);
             entity.Property(x => x.TelegramUsername).HasMaxLength(120);
             entity.Property(x => x.TelegramDisplayName).HasMaxLength(180);
+        });
+
+        builder.Entity<TelegramChat>(entity =>
+        {
+            entity.HasIndex(x => x.ChatId).IsUnique();
+            entity.HasIndex(x => new { x.Kind, x.IsActive });
+            entity.Property(x => x.Kind).HasConversion<string>().HasMaxLength(24);
+            entity.Property(x => x.Title).HasMaxLength(240);
+            entity.Property(x => x.Username).HasMaxLength(120);
+        });
+
+        builder.Entity<TelegramChatSubscription>(entity =>
+        {
+            entity.HasIndex(x => new { x.TelegramChatId, x.EventEditionId, x.SubscriptionType, x.MessageThreadId }).IsUnique();
+            entity.HasIndex(x => new { x.EventEditionId, x.SubscriptionType, x.IsEnabled });
+            entity.Property(x => x.SubscriptionType).HasConversion<string>().HasMaxLength(48);
+            entity.HasOne(x => x.Chat)
+                .WithMany(x => x.Subscriptions)
+                .HasForeignKey(x => x.TelegramChatId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.EventEdition)
+                .WithMany()
+                .HasForeignKey(x => x.EventEditionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<TelegramCommandLog>(entity =>
+        {
+            entity.HasIndex(x => new { x.CreatedAtUtc, x.Status });
+            entity.HasIndex(x => new { x.TelegramUserId, x.CreatedAtUtc });
+            entity.Property(x => x.Command).HasMaxLength(64);
+            entity.Property(x => x.Arguments).HasMaxLength(1000);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(24);
+            entity.Property(x => x.TelegramUsername).HasMaxLength(120);
+            entity.Property(x => x.ResponsePreview).HasMaxLength(2000);
+            entity.HasOne(x => x.Chat)
+                .WithMany(x => x.CommandLogs)
+                .HasForeignKey(x => x.TelegramChatId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<TelegramSubscriptionDeliveryLog>(entity =>
+        {
+            entity.HasIndex(x => new { x.TelegramChatSubscriptionId, x.NotificationKey }).IsUnique();
+            entity.HasIndex(x => x.SentAtUtc);
+            entity.Property(x => x.NotificationKey).HasMaxLength(180);
+            entity.HasOne(x => x.Subscription)
+                .WithMany(x => x.DeliveryLogs)
+                .HasForeignKey(x => x.TelegramChatSubscriptionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<AuthEvent>(entity =>

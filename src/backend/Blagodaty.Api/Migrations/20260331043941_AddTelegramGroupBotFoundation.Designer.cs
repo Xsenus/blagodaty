@@ -3,6 +3,7 @@ using System;
 using Blagodaty.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Blagodaty.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260331043941_AddTelegramGroupBotFoundation")]
+    partial class AddTelegramGroupBotFoundation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -992,33 +995,6 @@ namespace Blagodaty.Api.Migrations
                     b.ToTable("TelegramCommandLogs");
                 });
 
-            modelBuilder.Entity("Blagodaty.Api.Models.TelegramSubscriptionDeliveryLog", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("NotificationKey")
-                        .IsRequired()
-                        .HasMaxLength(180)
-                        .HasColumnType("character varying(180)");
-
-                    b.Property<DateTime>("SentAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("TelegramChatSubscriptionId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SentAtUtc");
-
-                    b.HasIndex("TelegramChatSubscriptionId", "NotificationKey")
-                        .IsUnique();
-
-                    b.ToTable("TelegramSubscriptionDeliveryLogs");
-                });
-
             modelBuilder.Entity("Blagodaty.Api.Models.UserExternalIdentity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1447,17 +1423,6 @@ namespace Blagodaty.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Blagodaty.Api.Models.TelegramSubscriptionDeliveryLog", b =>
-                {
-                    b.HasOne("Blagodaty.Api.Models.TelegramChatSubscription", "Subscription")
-                        .WithMany("DeliveryLogs")
-                        .HasForeignKey("TelegramChatSubscriptionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Subscription");
-                });
-
             modelBuilder.Entity("Blagodaty.Api.Models.UserExternalIdentity", b =>
                 {
                     b.HasOne("Blagodaty.Api.Models.ApplicationUser", "User")
@@ -1584,11 +1549,6 @@ namespace Blagodaty.Api.Migrations
                     b.Navigation("CommandLogs");
 
                     b.Navigation("Subscriptions");
-                });
-
-            modelBuilder.Entity("Blagodaty.Api.Models.TelegramChatSubscription", b =>
-                {
-                    b.Navigation("DeliveryLogs");
                 });
 #pragma warning restore 612, 618
         }

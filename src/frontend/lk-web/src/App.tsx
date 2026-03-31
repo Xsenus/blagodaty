@@ -35,6 +35,7 @@ import { AdminEventsSection } from './admin/AdminEventsSection';
 import { AdminBackupsSection } from './admin/AdminBackupsSection';
 import { AdminGallerySection } from './admin/AdminGallerySection';
 import { AdminSiteSettingsSection } from './admin/AdminSiteSettingsSection';
+import { AdminTelegramSection } from './admin/AdminTelegramSection';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
 import type {
@@ -2414,6 +2415,8 @@ function AdminPage() {
     ? 'gallery'
     : location.pathname.startsWith('/admin/site')
     ? 'site'
+    : location.pathname.startsWith('/admin/telegram')
+    ? 'telegram'
     : location.pathname.startsWith('/admin/backups')
     ? 'backups'
     : location.pathname.startsWith('/admin/auth')
@@ -2916,6 +2919,13 @@ function AdminPage() {
       description:
         '\u0417\u0434\u0435\u0441\u044c \u043d\u0430\u0441\u0442\u0440\u0430\u0438\u0432\u0430\u044e\u0442\u0441\u044f Telegram, VK, YouTube, официальный сайт и другие каналы, которые показываются на публичной странице.',
     }
+  : adminSection === 'telegram'
+  ? {
+      eyebrow: 'Telegram',
+      title: 'Бот, чаты и команды команды',
+      description:
+        'Здесь собраны Telegram-группы, привязки к событиям, последние команды бота и управление тем, какие уведомления прилетают в рабочие чаты.',
+    }
   : adminSection === 'backups'
   ? {
       eyebrow: '\u0420\u0435\u0437\u0435\u0440\u0432\u043d\u044b\u0435 \u043a\u043e\u043f\u0438\u0438',
@@ -2993,6 +3003,12 @@ function AdminPage() {
           <p>{'\u0428\u0430\u043f\u043a\u0430, \u043f\u043e\u0434\u0432\u0430\u043b \u0438 \u043e\u0444\u0438\u0446\u0438\u0430\u043b\u044c\u043d\u044b\u0435 \u043a\u0430\u043d\u0430\u043b\u044b \u043e\u0431\u0449\u0438\u043d\u044b: Telegram, VK, YouTube, сайт и другие внешние ссылки.'}</p>
         </NavLink>
 
+        <NavLink to="/admin/telegram" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
+          <p className="mini-eyebrow">Telegram</p>
+          <h3>Бот и рабочие чаты</h3>
+          <p>Привязка групп к событиям, уведомления в команды, журнал команд и подготовка к Excel-выгрузкам прямо из Telegram.</p>
+        </NavLink>
+
         <NavLink to="/admin/backups" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
           <p className="mini-eyebrow">{'\u0411\u044d\u043a\u0430\u043f\u044b'}</p>
           <h3>{'\u0411\u0430\u0437\u0430 \u0438 Telegram-\u0434\u043e\u0441\u0442\u0430\u0432\u043a\u0430'}</h3>
@@ -3043,6 +3059,10 @@ function AdminPage() {
 
           {adminSection === 'site' ? (
             <AdminSiteSettingsSection accessToken={auth.session?.accessToken ?? null} isActive />
+          ) : null}
+
+          {adminSection === 'telegram' ? (
+            <AdminTelegramSection accessToken={auth.session?.accessToken ?? null} isActive />
           ) : null}
 
           {adminSection === 'backups' ? (
@@ -3703,6 +3723,7 @@ export default function App() {
         <Route path="/admin/events" element={<AdminPage />} />
         <Route path="/admin/gallery" element={<AdminPage />} />
         <Route path="/admin/site" element={<AdminPage />} />
+        <Route path="/admin/telegram" element={<AdminPage />} />
         <Route path="/admin/backups" element={<AdminPage />} />
         <Route path="/admin/users" element={<AdminPage />} />
         <Route path="/admin/registrations" element={<AdminPage />} />

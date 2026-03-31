@@ -24,6 +24,7 @@ public sealed class AuthController : ControllerBase
     private readonly AuthSessionService _authSessionService;
     private readonly ExternalIdentityService _externalIdentityService;
     private readonly ExternalAuthProviderService _externalAuthProviderService;
+    private readonly TelegramBotUpdateService _telegramBotUpdateService;
     private readonly TimeProvider _timeProvider;
 
     public AuthController(
@@ -34,6 +35,7 @@ public sealed class AuthController : ControllerBase
         AuthSessionService authSessionService,
         ExternalIdentityService externalIdentityService,
         ExternalAuthProviderService externalAuthProviderService,
+        TelegramBotUpdateService telegramBotUpdateService,
         TimeProvider timeProvider)
     {
         _dbContext = dbContext;
@@ -43,6 +45,7 @@ public sealed class AuthController : ControllerBase
         _authSessionService = authSessionService;
         _externalIdentityService = externalIdentityService;
         _externalAuthProviderService = externalAuthProviderService;
+        _telegramBotUpdateService = telegramBotUpdateService;
         _timeProvider = timeProvider;
     }
 
@@ -664,116 +667,7 @@ public sealed class AuthController : ControllerBase
             }
         }
 
-        if (!update.RootElement.TryGetProperty("message", out var messageElement) || messageElement.ValueKind != JsonValueKind.Object)
-        {
-            return Ok();
-        }
-
-        var state = ExtractTelegramState(ReadTelegramString(messageElement, "text"));
-        if (string.IsNullOrWhiteSpace(state))
-        {
-            return Ok();
-        }
-
-        var request = await _dbContext.TelegramAuthRequests
-            .FirstOrDefaultAsync(item => item.State == state, HttpContext.RequestAborted);
-        if (request is null)
-        {
-            return Ok();
-        }
-
-        var now = _timeProvider.GetUtcNow().UtcDateTime;
-        if (request.ExpiresAtUtc <= now)
-        {
-            request.Status = ExternalAuthRequestStatus.Expired;
-            request.ErrorMessage = "Telegram auth session expired.";
-            await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
-            return Ok();
-        }
-
-        if (!messageElement.TryGetProperty("from", out var fromElement) || fromElement.ValueKind != JsonValueKind.Object)
-        {
-            return Ok();
-        }
-
-        var telegramUserId = ReadTelegramString(fromElement, "id");
-        if (string.IsNullOrWhiteSpace(telegramUserId))
-        {
-            return Ok();
-        }
-
-        var firstName = ReadTelegramString(fromElement, "first_name");
-        var lastName = ReadTelegramString(fromElement, "last_name");
-        var username = ReadTelegramString(fromElement, "username");
-        var displayName = string.Join(" ", new[] { firstName, lastName }.Where(part => !string.IsNullOrWhiteSpace(part))).Trim();
-        var chatId = messageElement.TryGetProperty("chat", out var chatElement) && chatElement.TryGetProperty("id", out var chatIdElement)
-            ? chatIdElement.GetInt64()
-            : (long?)null;
-
-        var profile = new ExternalIdentityProfile(
-            Provider: "telegram",
-            ProviderUserId: telegramUserId,
-            Email: null,
-            EmailVerified: false,
-            Username: username,
-            DisplayName: displayName,
-            AvatarUrl: null,
-            TelegramChatId: chatId);
-
-        if (request.Intent == ExternalAuthIntent.Link)
-        {
-            if (request.UserId is null)
-            {
-                request.Status = ExternalAuthRequestStatus.Failed;
-                request.ErrorMessage = "Target user for Telegram linking was not found.";
-            }
-            else
-            {
-                await _externalIdentityService.AttachExternalIdentityAsync(request.UserId.Value, profile, HttpContext.RequestAborted);
-                request.Status = ExternalAuthRequestStatus.Completed;
-                request.CompletedAtUtc = now;
-                request.TelegramUserId = telegramUserId;
-                request.TelegramUsername = username;
-                request.TelegramDisplayName = displayName;
-                request.TelegramChatId = chatId;
-                await LogAuthEventAsync(request.UserId, "telegram", "link", "Telegram bot");
-            }
-        }
-        else if (request.Intent == ExternalAuthIntent.Test)
-        {
-            request.Status = ExternalAuthRequestStatus.Completed;
-            request.CompletedAtUtc = now;
-            request.TelegramUserId = telegramUserId;
-            request.TelegramUsername = username;
-            request.TelegramDisplayName = displayName;
-            request.TelegramChatId = chatId;
-            request.ErrorMessage = BuildTelegramTestSuccessMessage(username, telegramUserId);
-            await LogAuthEventAsync(null, "telegram", "test", request.ErrorMessage);
-        }
-        else
-        {
-            var user = await _externalIdentityService.ResolveOrCreateExternalUserAsync(profile, HttpContext.RequestAborted);
-            request.UserId = user.Id;
-            request.Status = ExternalAuthRequestStatus.Completed;
-            request.CompletedAtUtc = now;
-            request.TelegramUserId = telegramUserId;
-            request.TelegramUsername = username;
-            request.TelegramDisplayName = displayName;
-            request.TelegramChatId = chatId;
-        }
-
-        await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
-
-        if (chatId.HasValue)
-        {
-            await _externalAuthProviderService.SendTelegramMessageAsync(
-                chatId.Value,
-                request.Status == ExternalAuthRequestStatus.Completed
-                    ? "Вход подтвержден. Возвращайтесь на сайт."
-                    : "Не удалось завершить вход. Вернитесь на сайт и попробуйте снова.",
-                HttpContext.RequestAborted);
-        }
-
+        await _telegramBotUpdateService.HandleUpdateAsync(update, HttpContext.RequestAborted);
         return Ok();
     }
 
