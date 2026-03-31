@@ -9,9 +9,12 @@ CAMP_ARCHIVE="${ARTIFACTS_DIR}/camp-dist.tar.gz"
 LK_ARCHIVE="${ARTIFACTS_DIR}/lk-dist.tar.gz"
 
 API_DIR="/opt/blagodaty/api"
+STORAGE_DIR="/opt/blagodaty/storage/uploads"
 CAMP_DIR="/var/www/blagodaty-camp-react"
 LK_DIR="/var/www/blagodaty-lk"
 SERVICE_NAME="blagodaty-api"
+SERVICE_USER="blagodaty"
+SERVICE_GROUP="blagodaty"
 STAGING_ROOT="/tmp/blagodaty-release-${RELEASE_ID}"
 
 if [[ ! -f "${API_ARCHIVE}" || ! -f "${CAMP_ARCHIVE}" || ! -f "${LK_ARCHIVE}" ]]; then
@@ -65,6 +68,10 @@ tar -xzf "${CAMP_ARCHIVE}" -C "${STAGING_ROOT}/camp"
 tar -xzf "${LK_ARCHIVE}" -C "${STAGING_ROOT}/lk"
 
 ${SUDO} install -d -m 755 "${API_DIR}" "${CAMP_DIR}" "${LK_DIR}"
+${SUDO} install -d -m 755 "${STORAGE_DIR}"
+${SUDO} chown -R "${SERVICE_USER}:${SERVICE_GROUP}" "$(dirname "${STORAGE_DIR}")"
+${SUDO} find "$(dirname "${STORAGE_DIR}")" -type d -exec chmod 755 {} +
+${SUDO} find "$(dirname "${STORAGE_DIR}")" -type f -exec chmod 644 {} +
 
 ${SUDO} systemctl stop "${SERVICE_NAME}"
 

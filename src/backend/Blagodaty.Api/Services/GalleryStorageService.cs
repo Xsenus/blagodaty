@@ -38,7 +38,10 @@ public sealed class GalleryStorageService
             var configured = _configuration["Storage:UploadsRoot"];
             if (string.IsNullOrWhiteSpace(configured))
             {
-                return Path.Combine(_hostEnvironment.ContentRootPath, "storage", "uploads");
+                var applicationRoot = Directory.GetParent(_hostEnvironment.ContentRootPath)?.FullName
+                    ?? _hostEnvironment.ContentRootPath;
+
+                return Path.Combine(applicationRoot, "storage", "uploads");
             }
 
             return Path.IsPathRooted(configured)
