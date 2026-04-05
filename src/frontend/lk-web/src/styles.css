@@ -345,6 +345,81 @@ select {
   color: var(--text-soft);
 }
 
+.phone-verification-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(74, 96, 124, 0.12);
+  background: rgba(248, 244, 238, 0.86);
+}
+
+.phone-verification-banner {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(216, 154, 104, 0.18);
+  background: rgba(252, 244, 228, 0.9);
+}
+
+.phone-verification-banner.verified {
+  border-color: rgba(97, 145, 108, 0.16);
+  background: rgba(236, 247, 238, 0.92);
+}
+
+.phone-verification-banner p {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.phone-verification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.phone-verification-hint {
+  margin: -4px 0 0;
+}
+
+.phone-verification-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.phone-verification-row .primary-button {
+  min-width: 220px;
+}
+
+.validation-summary {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(216, 154, 104, 0.22);
+  background: rgba(255, 246, 229, 0.88);
+}
+
+.validation-summary strong {
+  color: var(--text-main);
+}
+
+.validation-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  color: var(--text-soft);
+}
+
+.draft-sync-status {
+  margin: 0;
+}
+
 .sidebar {
   position: sticky;
   top: 24px;
@@ -1371,6 +1446,15 @@ select {
   .action-row {
     grid-auto-flow: row;
     grid-auto-columns: unset;
+  }
+
+  .phone-verification-row {
+    grid-template-columns: 1fr;
+  }
+
+  .phone-verification-row .primary-button {
+    min-width: 0;
+    width: 100%;
   }
 
   .role-pills {

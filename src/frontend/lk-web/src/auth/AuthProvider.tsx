@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   type PropsWithChildren,
 } from 'react';
@@ -12,6 +13,7 @@ import {
   getRegistration,
   login as loginRequest,
   logout as logoutRequest,
+  redeemSessionTransfer,
   refreshSession as refreshSessionRequest,
   register as registerRequest,
   saveEventRegistration,
@@ -44,6 +46,7 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   reloadAccount: () => Promise<void>;
   updateProfile: (payload: UpdateProfileRequest) => Promise<void>;
+  withSession: <T>(operation: (accessToken: string) => Promise<T>) => Promise<T>;
   loadRegistration: (eventSlug?: string | null) => Promise<CampRegistration | null>;
   saveRegistration: (payload: SaveRegistrationRequest, eventSlug?: string | null) => Promise<CampRegistration>;
 };
@@ -74,13 +77,45 @@ function writeStoredSession(session: SessionState | null) {
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
 }
 
+function readSessionTransferToken() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const currentUrl = new URL(window.location.href);
+  const value = currentUrl.searchParams.get('transfer');
+  return value?.trim() ? value.trim() : null;
+}
+
+function clearSessionTransferTokenFromUrl() {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const currentUrl = new URL(window.location.href);
+  if (!currentUrl.searchParams.has('transfer')) {
+    return;
+  }
+
+  currentUrl.searchParams.delete('transfer');
+  window.history.replaceState({}, '', `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<SessionState | null>(null);
   const [account, setAccount] = useState<CurrentAccount | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const refreshPromiseRef = useRef<Promise<SessionState> | null>(null);
 
   useEffect(() => {
+    const transferToken = readSessionTransferToken();
     const stored = readStoredSession();
+
+    if (transferToken) {
+      void bootstrapTransfer(transferToken, stored);
+      return;
+    }
+
     if (!stored) {
       setIsReady(true);
       return;
@@ -98,28 +133,37 @@ export function AuthProvider({ children }: PropsWithChildren) {
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         try {
-          const refreshed = await refreshSessionRequest(stored);
-          const nextSession = {
-            accessToken: refreshed.accessToken,
-            refreshToken: refreshed.refreshToken,
-            accessTokenExpiresAtUtc: refreshed.accessTokenExpiresAtUtc,
-            refreshTokenExpiresAtUtc: refreshed.refreshTokenExpiresAtUtc,
-          };
+          const nextSession = await refreshActiveSession(stored);
           const currentAccount = await getCurrentAccount(nextSession.accessToken);
           setSession(nextSession);
           setAccount(currentAccount);
           writeStoredSession(nextSession);
         } catch {
-          writeStoredSession(null);
-          setSession(null);
-          setAccount(null);
+          clearAuthState();
         }
       } else {
-        writeStoredSession(null);
-        setSession(null);
-        setAccount(null);
+        clearAuthState();
       }
     } finally {
+      setIsReady(true);
+    }
+  }
+
+  async function bootstrapTransfer(token: string, fallbackSession: SessionState | null) {
+    try {
+      const response = await redeemSessionTransfer(token);
+      clearSessionTransferTokenFromUrl();
+      await acceptAuthResponse(response);
+      setIsReady(true);
+    } catch {
+      clearSessionTransferTokenFromUrl();
+
+      if (fallbackSession) {
+        await bootstrap(fallbackSession);
+        return;
+      }
+
+      clearAuthState();
       setIsReady(true);
     }
   }
@@ -140,6 +184,56 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setSession(nextSession);
     writeStoredSession(nextSession);
     return nextSession;
+  }
+
+  function clearAuthState() {
+    writeStoredSession(null);
+    setSession(null);
+    setAccount(null);
+  }
+
+  async function refreshActiveSession(currentSession: SessionState) {
+    if (!refreshPromiseRef.current) {
+      refreshPromiseRef.current = (async () => {
+        const refreshed = await refreshSessionRequest(currentSession);
+        return applySession({
+          accessToken: refreshed.accessToken,
+          refreshToken: refreshed.refreshToken,
+          accessTokenExpiresAtUtc: refreshed.accessTokenExpiresAtUtc,
+          refreshTokenExpiresAtUtc: refreshed.refreshTokenExpiresAtUtc,
+        });
+      })().finally(() => {
+        refreshPromiseRef.current = null;
+      });
+    }
+
+    return await refreshPromiseRef.current;
+  }
+
+  async function withSessionRetry<T>(operation: (accessToken: string) => Promise<T>) {
+    if (!session) {
+      throw new Error('Not authenticated');
+    }
+
+    try {
+      return await operation(session.accessToken);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 401)) {
+        throw error;
+      }
+
+      try {
+        const refreshedSession = await refreshActiveSession(session);
+        return await operation(refreshedSession.accessToken);
+      } catch (refreshError) {
+        if (refreshError instanceof ApiError) {
+          clearAuthState();
+          throw new Error('Сессия истекла. Войдите снова, чтобы продолжить работу.');
+        }
+
+        throw refreshError;
+      }
+    }
   }
 
   async function handleLogin(payload: { email: string; password: string }) {
@@ -181,27 +275,22 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
     }
 
-    writeStoredSession(null);
-    setSession(null);
-    setAccount(null);
+    clearAuthState();
   }
 
   async function reloadAccount(accessTokenOverride?: string) {
-    const token = accessTokenOverride ?? session?.accessToken;
-    if (!token) {
+    if (accessTokenOverride) {
+      const currentAccount = await getCurrentAccount(accessTokenOverride);
+      setAccount(currentAccount);
       return;
     }
 
-    const currentAccount = await getCurrentAccount(token);
+    const currentAccount = await withSessionRetry((accessToken) => getCurrentAccount(accessToken));
     setAccount(currentAccount);
   }
 
   async function handleUpdateProfile(payload: UpdateProfileRequest) {
-    if (!session) {
-      throw new Error('Not authenticated');
-    }
-
-    const updatedUser = await updateProfile(session.accessToken, payload);
+    const updatedUser = await withSessionRetry((accessToken) => updateProfile(accessToken, payload));
     setAccount((current) =>
       current
         ? {
@@ -221,14 +310,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function loadCurrentRegistration(eventSlug?: string | null) {
-    if (!session) {
-      throw new Error('Not authenticated');
-    }
-
     try {
-      return eventSlug
-        ? await getEventRegistration(session.accessToken, eventSlug)
-        : await getRegistration(session.accessToken);
+      return await withSessionRetry((accessToken) =>
+        eventSlug
+          ? getEventRegistration(accessToken, eventSlug)
+          : getRegistration(accessToken),
+      );
     } catch (error) {
       if (error instanceof ApiError && error.status === 404) {
         return null;
@@ -239,13 +326,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   async function handleSaveRegistration(payload: SaveRegistrationRequest, eventSlug?: string | null) {
-    if (!session) {
-      throw new Error('Not authenticated');
-    }
-
-    const saved = eventSlug
-      ? await saveEventRegistration(session.accessToken, eventSlug, payload)
-      : await saveRegistration(session.accessToken, payload);
+    const saved = await withSessionRetry((accessToken) =>
+      eventSlug
+        ? saveEventRegistration(accessToken, eventSlug, payload)
+        : saveRegistration(accessToken, payload),
+    );
     await reloadAccount();
     return saved;
   }
@@ -261,6 +346,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     logout: handleLogout,
     reloadAccount: () => reloadAccount(),
     updateProfile: handleUpdateProfile,
+    withSession: withSessionRetry,
     loadRegistration: loadCurrentRegistration,
     saveRegistration: handleSaveRegistration,
   };

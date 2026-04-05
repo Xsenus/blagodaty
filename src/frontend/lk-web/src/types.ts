@@ -242,6 +242,21 @@ export type UpdateProfileRequest = {
   churchName?: string;
 };
 
+export type SendPhoneVerificationCodeResponse = {
+  phoneNumber: string;
+  expiresAtUtc: string;
+  resendCooldownSeconds: number;
+  alreadyVerified: boolean;
+  isTestMode: boolean;
+  debugCode?: string | null;
+  message?: string | null;
+};
+
+export type VerifyPhoneVerificationCodeResponse = {
+  phoneNumber: string;
+  verified: boolean;
+};
+
 export type AdminStats = {
   totalUsers: number;
   totalRegistrations: number;

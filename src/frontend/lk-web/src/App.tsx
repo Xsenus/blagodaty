@@ -11,15 +11,12 @@ import {
 import { useAuth } from './auth/AuthProvider';
 import { campBaseUrl } from './lib/config';
 import {
-  ApiError,
   getAdminExternalAuthSettings,
   getAdminEvents,
   getAdminOverview,
   getAdminRegistrations,
   getAdminUsers,
   getExternalAuthStatus,
-  getPublicEvent,
-  getPublicEvents,
   getPublicExternalAuthProviders,
   getTelegramAuthStatus,
   loginWithTelegramWidget,
@@ -39,8 +36,8 @@ import { AdminTelegramSection } from './admin/AdminTelegramSection';
 import { CampRegistrationFlowPage } from './camp/CampRegistrationPage';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
+import { normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPanel';
 import type {
-  AccommodationPreference,
   AccountRegistrationSummary,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
@@ -50,7 +47,6 @@ import type {
   AdminRoleDefinition,
   AdminUser,
   AppRole,
-  CampRegistration,
   EventContentBlockType,
   EventEditionStatus,
   EventKind,
@@ -58,11 +54,8 @@ import type {
   ExternalAuthStartResponse,
   ExternalIdentity,
   PaginatedResponse,
-  PublicEventDetails,
-  PublicEventSummary,
   PublicExternalAuthProvider,
   RegistrationStatus,
-  SaveRegistrationRequest,
   UpsertAdminEventContentBlockRequest,
   UpsertAdminEventPriceOptionRequest,
   UpsertAdminEventRequest,
@@ -230,39 +223,181 @@ function formatMoney(value?: number | null, currency = 'RUB') {
   }).format(value);
 }
 
-function isPriceOptionCurrentlyAvailable(
-  option: {
-    isActive: boolean;
-    salesStartsAtUtc?: string | null;
-    salesEndsAtUtc?: string | null;
-  },
-) {
-  if (!option.isActive) {
-    return false;
+function normalizeRedirectPath(value?: string | null) {
+  const trimmed = value?.trim();
+  if (!trimmed || !trimmed.startsWith('/') || trimmed.startsWith('//')) {
+    return '/dashboard';
   }
 
-  const now = Date.now();
-  const startsAt = option.salesStartsAtUtc ? new Date(option.salesStartsAtUtc).getTime() : null;
-  const endsAt = option.salesEndsAtUtc ? new Date(option.salesEndsAtUtc).getTime() : null;
-
-  return (startsAt === null || startsAt <= now) && (endsAt === null || endsAt >= now);
+  return trimmed;
 }
 
-function pickPreferredEventSlug(
-  events: PublicEventSummary[],
-  registrations: AccountRegistrationSummary[],
-  requestedSlug?: string | null,
+function getRedirectTargetFromSearch(search: string) {
+  return normalizeRedirectPath(new URLSearchParams(search).get('redirect'));
+}
+
+function buildAuthPath(path: '/login' | '/register', redirectTarget: string) {
+  const normalizedRedirect = normalizeRedirectPath(redirectTarget);
+  if (normalizedRedirect === '/dashboard') {
+    return path;
+  }
+
+  const search = new URLSearchParams({ redirect: normalizedRedirect });
+  return `${path}?${search.toString()}`;
+}
+
+function getRegistrationLink(eventSlug?: string | null) {
+  return eventSlug ? `/camp-registration?event=${eventSlug}` : '/camp-registration';
+}
+
+function getDashboardRegistrationPriority(status: RegistrationStatus) {
+  switch (status) {
+    case 'Draft':
+      return 0;
+    case 'Submitted':
+      return 1;
+    case 'Confirmed':
+      return 2;
+    case 'Cancelled':
+      return 3;
+    default:
+      return 4;
+  }
+}
+
+function getDateSortValue(value?: string | null) {
+  if (!value) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.MAX_SAFE_INTEGER;
+}
+
+function sortDashboardRegistrations(registrations: AccountRegistrationSummary[]) {
+  return [...registrations].sort((left, right) => {
+    const byStatus = getDashboardRegistrationPriority(left.status) - getDashboardRegistrationPriority(right.status);
+    if (byStatus !== 0) {
+      return byStatus;
+    }
+
+    if (left.isRegistrationClosingSoon !== right.isRegistrationClosingSoon) {
+      return left.isRegistrationClosingSoon ? -1 : 1;
+    }
+
+    if (left.isRegistrationOpen !== right.isRegistrationOpen) {
+      return left.isRegistrationOpen ? -1 : 1;
+    }
+
+    const byStartDate = getDateSortValue(left.eventStartsAtUtc) - getDateSortValue(right.eventStartsAtUtc);
+    if (byStartDate !== 0) {
+      return byStartDate;
+    }
+
+    return new Date(right.updatedAtUtc).getTime() - new Date(left.updatedAtUtc).getTime();
+  });
+}
+
+function getDashboardActionCard(
+  registration: AccountRegistrationSummary | null,
+  isPhoneConfirmed: boolean,
 ) {
-  if (requestedSlug && events.some((event) => event.slug === requestedSlug)) {
-    return requestedSlug;
+  if (!registration) {
+    return {
+      eyebrow: 'Следующий шаг',
+      title: 'Выберите событие и начните первую заявку',
+      description: 'Откройте список мероприятий, выберите нужный сезон или выезд и сохраните анкету как черновик, чтобы спокойно вернуться позже.',
+      primaryLabel: 'Перейти к мероприятиям',
+      primaryTo: '/camp-registration',
+      secondaryLabel: 'Открыть профиль',
+      secondaryTo: '/profile',
+    };
   }
 
-  const existingRegistrationSlug = registrations.find((item) => item.eventSlug)?.eventSlug;
-  if (existingRegistrationSlug && events.some((event) => event.slug === existingRegistrationSlug)) {
-    return existingRegistrationSlug;
+  const registrationLink = getRegistrationLink(registration.eventSlug);
+  const eventTitle = registration.eventTitle || 'выбранное мероприятие';
+
+  if (registration.status === 'Draft' && !registration.isRegistrationOpen) {
+    return {
+      eyebrow: 'Окно регистрации уже закрылось',
+      title: 'Проверьте черновик и свяжитесь с командой',
+      description: `Черновик по событию "${eventTitle}" сохранён, но регистрация сейчас закрыта. Откройте заявку, чтобы сверить данные и посмотреть дальнейшие уведомления от команды.`,
+      primaryLabel: 'Открыть заявку',
+      primaryTo: registrationLink,
+      secondaryLabel: 'Открыть уведомления',
+      secondaryTo: '/notifications',
+    };
   }
 
-  return events.find((event) => event.isRegistrationOpen)?.slug ?? events[0]?.slug ?? null;
+  if (registration.status === 'Draft' && registration.isRegistrationClosingSoon) {
+    return {
+      eyebrow: 'Регистрация скоро закроется',
+      title: 'Лучше завершить заявку сейчас',
+      description: `По событию "${eventTitle}" уже есть черновик, и окно регистрации скоро закроется. Проверьте участников, подтвердите контакты и отправьте анкету, пока ещё есть время.`,
+      primaryLabel: 'Продолжить заявку',
+      primaryTo: registrationLink,
+      secondaryLabel: 'Открыть профиль',
+      secondaryTo: '/profile',
+    };
+  }
+
+  if (registration.status === 'Draft' && !isPhoneConfirmed) {
+    return {
+      eyebrow: 'Нужно завершить черновик',
+      title: 'Подтвердите телефон и отправьте заявку',
+      description: `По событию "${eventTitle}" уже есть черновик. Осталось проверить контакты, подтвердить номер и отправить анкету команде.`,
+      primaryLabel: 'Продолжить заявку',
+      primaryTo: registrationLink,
+      secondaryLabel: 'Открыть профиль',
+      secondaryTo: '/profile',
+    };
+  }
+
+  if (registration.status === 'Draft') {
+    return {
+      eyebrow: 'Черновик ждёт завершения',
+      title: 'Доведите заявку до отправки',
+      description: `Анкета по событию "${eventTitle}" уже сохранена. Вернитесь к ней, проверьте состав участников и отправьте заявку, когда всё будет готово.`,
+      primaryLabel: 'Продолжить заявку',
+      primaryTo: registrationLink,
+      secondaryLabel: 'Открыть профиль',
+      secondaryTo: '/profile',
+    };
+  }
+
+  if (registration.status === 'Submitted') {
+    return {
+      eyebrow: 'Заявка уже у команды',
+      title: 'Следите за статусом и уведомлениями',
+      description: `Заявка по событию "${eventTitle}" уже отправлена. Сейчас важнее всего отслеживать обновления и при необходимости быстро открыть анкету снова.`,
+      primaryLabel: 'Открыть заявку',
+      primaryTo: registrationLink,
+      secondaryLabel: 'Открыть уведомления',
+      secondaryTo: '/notifications',
+    };
+  }
+
+  if (registration.status === 'Confirmed') {
+    return {
+      eyebrow: 'Участие подтверждено',
+      title: 'Проверьте детали поездки',
+      description: `По событию "${eventTitle}" участие уже подтверждено. Откройте заявку, чтобы сверить состав, даты и контакты перед выездом.`,
+      primaryLabel: 'Открыть заявку',
+      primaryTo: registrationLink,
+      secondaryLabel: 'Открыть уведомления',
+      secondaryTo: '/notifications',
+    };
+  }
+
+  return {
+    eyebrow: 'Можно выбрать новое событие',
+    title: 'Текущая заявка не активна',
+    description: `По событию "${eventTitle}" заявка сейчас не активна. При необходимости выберите другое мероприятие и начните новую анкету.`,
+    primaryLabel: 'Перейти к мероприятиям',
+    primaryTo: '/camp-registration',
+    secondaryLabel: 'Открыть уведомления',
+    secondaryTo: '/notifications',
+  };
 }
 
 function toDateTimeLocalInput(value?: string | null) {
@@ -579,16 +714,21 @@ function AppLoader() {
 
 function LandingGate() {
   const { isAuthenticated } = useAuth();
-  return <Navigate replace to={isAuthenticated ? '/dashboard' : '/login'} />;
+  const location = useLocation();
+  const redirectTarget = getRedirectTargetFromSearch(location.search);
+
+  return <Navigate replace to={isAuthenticated ? redirectTarget : buildAuthPath('/login', redirectTarget)} />;
 }
 
 function ProtectedLayout() {
   const { isAuthenticated, account, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const canOpenAdmin = isAdmin(account?.user.roles);
 
   if (!isAuthenticated) {
-    return <Navigate replace to="/login" />;
+    const nextPath = `${location.pathname}${location.search}`;
+    return <Navigate replace to={buildAuthPath('/login', nextPath)} />;
   }
 
   return (
@@ -649,6 +789,9 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const redirectTarget = getRedirectTargetFromSearch(location.search);
+  const loginPath = buildAuthPath('/login', redirectTarget);
+  const registerPath = buildAuthPath('/register', redirectTarget);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [providers, setProviders] = useState<PublicExternalAuthProvider[]>([]);
@@ -674,9 +817,9 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   useEffect(() => {
     if (auth.isAuthenticated) {
-      navigate('/dashboard', { replace: true });
+      navigate(redirectTarget, { replace: true });
     }
-  }, [auth.isAuthenticated, navigate]);
+  }, [auth.isAuthenticated, navigate, redirectTarget]);
 
   useEffect(() => {
     let active = true;
@@ -733,7 +876,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         const response = await loginWithTelegramWidget(user);
         await auth.acceptAuthResponse(response);
         toast.success('Вход через Telegram выполнен', 'Профиль подтвержден и готов к работе.');
-        navigate('/dashboard', { replace: true, state: { from: location.pathname } });
+        navigate(redirectTarget, { replace: true, state: { from: location.pathname } });
       } catch (submitError) {
         const nextError = submitError instanceof Error ? submitError.message : 'Не удалось выполнить вход через Telegram Widget.';
         setError(nextError);
@@ -764,7 +907,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       container.innerHTML = '';
       delete hostWindow.__blagodatyTelegramWidgetAuth;
     };
-  }, [auth, location.pathname, mode, navigate, telegramProvider?.botUsername, telegramProvider?.widgetEnabled]);
+  }, [auth, location.pathname, mode, navigate, redirectTarget, telegramProvider?.botUsername, telegramProvider?.widgetEnabled]);
 
   useEffect(() => {
     if (!pendingExternalAuth) {
@@ -800,7 +943,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           setPendingExternalAuth(null);
           setIsExternalBusy(false);
           toast.success(`Вход через ${formatProviderLabel(response.provider || pendingExternalAuth.provider)} выполнен`, 'Рады видеть вас в личном кабинете.');
-          navigate(response.returnUrl || '/dashboard', { replace: true, state: { from: location.pathname } });
+          navigate(normalizeRedirectPath(response.returnUrl || redirectTarget), { replace: true, state: { from: location.pathname } });
         }
       } catch (pollError) {
         if (!cancelled) {
@@ -820,7 +963,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [auth, location.pathname, navigate, pendingExternalAuth]);
+  }, [auth, location.pathname, navigate, pendingExternalAuth, redirectTarget]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -845,7 +988,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         toast.success('Регистрация завершена', 'Аккаунт создан и личный кабинет готов.');
       }
 
-      navigate('/dashboard', { replace: true, state: { from: location.pathname } });
+      navigate(redirectTarget, { replace: true, state: { from: location.pathname } });
     } catch (submitError) {
       const nextError = submitError instanceof Error ? submitError.message : 'Не удалось выполнить действие.';
       setError(nextError);
@@ -863,7 +1006,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
       const started = await startExternalAuth({
         provider: provider.provider,
         intent: 'signin',
-        returnUrl: '/dashboard',
+        returnUrl: redirectTarget,
       });
 
       window.open(started.authUrl, `${provider.provider}-auth`, 'width=560,height=720');
@@ -887,7 +1030,7 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
     try {
       const started: ExternalAuthStartResponse = await startTelegramAuth({
         intent: 'signin',
-        returnUrl: '/dashboard',
+        returnUrl: redirectTarget,
       });
 
       window.open(started.authUrl, 'telegram-auth', 'width=520,height=720');
@@ -936,10 +1079,10 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
         <section className="glass-card auth-card">
           <div className="auth-switch">
-            <NavLink to="/login" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <NavLink to={loginPath} className={({ isActive }) => (isActive ? 'active' : '')}>
               Вход
             </NavLink>
-            <NavLink to="/register" className={({ isActive }) => (isActive ? 'active' : '')}>
+            <NavLink to={registerPath} className={({ isActive }) => (isActive ? 'active' : '')}>
               Регистрация
             </NavLink>
           </div>
@@ -1065,75 +1208,22 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   );
 }
 
-function DashboardPageLegacy() {
-  const { account } = useAuth();
-  const canOpenAdmin = isAdmin(account?.user.roles);
-
-  return (
-    <div className="page-stack">
-      <header className="page-hero glass-card">
-        <div>
-          <p className="mini-eyebrow">Обзор</p>
-          <h2>Здравствуйте, {account?.user.displayName}</h2>
-          <p>
-            Это первый рабочий контур кабинета: здесь видно статус заявки, профиль участника и
-            будущий контур для взаимодействия с командой поездки.
-          </p>
-        </div>
-
-        <div className="status-badge">
-          <span>Статус</span>
-          <strong>{formatStatus(account?.registration?.status)}</strong>
-        </div>
-      </header>
-
-      <section className="dashboard-grid">
-        <article className="glass-card metric-card">
-          <p>Аккаунт</p>
-          <strong>{account?.user.email}</strong>
-          <span>Роль: {formatRoleList(account?.user.roles)}</span>
-        </article>
-
-        <article className="glass-card metric-card">
-          <p>Профиль</p>
-          <strong>{account?.user.city || 'Пока без города'}</strong>
-          <span>Обновите профиль, чтобы организаторам было проще связаться с вами.</span>
-        </article>
-
-        <article className="glass-card metric-card">
-          <p>Заявка на camp</p>
-          <strong>{account?.registration ? 'Есть' : 'Пока нет'}</strong>
-          <span>Анкету можно сохранить как черновик или сразу отправить команде лагеря.</span>
-        </article>
-      </section>
-
-      <section className="glass-card callout-card">
-        <p className="mini-eyebrow">Следующее действие</p>
-        <h3>Сначала заполните профиль, затем анкету в лагерь</h3>
-        <p>
-          Такой порядок помогает не дублировать данные и делает дальнейшую админскую работу
-          заметно чище.
-        </p>
-        <div className="inline-links">
-          <NavLink to="/profile">Открыть профиль</NavLink>
-          <NavLink to="/camp-registration">Перейти к анкете</NavLink>
-          {canOpenAdmin ? <NavLink to="/admin">Открыть админку</NavLink> : null}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-void DashboardPageLegacy;
-
 function DashboardPage() {
   const { account } = useAuth();
   const canOpenAdmin = isAdmin(account?.user.roles);
-  const registrations = account?.registrations ?? [];
+  const registrations = sortDashboardRegistrations(account?.registrations ?? []);
   const nextRegistration = registrations[0] ?? null;
-  const primaryRegistrationLink = nextRegistration?.eventSlug
-    ? `/camp-registration?event=${nextRegistration.eventSlug}`
-    : '/camp-registration';
+  const isPhoneConfirmed =
+    Boolean(account?.user.phoneNumberConfirmed) &&
+    normalizePhone(account?.user.phoneNumber ?? '') !== '';
+  const hasProfileDetails =
+    Boolean(account?.user.city?.trim()) &&
+    Boolean(account?.user.churchName?.trim());
+  const profileSummary = [account?.user.city?.trim(), account?.user.churchName?.trim()].filter(Boolean).join(' • ');
+  const draftCount = registrations.filter((item) => item.status === 'Draft').length;
+  const submittedCount = registrations.filter((item) => item.status === 'Submitted').length;
+  const confirmedCount = registrations.filter((item) => item.status === 'Confirmed').length;
+  const actionCard = getDashboardActionCard(nextRegistration, isPhoneConfirmed);
 
   return (
     <div className="page-stack">
@@ -1150,6 +1240,24 @@ function DashboardPage() {
         </div>
       </header>
 
+      <section className="glass-card callout-card">
+        <p className="mini-eyebrow">{actionCard.eyebrow}</p>
+        <h3>{actionCard.title}</h3>
+        <p>{actionCard.description}</p>
+        <div className="role-pills">
+          {nextRegistration ? <span className="role-pill">{formatStatus(nextRegistration.status)}</span> : null}
+          <span className="role-pill">{isPhoneConfirmed ? 'Телефон подтверждён' : 'Телефон не подтверждён'}</span>
+          {draftCount ? <span className="role-pill">Черновиков: {draftCount}</span> : null}
+          {submittedCount ? <span className="role-pill">Отправлены: {submittedCount}</span> : null}
+          {confirmedCount ? <span className="role-pill">Подтверждены: {confirmedCount}</span> : null}
+        </div>
+        <div className="inline-links">
+          <NavLink to={actionCard.primaryTo}>{actionCard.primaryLabel}</NavLink>
+          <NavLink to={actionCard.secondaryTo}>{actionCard.secondaryLabel}</NavLink>
+          {canOpenAdmin ? <NavLink to="/admin">Открыть админку</NavLink> : null}
+        </div>
+      </section>
+
       <section className="dashboard-grid">
         <article className="glass-card metric-card">
           <p>Аккаунт</p>
@@ -1158,15 +1266,53 @@ function DashboardPage() {
         </article>
 
         <article className="glass-card metric-card">
-          <p>Профиль</p>
-          <strong>{account?.user.city || 'Пока без города'}</strong>
-          <span>Обновите профиль, чтобы команде было проще связаться с вами по любому мероприятию.</span>
+          <p>Телефон</p>
+          <strong>{account?.user.phoneNumber || 'Пока не указан'}</strong>
+          <span>
+            {isPhoneConfirmed
+              ? 'Номер готов для уведомлений и финальной отправки анкеты.'
+              : 'Подтвердите номер, чтобы отправлять заявки без задержек.'}
+          </span>
         </article>
 
         <article className="glass-card metric-card">
-          <p>Мои заявки</p>
+          <p>Уведомления</p>
+          <strong>{account?.unreadNotificationsCount ?? 0}</strong>
+          <span>
+            {(account?.unreadNotificationsCount ?? 0) > 0
+              ? 'Есть непрочитанные обновления по заявкам или профилю.'
+              : 'Новых уведомлений пока нет, но здесь появятся важные обновления от команды.'}
+          </span>
+        </article>
+
+        <article className="glass-card metric-card">
+          <p>Профиль</p>
+          <strong>{profileSummary || 'Профиль ещё не заполнен'}</strong>
+          <span>
+            {hasProfileDetails
+              ? 'Основные данные уже заполнены и помогут команде быстрее обработать ваши заявки.'
+              : 'Добавьте город и церковь, чтобы организаторам было проще с вами связаться.'}
+          </span>
+        </article>
+
+        <article className="glass-card metric-card">
+          <p>Черновики</p>
+          <strong>{draftCount}</strong>
+          <span>
+            {draftCount
+              ? 'Есть незавершённые анкеты. Лучше довести их до отправки, пока регистрация открыта.'
+              : 'Новых черновиков нет. Можно начать новую заявку или проверить уже отправленные.'}
+          </span>
+        </article>
+
+        <article className="glass-card metric-card">
+          <p>Заявки</p>
           <strong>{registrations.length}</strong>
-          <span>Можно вести несколько мероприятий: лагерь по сезонам, ретриты и другие события.</span>
+          <span>
+            {submittedCount || confirmedCount
+              ? `Отправлены: ${submittedCount}. Подтверждены: ${confirmedCount}.`
+              : 'Можно вести несколько мероприятий: лагерь по сезонам, ретриты и другие события.'}
+          </span>
         </article>
 
         <article className="glass-card metric-card">
@@ -1174,7 +1320,7 @@ function DashboardPage() {
           <strong>{nextRegistration?.eventTitle || 'Пока не выбрано'}</strong>
           <span>
             {nextRegistration
-              ? formatDateRangeCompact(nextRegistration.eventStartsAtUtc, nextRegistration.eventEndsAtUtc)
+              ? `${formatDateRangeCompact(nextRegistration.eventStartsAtUtc, nextRegistration.eventEndsAtUtc)}${nextRegistration.eventLocation ? ` • ${nextRegistration.eventLocation}` : ''}`
               : 'Откройте раздел заявок и выберите ближайшее событие.'}
           </span>
         </article>
@@ -1206,6 +1352,10 @@ function DashboardPage() {
 
                   <div className="role-pills">
                     <span className="role-pill">{formatStatus(registration.status)}</span>
+                    <span className="role-pill muted-pill">
+                      {registration.isRegistrationOpen ? 'Регистрация открыта' : 'Регистрация закрыта'}
+                    </span>
+                    <span className="role-pill muted-pill">Участников: {registration.participantsCount}</span>
                     {registration.isRegistrationClosingSoon ? (
                       <span className="role-pill muted-pill">Скоро закрывается</span>
                     ) : null}
@@ -1239,7 +1389,8 @@ function DashboardPage() {
                 </div>
 
                 <div className="inline-links">
-                  <NavLink to={`/camp-registration?event=${registration.eventSlug || ''}`}>Открыть заявку</NavLink>
+                  <NavLink to={getRegistrationLink(registration.eventSlug)}>Открыть заявку</NavLink>
+                  <NavLink to="/notifications">Уведомления</NavLink>
                 </div>
               </article>
             ))
@@ -1249,19 +1400,12 @@ function DashboardPage() {
               <p className="form-muted">
                 Откройте список мероприятий, выберите нужное событие и сохраните анкету как черновик или отправьте ее сразу.
               </p>
+              <div className="inline-links">
+                <NavLink to="/camp-registration">Открыть мероприятия</NavLink>
+                <NavLink to="/profile">Заполнить профиль</NavLink>
+              </div>
             </article>
           )}
-        </div>
-      </section>
-
-      <section className="glass-card callout-card">
-        <p className="mini-eyebrow">Следующее действие</p>
-        <h3>Сначала обновите профиль, затем выберите нужное мероприятие и заполните анкету</h3>
-        <p>Такой порядок помогает не дублировать данные и делает дальнейшую административную работу заметно чище.</p>
-        <div className="inline-links">
-          <NavLink to="/profile">Открыть профиль</NavLink>
-          <NavLink to={primaryRegistrationLink}>Перейти к мероприятиям</NavLink>
-          {canOpenAdmin ? <NavLink to="/admin">Открыть админку</NavLink> : null}
         </div>
       </section>
     </div>
@@ -1304,7 +1448,12 @@ function ProfilePage() {
       city: account.user.city ?? '',
       churchName: account.user.churchName ?? '',
     });
-  }, [account]);
+  }, [account?.user.id]);
+
+  const isProfilePhoneConfirmed =
+    Boolean(account?.user.phoneNumberConfirmed) &&
+    normalizePhone(form.phoneNumber) !== '' &&
+    normalizePhone(form.phoneNumber) === normalizePhone(account?.user.phoneNumber ?? '');
 
   useEffect(() => {
     if (!pendingLink) {
@@ -1489,6 +1638,11 @@ function ProfilePage() {
               value={form.phoneNumber}
               onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
             />
+            <small className={`form-muted${isProfilePhoneConfirmed ? ' form-success-inline' : ''}`}>
+              {isProfilePhoneConfirmed
+                ? 'Номер подтверждён и уже используется для уведомлений.'
+                : 'Если меняете номер, подтвердите его здесь же до отправки заявок.'}
+            </small>
           </label>
 
           <label>
@@ -1507,6 +1661,19 @@ function ProfilePage() {
             />
           </label>
         </div>
+
+        <PhoneVerificationPanel
+          accessToken={auth.session?.accessToken ?? null}
+          phoneNumber={form.phoneNumber ?? ''}
+          isConfirmed={isProfilePhoneConfirmed}
+          onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
+          onAccountReload={auth.reloadAccount}
+          onVerified={async () => {
+            setMessage('Номер телефона подтверждён.');
+            setError(null);
+            toast.success('Телефон подтверждён', 'Профиль теперь использует подтверждённый номер.');
+          }}
+        />
 
         {message ? <p className="form-success">{message}</p> : null}
         {error ? <p className="form-error">{error}</p> : null}
@@ -1610,784 +1777,6 @@ function ProfilePage() {
     </div>
   );
 }
-
-function CampRegistrationPageLegacy() {
-  const auth = useAuth();
-  const toast = useToast();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [registration, setRegistration] = useState<CampRegistration | null>(null);
-  const [form, setForm] = useState<SaveRegistrationRequest>({
-    contactEmail: '',
-    fullName: '',
-    birthDate: '',
-    city: '',
-    churchName: '',
-    phoneNumber: '',
-    hasCar: false,
-    hasChildren: false,
-    participants: [],
-    emergencyContactName: '',
-    emergencyContactPhone: '',
-    accommodationPreference: 'Either',
-    healthNotes: '',
-    allergyNotes: '',
-    specialNeeds: '',
-    motivation: '',
-    consentAccepted: false,
-    submit: false,
-  });
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function load() {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const loaded = await auth.loadRegistration();
-      setRegistration(loaded);
-
-      if (loaded) {
-          setForm({
-            contactEmail: '',
-            fullName: loaded.fullName,
-            birthDate: loaded.birthDate,
-            city: loaded.city,
-            churchName: loaded.churchName,
-            phoneNumber: loaded.phoneNumber,
-            hasCar: false,
-            hasChildren: false,
-            participants: [],
-            emergencyContactName: loaded.emergencyContactName,
-            emergencyContactPhone: loaded.emergencyContactPhone,
-            accommodationPreference: loaded.accommodationPreference,
-          healthNotes: loaded.healthNotes ?? '',
-          allergyNotes: loaded.allergyNotes ?? '',
-          specialNeeds: loaded.specialNeeds ?? '',
-          motivation: loaded.motivation ?? '',
-          consentAccepted: loaded.consentAccepted,
-          submit: false,
-        });
-      } else if (auth.account) {
-        const { user } = auth.account;
-
-        setForm((current) => ({
-          ...current,
-          fullName: `${user.firstName} ${user.lastName}`.trim(),
-          city: user.city ?? '',
-          churchName: user.churchName ?? '',
-          phoneNumber: user.phoneNumber ?? '',
-        }));
-      }
-    } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить анкету.';
-      setError(nextError);
-      toast.error('Не удалось загрузить анкету', nextError);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function submit(submitMode: boolean) {
-    setMessage(null);
-    setError(null);
-    setIsSaving(true);
-
-    try {
-      const saved = await auth.saveRegistration({
-        ...form,
-        submit: submitMode,
-      });
-      setRegistration(saved);
-      const successMessage = submitMode ? 'Анкета отправлена команде.' : 'Черновик сохранен.';
-      setMessage(successMessage);
-      toast.success(submitMode ? 'Анкета отправлена' : 'Черновик сохранен', successMessage);
-    } catch (submitError) {
-      const nextError =
-        submitError instanceof ApiError
-          ? submitError.message
-          : submitError instanceof Error
-            ? submitError.message
-            : 'Не удалось сохранить анкету.';
-      setError(nextError);
-      toast.error('Не удалось сохранить анкету', nextError);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <div className="page-stack">
-      <header className="page-hero glass-card compact-hero">
-        <div>
-          <p className="mini-eyebrow">Camp registration</p>
-          <h2>Анкета участника на поездку в Алтай</h2>
-          <p>Сохраняйте как черновик или отправляйте, когда все данные заполнены.</p>
-        </div>
-
-        <div className="status-badge">
-          <span>Текущий статус</span>
-          <strong>{formatStatus(registration?.status)}</strong>
-        </div>
-      </header>
-
-      <div className="glass-card stack-form">
-        {isLoading ? (
-          <p className="form-muted">Загружаем текущую анкету...</p>
-        ) : (
-          <>
-            <div className="form-grid">
-              <label>
-                <span>Имя и фамилия</span>
-                <input
-                  value={form.fullName}
-                  onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Дата рождения</span>
-                <input
-                  type="date"
-                  value={form.birthDate}
-                  onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Город</span>
-                <input
-                  value={form.city}
-                  onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Церковь</span>
-                <input
-                  value={form.churchName}
-                  onChange={(event) => setForm((current) => ({ ...current, churchName: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Телефон</span>
-                <input
-                  value={form.phoneNumber}
-                  onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Предпочтение по размещению</span>
-                <select
-                  value={form.accommodationPreference}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      accommodationPreference: event.target.value as AccommodationPreference,
-                    }))
-                  }
-                >
-                  <option value="Either">Подойдет любой формат</option>
-                  <option value="Tent">Палатка</option>
-                  <option value="Cabin">Домик</option>
-                </select>
-              </label>
-
-              <label>
-                <span>Контакт доверенного лица</span>
-                <input
-                  value={form.emergencyContactName}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, emergencyContactName: event.target.value }))
-                  }
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Телефон доверенного лица</span>
-                <input
-                  value={form.emergencyContactPhone}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))
-                  }
-                  required
-                />
-              </label>
-            </div>
-
-            <div className="form-grid single-column">
-              <label>
-                <span>Особенности здоровья</span>
-                <textarea
-                  rows={4}
-                  value={form.healthNotes}
-                  onChange={(event) => setForm((current) => ({ ...current, healthNotes: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Аллергии или ограничения</span>
-                <textarea
-                  rows={4}
-                  value={form.allergyNotes}
-                  onChange={(event) => setForm((current) => ({ ...current, allergyNotes: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Особые нужды</span>
-                <textarea
-                  rows={4}
-                  value={form.specialNeeds}
-                  onChange={(event) => setForm((current) => ({ ...current, specialNeeds: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Почему вы хотите поехать</span>
-                <textarea
-                  rows={5}
-                  value={form.motivation}
-                  onChange={(event) => setForm((current) => ({ ...current, motivation: event.target.value }))}
-                />
-              </label>
-            </div>
-
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={form.consentAccepted}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, consentAccepted: event.target.checked }))
-                }
-              />
-              <span>
-                Соглашаюсь на обработку персональных данных и передачу анкеты команде лагеря.
-              </span>
-            </label>
-
-            {message ? <p className="form-success">{message}</p> : null}
-            {error ? <p className="form-error">{error}</p> : null}
-
-            <div className="action-row">
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={isSaving}
-                onClick={async () => submit(false)}
-              >
-                {isSaving ? 'Сохраняем...' : 'Сохранить черновик'}
-              </button>
-
-              <button
-                className="primary-button"
-                type="button"
-                disabled={isSaving}
-                onClick={async () => submit(true)}
-              >
-                {isSaving ? 'Отправляем...' : 'Отправить заявку'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-void CampRegistrationPageLegacy;
-
-function CampRegistrationPage() {
-  const auth = useAuth();
-  const toast = useToast();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const requestedEventSlug = new URLSearchParams(location.search).get('event');
-  const [events, setEvents] = useState<PublicEventSummary[]>([]);
-  const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<PublicEventDetails | null>(null);
-  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
-  const [isLoadingRegistration, setIsLoadingRegistration] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [registration, setRegistration] = useState<CampRegistration | null>(null);
-  const [form, setForm] = useState<SaveRegistrationRequest>({
-    selectedPriceOptionId: null,
-    contactEmail: '',
-    fullName: '',
-    birthDate: '',
-    city: '',
-    churchName: '',
-    phoneNumber: '',
-    hasCar: false,
-    hasChildren: false,
-    participants: [],
-    emergencyContactName: '',
-    emergencyContactPhone: '',
-    accommodationPreference: 'Either',
-    healthNotes: '',
-    allergyNotes: '',
-    specialNeeds: '',
-    motivation: '',
-    consentAccepted: false,
-    submit: false,
-  });
-
-  useEffect(() => {
-    void loadEvents();
-  }, [auth.account?.user.id, requestedEventSlug]);
-
-  useEffect(() => {
-    if (!selectedEventSlug) {
-      setSelectedEvent(null);
-      setRegistration(null);
-      return;
-    }
-
-    void loadSelectedEvent(selectedEventSlug);
-  }, [selectedEventSlug, auth.account?.user.id]);
-
-  async function loadEvents() {
-    setIsLoadingEvents(true);
-    setError(null);
-
-    try {
-      const response = await getPublicEvents();
-      setEvents(response.events);
-
-      const preferredSlug = pickPreferredEventSlug(
-        response.events,
-        auth.account?.registrations ?? [],
-        requestedEventSlug,
-      );
-
-      setSelectedEventSlug(preferredSlug);
-
-      if (preferredSlug) {
-        navigate(
-          {
-            pathname: '/camp-registration',
-            search: `?event=${preferredSlug}`,
-          },
-          { replace: true },
-        );
-      }
-    } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить список мероприятий.';
-      setError(nextError);
-      toast.error('Не удалось загрузить мероприятия', nextError);
-    } finally {
-      setIsLoadingEvents(false);
-    }
-  }
-
-  async function loadSelectedEvent(eventSlug: string) {
-    setIsLoadingRegistration(true);
-    setError(null);
-    setMessage(null);
-
-    try {
-      const [eventDetails, currentRegistration] = await Promise.all([
-        getPublicEvent(eventSlug),
-        auth.loadRegistration(eventSlug),
-      ]);
-
-      setSelectedEvent(eventDetails);
-      setRegistration(currentRegistration);
-
-        if (currentRegistration) {
-          setForm({
-            selectedPriceOptionId: currentRegistration.selectedPriceOptionId ?? null,
-            contactEmail: currentRegistration.contactEmail ?? '',
-            fullName: currentRegistration.fullName,
-            birthDate: currentRegistration.birthDate,
-            city: currentRegistration.city,
-            churchName: currentRegistration.churchName,
-            phoneNumber: currentRegistration.phoneNumber,
-            hasCar: currentRegistration.hasCar ?? false,
-            hasChildren: currentRegistration.hasChildren ?? false,
-            participants: currentRegistration.participants ?? [],
-            emergencyContactName: currentRegistration.emergencyContactName,
-            emergencyContactPhone: currentRegistration.emergencyContactPhone,
-            accommodationPreference: currentRegistration.accommodationPreference,
-          healthNotes: currentRegistration.healthNotes ?? '',
-          allergyNotes: currentRegistration.allergyNotes ?? '',
-          specialNeeds: currentRegistration.specialNeeds ?? '',
-          motivation: currentRegistration.motivation ?? '',
-          consentAccepted: currentRegistration.consentAccepted,
-          submit: false,
-        });
-
-        return;
-      }
-
-      const defaultPriceOption = eventDetails.priceOptions.find((option) => option.isDefault && isPriceOptionCurrentlyAvailable(option))
-        ?? eventDetails.priceOptions.find((option) => isPriceOptionCurrentlyAvailable(option))
-        ?? eventDetails.priceOptions.find((option) => option.isActive)
-        ?? null;
-
-      setForm((current) => ({
-        ...current,
-        selectedPriceOptionId: defaultPriceOption?.id ?? null,
-        fullName: auth.account ? `${auth.account.user.firstName} ${auth.account.user.lastName}`.trim() : current.fullName,
-        city: auth.account?.user.city ?? '',
-        churchName: auth.account?.user.churchName ?? '',
-        phoneNumber: auth.account?.user.phoneNumber ?? '',
-      }));
-    } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить выбранное мероприятие.';
-      setError(nextError);
-      toast.error('Не удалось открыть мероприятие', nextError);
-      setSelectedEvent(null);
-      setRegistration(null);
-    } finally {
-      setIsLoadingRegistration(false);
-    }
-  }
-
-  async function submit(submitMode: boolean) {
-    if (!selectedEventSlug) {
-      const nextError = 'Сначала выберите мероприятие.';
-      setError(nextError);
-      toast.error('Мероприятие не выбрано', nextError);
-      return;
-    }
-
-    setMessage(null);
-    setError(null);
-    setIsSaving(true);
-
-    try {
-      const saved = await auth.saveRegistration(
-        {
-          ...form,
-          submit: submitMode,
-        },
-        selectedEventSlug,
-      );
-
-      setRegistration(saved);
-      const successMessage = submitMode ? 'Анкета отправлена команде.' : 'Черновик сохранен.';
-      setMessage(successMessage);
-      toast.success(submitMode ? 'Анкета отправлена' : 'Черновик сохранен', successMessage);
-      await auth.reloadAccount();
-    } catch (submitError) {
-      const nextError =
-        submitError instanceof ApiError
-          ? submitError.message
-          : submitError instanceof Error
-            ? submitError.message
-            : 'Не удалось сохранить анкету.';
-      setError(nextError);
-      toast.error('Не удалось сохранить анкету', nextError);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  const availablePriceOptions = selectedEvent?.priceOptions.filter((option) => option.isActive) ?? [];
-
-  return (
-    <div className="page-stack">
-      <header className="page-hero glass-card compact-hero">
-        <div>
-          <p className="mini-eyebrow">Мероприятия и заявки</p>
-          <h2>{selectedEvent?.title || 'Выберите мероприятие'}</h2>
-          <p>
-            {selectedEvent
-              ? `${selectedEvent.shortDescription} ${selectedEvent.location ? `Локация: ${selectedEvent.location}.` : ''}`
-              : 'Сначала выберите нужное событие, затем заполните и сохраните анкету.'}
-          </p>
-        </div>
-
-        <div className="status-badge">
-          <span>Текущий статус</span>
-          <strong>{formatStatus(registration?.status)}</strong>
-        </div>
-      </header>
-
-      <section className="glass-card stack-form">
-        <div className="section-inline">
-          <div>
-            <p className="mini-eyebrow">Выбор события</p>
-            <h3>Сезоны, выезды и другие мероприятия</h3>
-          </div>
-          <p className="form-muted">Можно переключаться между событиями без потери логики регистрации и статусов.</p>
-        </div>
-
-        <div className="event-switch-grid">
-          {events.map((eventItem) => (
-            <button
-              key={eventItem.id}
-              className={`event-switch-card${selectedEventSlug === eventItem.slug ? ' active' : ''}`}
-              type="button"
-              onClick={() => {
-                setSelectedEventSlug(eventItem.slug);
-                navigate(
-                  {
-                    pathname: '/camp-registration',
-                    search: `?event=${eventItem.slug}`,
-                  },
-                  { replace: true },
-                );
-              }}
-            >
-              <span className="mini-eyebrow">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
-              <strong>{eventItem.title}</strong>
-              <span>{formatDateRangeCompact(eventItem.startsAtUtc, eventItem.endsAtUtc)}</span>
-              <span>{eventItem.location || 'Локация уточняется'}</span>
-              <span>
-                {eventItem.priceFromAmount != null
-                  ? `от ${formatMoney(eventItem.priceFromAmount, eventItem.priceCurrency || 'RUB')}`
-                  : 'Цена уточняется'}
-              </span>
-            </button>
-          ))}
-        </div>
-
-        {!events.length && !isLoadingEvents ? (
-          <p className="form-muted">Пока нет опубликованных мероприятий, доступных для регистрации.</p>
-        ) : null}
-      </section>
-
-      <div className="glass-card stack-form">
-        {isLoadingEvents || isLoadingRegistration ? (
-          <p className="form-muted">Загружаем выбранное мероприятие и вашу текущую анкету...</p>
-        ) : selectedEvent ? (
-          <>
-            <div className="user-info-grid">
-              <div>
-                <span>Даты</span>
-                <strong>{formatDateRangeCompact(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc)}</strong>
-              </div>
-              <div>
-                <span>Регистрация до</span>
-                <strong>{formatDateTime(selectedEvent.registrationClosesAtUtc)}</strong>
-              </div>
-              <div>
-                <span>Места</span>
-                <strong>
-                  {selectedEvent.remainingCapacity ?? selectedEvent.capacity ?? 'Без лимита'}
-                </strong>
-              </div>
-              <div>
-                <span>Статус окна</span>
-                <strong>
-                  {selectedEvent.isRegistrationOpen
-                    ? selectedEvent.isRegistrationClosingSoon
-                      ? 'Скоро закрывается'
-                      : 'Регистрация открыта'
-                    : 'Регистрация закрыта'}
-                </strong>
-              </div>
-            </div>
-
-            {availablePriceOptions.length ? (
-              <div className="price-option-list">
-                {availablePriceOptions.map((option) => {
-                  const isAvailable = isPriceOptionCurrentlyAvailable(option);
-                  const isSelected = form.selectedPriceOptionId === option.id;
-
-                  return (
-                    <label className={`price-option-card${isSelected ? ' active' : ''}`} key={option.id}>
-                      <input
-                        type="radio"
-                        name="priceOption"
-                        value={option.id}
-                        checked={isSelected}
-                        onChange={() => setForm((current) => ({ ...current, selectedPriceOptionId: option.id }))}
-                      />
-                      <span>{option.title}</span>
-                      <strong>{formatMoney(option.amount, option.currency)}</strong>
-                      <em>{option.description || (isAvailable ? 'Тариф доступен для выбора' : 'Тариф пока недоступен')}</em>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            <div className="form-grid">
-              <label>
-                <span>Имя и фамилия</span>
-                <input
-                  value={form.fullName}
-                  onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Дата рождения</span>
-                <input
-                  type="date"
-                  value={form.birthDate}
-                  onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Город</span>
-                <input
-                  value={form.city}
-                  onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Церковь</span>
-                <input
-                  value={form.churchName}
-                  onChange={(event) => setForm((current) => ({ ...current, churchName: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Телефон</span>
-                <input
-                  value={form.phoneNumber}
-                  onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Предпочтение по размещению</span>
-                <select
-                  value={form.accommodationPreference}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      accommodationPreference: event.target.value as AccommodationPreference,
-                    }))
-                  }
-                >
-                  <option value="Either">Подойдет любой формат</option>
-                  <option value="Tent">Палатка</option>
-                  <option value="Cabin">Домик</option>
-                </select>
-              </label>
-
-              <label>
-                <span>Контакт доверенного лица</span>
-                <input
-                  value={form.emergencyContactName}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, emergencyContactName: event.target.value }))
-                  }
-                  required
-                />
-              </label>
-
-              <label>
-                <span>Телефон доверенного лица</span>
-                <input
-                  value={form.emergencyContactPhone}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))
-                  }
-                  required
-                />
-              </label>
-            </div>
-
-            <div className="form-grid single-column">
-              <label>
-                <span>Особенности здоровья</span>
-                <textarea
-                  rows={4}
-                  value={form.healthNotes}
-                  onChange={(event) => setForm((current) => ({ ...current, healthNotes: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Аллергии или ограничения</span>
-                <textarea
-                  rows={4}
-                  value={form.allergyNotes}
-                  onChange={(event) => setForm((current) => ({ ...current, allergyNotes: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Особые нужды</span>
-                <textarea
-                  rows={4}
-                  value={form.specialNeeds}
-                  onChange={(event) => setForm((current) => ({ ...current, specialNeeds: event.target.value }))}
-                />
-              </label>
-
-              <label>
-                <span>Почему вы хотите поехать</span>
-                <textarea
-                  rows={5}
-                  value={form.motivation}
-                  onChange={(event) => setForm((current) => ({ ...current, motivation: event.target.value }))}
-                />
-              </label>
-            </div>
-
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={form.consentAccepted}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, consentAccepted: event.target.checked }))
-                }
-              />
-              <span>Соглашаюсь на обработку персональных данных и передачу анкеты команде мероприятия.</span>
-            </label>
-
-            {message ? <p className="form-success">{message}</p> : null}
-            {error ? <p className="form-error">{error}</p> : null}
-
-            <div className="action-row">
-              <button
-                className="secondary-button"
-                type="button"
-                disabled={isSaving}
-                onClick={async () => submit(false)}
-              >
-                {isSaving ? 'Сохраняем...' : 'Сохранить черновик'}
-              </button>
-
-              <button
-                className="primary-button"
-                type="button"
-                disabled={isSaving}
-                onClick={async () => submit(true)}
-              >
-                {isSaving ? 'Отправляем...' : 'Отправить заявку'}
-              </button>
-            </div>
-          </>
-        ) : (
-          <p className="form-muted">Выберите мероприятие из списка выше, чтобы открыть анкету.</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-void CampRegistrationPage;
 
 function AdminPage() {
   const auth = useAuth();

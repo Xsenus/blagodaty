@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
-import { ApiError, getPublicEvent, getPublicEvents } from '../lib/api';
+import { ApiError, getPublicEvent, getPublicEvents, saveEventRegistration } from '../lib/api';
 import { useToast } from '../ui/ToastProvider';
+import { normalizePhone, PhoneVerificationPanel } from '../ui/PhoneVerificationPanel';
 import type {
   AccommodationPreference,
   CampRegistration,
@@ -122,6 +123,25 @@ function formatMoney(amount?: number | null, currency = 'RUB') {
     currency,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function formatTimeOnly(value?: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function isValidPhone(value: string) {
+  return /^\+\d{10,15}$/.test(normalizePhone(value));
 }
 
 function formatStatus(status?: CampRegistration['status'] | null) {
@@ -268,6 +288,78 @@ function registrationToForm(currentRegistration: CampRegistration): SaveRegistra
   };
 }
 
+function collectRegistrationValidationErrors(
+  form: SaveRegistrationRequest,
+  selectedEvent: PublicEventDetails | null,
+  requireConfirmedPhone: boolean,
+  isPhoneConfirmed: boolean,
+) {
+  const errors: string[] = [];
+  const hasActivePriceOptions = Boolean(selectedEvent?.priceOptions.some((option) => option.isActive));
+  const primaryParticipantName = form.participants[0]?.fullName.trim() || form.fullName.trim();
+
+  if (!selectedEvent) {
+    errors.push('Сначала выберите мероприятие.');
+    return errors;
+  }
+
+  if (!requireConfirmedPhone) {
+    return errors;
+  }
+
+  if (hasActivePriceOptions && !form.selectedPriceOptionId) {
+    errors.push('Выберите тариф участия.');
+  }
+
+  if (!form.contactEmail.trim()) {
+    errors.push('Укажите email для связи.');
+  } else if (!isValidEmail(form.contactEmail)) {
+    errors.push('Проверьте формат email.');
+  }
+
+  if (!primaryParticipantName) {
+    errors.push('Укажите имя основного участника.');
+  }
+
+  if (!form.birthDate) {
+    errors.push('Укажите дату рождения основного участника.');
+  }
+
+  if (!form.city.trim()) {
+    errors.push('Укажите город.');
+  }
+
+  if (!form.churchName.trim()) {
+    errors.push('Укажите церковь.');
+  }
+
+  if (!form.phoneNumber.trim()) {
+    errors.push('Укажите телефон участника.');
+  } else if (!isValidPhone(form.phoneNumber)) {
+    errors.push('Проверьте телефон участника.');
+  }
+
+  if (!form.emergencyContactName.trim()) {
+    errors.push('Укажите доверенное лицо для экстренной связи.');
+  }
+
+  if (!form.emergencyContactPhone.trim()) {
+    errors.push('Укажите телефон доверенного лица.');
+  } else if (!isValidPhone(form.emergencyContactPhone)) {
+    errors.push('Проверьте телефон доверенного лица.');
+  }
+
+  if (!form.consentAccepted) {
+    errors.push('Подтвердите согласие на обработку персональных данных.');
+  }
+
+  if (requireConfirmedPhone && !isPhoneConfirmed) {
+    errors.push('Подтвердите номер телефона перед отправкой заявки.');
+  }
+
+  return errors;
+}
+
 function buildPrefillForm(
   account: CurrentAccount | null,
   selectedEvent: PublicEventDetails,
@@ -296,6 +388,35 @@ function buildPrefillForm(
   };
 }
 
+function buildDraftPayload(form: SaveRegistrationRequest): SaveRegistrationRequest {
+  const participants = ensureParticipants(form.participants, form.fullName)
+    .map((participant) => ({
+      fullName: participant.fullName.trim(),
+      isChild: participant.isChild,
+    }))
+    .filter((participant) => participant.fullName);
+
+  return {
+    ...form,
+    selectedPriceOptionId: form.selectedPriceOptionId ?? null,
+    contactEmail: form.contactEmail.trim(),
+    fullName: participants[0]?.fullName ?? form.fullName.trim(),
+    birthDate: form.birthDate,
+    city: form.city.trim(),
+    churchName: form.churchName.trim(),
+    phoneNumber: form.phoneNumber.trim(),
+    hasChildren: form.hasChildren || participants.some((participant) => participant.isChild),
+    participants,
+    emergencyContactName: form.emergencyContactName.trim(),
+    emergencyContactPhone: form.emergencyContactPhone.trim(),
+    healthNotes: form.healthNotes?.trim() ?? '',
+    allergyNotes: form.allergyNotes?.trim() ?? '',
+    specialNeeds: form.specialNeeds?.trim() ?? '',
+    motivation: form.motivation?.trim() ?? '',
+    submit: false,
+  };
+}
+
 export function CampRegistrationFlowPage() {
   const auth = useAuth();
   const toast = useToast();
@@ -313,6 +434,11 @@ export function CampRegistrationFlowPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [validationMode, setValidationMode] = useState<'draft' | 'submit' | null>(null);
+  const [draftSyncState, setDraftSyncState] = useState<'idle' | 'syncing' | 'saved' | 'error'>('idle');
+  const [draftSyncError, setDraftSyncError] = useState<string | null>(null);
+  const [draftSyncAtUtc, setDraftSyncAtUtc] = useState<string | null>(null);
+  const lastDraftSnapshotRef = useRef<string | null>(null);
 
   useEffect(() => {
     void loadEvents();
@@ -322,6 +448,10 @@ export function CampRegistrationFlowPage() {
     if (!selectedEventSlug) {
       setSelectedEvent(null);
       setRegistration(null);
+      setDraftSyncState('idle');
+      setDraftSyncError(null);
+      setDraftSyncAtUtc(null);
+      lastDraftSnapshotRef.current = null;
       return;
     }
 
@@ -336,10 +466,61 @@ export function CampRegistrationFlowPage() {
   const childrenCount = completedParticipants.filter((participant) => participant.isChild).length;
   const effectiveHasChildren = form.hasChildren || childrenCount > 0;
   const preferredEmailSource = getIdentitySource(auth.account, form.contactEmail);
+  const isPhoneConfirmed =
+    Boolean(auth.account?.user.phoneNumberConfirmed) &&
+    normalizePhone(form.phoneNumber) !== '' &&
+    normalizePhone(form.phoneNumber) === normalizePhone(auth.account?.user.phoneNumber ?? '');
+  const validationErrors = useMemo(
+    () =>
+      validationMode
+        ? collectRegistrationValidationErrors(form, selectedEvent, validationMode === 'submit', isPhoneConfirmed)
+        : [],
+    [form, isPhoneConfirmed, selectedEvent, validationMode],
+  );
+
+  useEffect(() => {
+    if (!selectedEvent || !selectedEventSlug || !auth.session?.accessToken || isLoadingRegistration || isSaving) {
+      return undefined;
+    }
+
+    const payload = buildDraftPayload(form);
+    const nextSnapshot = JSON.stringify(payload);
+    if (nextSnapshot === lastDraftSnapshotRef.current) {
+      return undefined;
+    }
+
+    setDraftSyncState('syncing');
+    setDraftSyncError(null);
+
+    const timeoutId = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const saved = await auth.withSession((accessToken) =>
+            saveEventRegistration(accessToken, selectedEventSlug, payload),
+          );
+          lastDraftSnapshotRef.current = nextSnapshot;
+          setRegistration(saved);
+          setDraftSyncState('saved');
+          setDraftSyncError(null);
+          setDraftSyncAtUtc(saved.updatedAtUtc);
+        } catch (saveError) {
+          setDraftSyncState('error');
+          setDraftSyncError(
+            saveError instanceof Error ? saveError.message : 'Не удалось автоматически сохранить черновик.',
+          );
+        }
+      })();
+    }, 1600);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [auth, form, isLoadingRegistration, isSaving, selectedEvent, selectedEventSlug]);
 
   async function loadEvents() {
     setIsLoadingEvents(true);
     setError(null);
+    setValidationMode(null);
 
     try {
       const response = await getPublicEvents();
@@ -369,6 +550,11 @@ export function CampRegistrationFlowPage() {
     setIsLoadingRegistration(true);
     setError(null);
     setMessage(null);
+    setValidationMode(null);
+    setDraftSyncState('idle');
+    setDraftSyncError(null);
+    setDraftSyncAtUtc(null);
+    lastDraftSnapshotRef.current = null;
 
     try {
       const [eventDetails, currentRegistration] = await Promise.all([
@@ -376,15 +562,26 @@ export function CampRegistrationFlowPage() {
         auth.loadRegistration(eventSlug),
       ]);
 
+      const nextForm = currentRegistration
+        ? registrationToForm(currentRegistration)
+        : buildPrefillForm(auth.account, eventDetails, createEmptyForm());
+
       setSelectedEvent(eventDetails);
       setRegistration(currentRegistration);
-      setForm(currentRegistration ? registrationToForm(currentRegistration) : buildPrefillForm(auth.account, eventDetails, createEmptyForm()));
+      setForm(nextForm);
+      lastDraftSnapshotRef.current = JSON.stringify(buildDraftPayload(nextForm));
+      setDraftSyncState(currentRegistration ? 'saved' : 'idle');
+      setDraftSyncError(null);
+      setDraftSyncAtUtc(currentRegistration?.updatedAtUtc ?? null);
     } catch (loadError) {
       const nextError = loadError instanceof Error ? loadError.message : 'Не удалось загрузить выбранное мероприятие.';
       setError(nextError);
       toast.error('Не удалось открыть мероприятие', nextError);
       setSelectedEvent(null);
       setRegistration(null);
+      setDraftSyncState('error');
+      setDraftSyncError(nextError);
+      setDraftSyncAtUtc(null);
     } finally {
       setIsLoadingRegistration(false);
     }
@@ -405,13 +602,28 @@ export function CampRegistrationFlowPage() {
   }
 
   async function submit(submitMode: boolean) {
-    if (!selectedEventSlug) {
+    const nextValidationMode = submitMode ? 'submit' : 'draft';
+    const nextValidationErrors = collectRegistrationValidationErrors(form, selectedEvent, submitMode, isPhoneConfirmed);
+    setValidationMode(nextValidationMode);
+
+    if (!selectedEventSlug || !selectedEvent) {
       const nextError = 'Сначала выберите мероприятие.';
       setError(nextError);
       toast.error('Мероприятие не выбрано', nextError);
       return;
     }
 
+    if (nextValidationErrors.length > 0) {
+      const nextError = submitMode
+        ? 'Перед отправкой заявки заполните обязательные поля и подтвердите контакты.'
+        : 'Чтобы сохранить текущий черновик, заполните обязательные поля формы.';
+      setError(nextError);
+      setMessage(null);
+      toast.error('Проверьте форму', nextValidationErrors[0]);
+      return;
+    }
+
+    setValidationMode(null);
     const payload: SaveRegistrationRequest = {
       ...form,
       fullName: form.participants[0]?.fullName.trim() || form.fullName.trim(),
@@ -431,7 +643,12 @@ export function CampRegistrationFlowPage() {
     try {
       const saved = await auth.saveRegistration(payload, selectedEventSlug);
       setRegistration(saved);
-      setForm(registrationToForm(saved));
+      const nextForm = registrationToForm(saved);
+      setForm(nextForm);
+      lastDraftSnapshotRef.current = JSON.stringify(buildDraftPayload(nextForm));
+      setDraftSyncState('saved');
+      setDraftSyncError(null);
+      setDraftSyncAtUtc(saved.updatedAtUtc);
       const successMessage = submitMode ? 'Заявка отправлена команде.' : 'Черновик сохранён.';
       setMessage(successMessage);
       toast.success(submitMode ? 'Заявка отправлена' : 'Черновик сохранён', successMessage);
@@ -595,12 +812,25 @@ export function CampRegistrationFlowPage() {
                       required
                     />
                     <small className={`form-muted${registration?.phoneNumberConfirmed || auth.account?.user.phoneNumberConfirmed ? ' form-success-inline' : ''}`}>
-                      {registration?.phoneNumberConfirmed || auth.account?.user.phoneNumberConfirmed
+                      {isPhoneConfirmed
                         ? 'Номер подтверждён в профиле.'
-                        : 'Пока номер сохраняется без SMS-подтверждения. Отдельную верификацию подключим следующим этапом.'}
+                        : 'Подтвердите номер, чтобы отправить заявку без ошибок на финальном шаге.'}
                     </small>
                   </label>
                 </div>
+
+                <PhoneVerificationPanel
+                  accessToken={auth.session?.accessToken ?? null}
+                  phoneNumber={form.phoneNumber}
+                  isConfirmed={isPhoneConfirmed}
+                  onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
+                  onAccountReload={auth.reloadAccount}
+                  onVerified={async () => {
+                    setMessage('Телефон подтверждён. Можно отправлять заявку.');
+                    setError(null);
+                    toast.success('Телефон подтверждён', 'Номер готов для уведомлений и отправки заявки.');
+                  }}
+                />
               </section>
 
               <section className="glass-subcard stack-form">
@@ -849,7 +1079,28 @@ export function CampRegistrationFlowPage() {
             </label>
 
             {message ? <p className="form-success">{message}</p> : null}
+            {validationErrors.length ? (
+              <div className="validation-summary">
+                <strong>
+                  {validationMode === 'submit'
+                    ? 'Перед отправкой осталось проверить:'
+                    : 'Перед сохранением заполните:'}
+                </strong>
+                <ul className="validation-list">
+                  {validationErrors.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             {error ? <p className="form-error">{error}</p> : null}
+            {!error && draftSyncError ? <p className="form-error draft-sync-status">Автосохранение не удалось: {draftSyncError}</p> : null}
+            {!error && !draftSyncError && draftSyncState === 'syncing' ? (
+              <p className="form-muted draft-sync-status">Черновик синхронизируется с сервером...</p>
+            ) : null}
+            {!error && !draftSyncError && draftSyncState === 'saved' && draftSyncAtUtc ? (
+              <p className="form-muted draft-sync-status">Черновик сохранён автоматически в {formatTimeOnly(draftSyncAtUtc)}.</p>
+            ) : null}
 
             <div className="inline-links">
               <NavLink to="/profile">Открыть профиль</NavLink>

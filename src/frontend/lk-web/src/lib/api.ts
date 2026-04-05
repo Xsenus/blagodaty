@@ -27,6 +27,7 @@ import type {
   PublicEventSummary,
   PublicExternalAuthProvider,
   SaveRegistrationRequest,
+  SendPhoneVerificationCodeResponse,
   SessionState,
   CreateAdminTelegramSubscriptionRequest,
   UpsertAdminEventRequest,
@@ -36,6 +37,7 @@ import type {
   UpdateProfileRequest,
   UpdateExternalAuthProviderRequest,
   UserSummary,
+  VerifyPhoneVerificationCodeResponse,
 } from '../types';
 
 export class ApiError extends Error {
@@ -152,6 +154,13 @@ export function logout(refreshToken: string) {
   });
 }
 
+export function redeemSessionTransfer(token: string) {
+  return request<AuthResponse>('/api/auth/session-transfer/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
 export function getCurrentAccount(accessToken: string) {
   return request<CurrentAccount>('/api/account/me', {}, accessToken);
 }
@@ -165,6 +174,28 @@ export function updateProfile(accessToken: string, payload: UpdateProfileRequest
     '/api/account/profile',
     {
       method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function sendPhoneVerificationCode(accessToken: string, payload: { phoneNumber: string }) {
+  return request<SendPhoneVerificationCodeResponse>(
+    '/api/account/phone/send-code',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function verifyPhoneVerificationCode(accessToken: string, payload: { phoneNumber: string; code: string }) {
+  return request<VerifyPhoneVerificationCodeResponse>(
+    '/api/account/phone/verify',
+    {
+      method: 'POST',
       body: JSON.stringify(payload),
     },
     accessToken,
