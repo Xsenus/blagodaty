@@ -17,6 +17,7 @@ builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptio
 builder.Services.Configure<FrontendOptions>(builder.Configuration.GetSection(FrontendOptions.SectionName));
 builder.Services.Configure<CampOptions>(builder.Configuration.GetSection(CampOptions.SectionName));
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
+builder.Services.Configure<PhoneVerificationOptions>(builder.Configuration.GetSection(PhoneVerificationOptions.SectionName));
 
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton(TimeProvider.System);
@@ -32,6 +33,8 @@ builder.Services.AddScoped<EventRegistrationExportService>();
 builder.Services.AddScoped<UserNotificationService>();
 builder.Services.AddScoped<TelegramGroupNotificationService>();
 builder.Services.AddScoped<TelegramBotUpdateService>();
+builder.Services.AddScoped<PhoneVerificationService>();
+builder.Services.AddScoped<SessionTransferService>();
 builder.Services.AddSingleton<GalleryStorageService>();
 builder.Services.AddSingleton<DatabaseBackupService>();
 builder.Services.AddHostedService<EventNotificationBackgroundService>();

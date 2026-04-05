@@ -23,6 +23,8 @@ public sealed class AccountController : ControllerBase
     private readonly EventCatalogService _eventCatalogService;
     private readonly EventRegistrationService _eventRegistrationService;
     private readonly UserNotificationService _userNotificationService;
+    private readonly PhoneVerificationService _phoneVerificationService;
+    private readonly SessionTransferService _sessionTransferService;
 
     public AccountController(
         UserManager<ApplicationUser> userManager,
@@ -31,7 +33,9 @@ public sealed class AccountController : ControllerBase
         ExternalAuthProviderService externalAuthProviderService,
         EventCatalogService eventCatalogService,
         EventRegistrationService eventRegistrationService,
-        UserNotificationService userNotificationService)
+        UserNotificationService userNotificationService,
+        PhoneVerificationService phoneVerificationService,
+        SessionTransferService sessionTransferService)
     {
         _userManager = userManager;
         _dbContext = dbContext;
@@ -40,6 +44,8 @@ public sealed class AccountController : ControllerBase
         _eventCatalogService = eventCatalogService;
         _eventRegistrationService = eventRegistrationService;
         _userNotificationService = userNotificationService;
+        _phoneVerificationService = phoneVerificationService;
+        _sessionTransferService = sessionTransferService;
     }
 
     [HttpGet("me")]
@@ -158,7 +164,7 @@ public sealed class AccountController : ControllerBase
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
         user.DisplayName = request.DisplayName.Trim();
-        var nextPhoneNumber = request.PhoneNumber?.Trim();
+        var nextPhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber);
         if (!string.Equals(user.PhoneNumber, nextPhoneNumber, StringComparison.Ordinal))
         {
             user.PhoneNumberConfirmed = false;
@@ -181,6 +187,70 @@ public sealed class AccountController : ControllerBase
 
         var roles = (await _userManager.GetRolesAsync(user)).ToArray();
         return Ok(AccountMapper.ToUserSummary(user, roles));
+    }
+
+    [HttpPost("phone/send-code")]
+    public async Task<ActionResult<SendPhoneVerificationCodeResponse>> SendPhoneVerificationCode([FromBody] SendPhoneVerificationCodeRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var user = await GetCurrentUserAsync();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            return Ok(await _phoneVerificationService.SendCodeAsync(user, request.PhoneNumber, HttpContext.RequestAborted));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("phone/verify")]
+    public async Task<ActionResult<VerifyPhoneVerificationCodeResponse>> VerifyPhoneVerificationCode([FromBody] VerifyPhoneVerificationCodeRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var user = await GetCurrentUserAsync();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            return Ok(await _phoneVerificationService.VerifyCodeAsync(
+                user,
+                request.PhoneNumber,
+                request.Code,
+                HttpContext.RequestAborted));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return BadRequest(new { message = exception.Message });
+        }
+    }
+
+    [HttpPost("session-transfer")]
+    public async Task<ActionResult<CreateSessionTransferResponse>> CreateSessionTransfer()
+    {
+        var user = await GetCurrentUserAsync();
+        if (user is null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(await _sessionTransferService.CreateAsync(user, HttpContext, HttpContext.RequestAborted));
     }
 
     [HttpDelete("external/{provider}")]

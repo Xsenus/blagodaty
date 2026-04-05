@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Blagodaty.Api.Contracts.Account;
 using Blagodaty.Api.Contracts.Auth;
 using Blagodaty.Api.Data;
 using Blagodaty.Api.Models;
@@ -25,6 +26,7 @@ public sealed class AuthController : ControllerBase
     private readonly ExternalIdentityService _externalIdentityService;
     private readonly ExternalAuthProviderService _externalAuthProviderService;
     private readonly TelegramBotUpdateService _telegramBotUpdateService;
+    private readonly SessionTransferService _sessionTransferService;
     private readonly TimeProvider _timeProvider;
 
     public AuthController(
@@ -36,6 +38,7 @@ public sealed class AuthController : ControllerBase
         ExternalIdentityService externalIdentityService,
         ExternalAuthProviderService externalAuthProviderService,
         TelegramBotUpdateService telegramBotUpdateService,
+        SessionTransferService sessionTransferService,
         TimeProvider timeProvider)
     {
         _dbContext = dbContext;
@@ -46,6 +49,7 @@ public sealed class AuthController : ControllerBase
         _externalIdentityService = externalIdentityService;
         _externalAuthProviderService = externalAuthProviderService;
         _telegramBotUpdateService = telegramBotUpdateService;
+        _sessionTransferService = sessionTransferService;
         _timeProvider = timeProvider;
     }
 
@@ -160,6 +164,25 @@ public sealed class AuthController : ControllerBase
         }
 
         return NoContent();
+    }
+
+    [HttpPost("session-transfer/redeem")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AuthResponse>> RedeemSessionTransfer([FromBody] RedeemSessionTransferRequest request)
+    {
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        try
+        {
+            return Ok(await _sessionTransferService.RedeemAsync(request.Token, HttpContext, HttpContext.RequestAborted));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Unauthorized(new { message = exception.Message });
+        }
     }
 
     [HttpPost("external/start")]

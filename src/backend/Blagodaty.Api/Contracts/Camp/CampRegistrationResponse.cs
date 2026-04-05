@@ -18,7 +18,7 @@ public sealed class CampRegistrationResponse
     public required RegistrationStatus Status { get; init; }
     public required string ContactEmail { get; init; }
     public required string FullName { get; init; }
-    public required DateOnly BirthDate { get; init; }
+    public required string BirthDate { get; init; }
     public required string City { get; init; }
     public required string ChurchName { get; init; }
     public required string PhoneNumber { get; init; }

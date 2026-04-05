@@ -7,22 +7,21 @@ public sealed class UpsertCampRegistrationRequest
 {
     public Guid? SelectedPriceOptionId { get; set; }
 
-    [Required, MaxLength(180)]
+    [MaxLength(180)]
     public string FullName { get; set; } = string.Empty;
 
-    [Required, EmailAddress, MaxLength(320)]
+    [MaxLength(320)]
     public string ContactEmail { get; set; } = string.Empty;
 
-    [Required]
-    public DateOnly BirthDate { get; set; }
+    public string? BirthDate { get; set; }
 
-    [Required, MaxLength(120)]
+    [MaxLength(120)]
     public string City { get; set; } = string.Empty;
 
-    [Required, MaxLength(180)]
+    [MaxLength(180)]
     public string ChurchName { get; set; } = string.Empty;
 
-    [Required, Phone, MaxLength(32)]
+    [MaxLength(32)]
     public string PhoneNumber { get; set; } = string.Empty;
 
     public bool HasCar { get; set; }
@@ -31,13 +30,12 @@ public sealed class UpsertCampRegistrationRequest
     public IReadOnlyCollection<UpsertCampRegistrationParticipantRequest> Participants { get; set; } =
         Array.Empty<UpsertCampRegistrationParticipantRequest>();
 
-    [Required, MaxLength(180)]
+    [MaxLength(180)]
     public string EmergencyContactName { get; set; } = string.Empty;
 
-    [Required, Phone, MaxLength(32)]
+    [MaxLength(32)]
     public string EmergencyContactPhone { get; set; } = string.Empty;
 
-    [Required]
     public AccommodationPreference AccommodationPreference { get; set; } = AccommodationPreference.Either;
 
     [MaxLength(2000)]
@@ -54,13 +52,12 @@ public sealed class UpsertCampRegistrationRequest
 
     public bool Submit { get; set; }
 
-    [Range(typeof(bool), "true", "true", ErrorMessage = "Consent must be accepted.")]
     public bool ConsentAccepted { get; set; }
 }
 
 public sealed class UpsertCampRegistrationParticipantRequest
 {
-    [Required, MaxLength(180)]
+    [MaxLength(180)]
     public string FullName { get; set; } = string.Empty;
 
     public bool IsChild { get; set; }

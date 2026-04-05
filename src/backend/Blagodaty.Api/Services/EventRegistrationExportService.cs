@@ -142,7 +142,7 @@ public sealed class EventRegistrationExportService
             sheet.Cell(rowIndex, 7).Value = registration.HasChildren ? "Да" : "Нет";
             sheet.Cell(rowIndex, 8).Value = registration.HasCar ? "Да" : "Нет";
             sheet.Cell(rowIndex, 9).Value = FormatTelegram(telegram);
-            sheet.Cell(rowIndex, 10).Value = registration.BirthDate.ToString("dd.MM.yyyy");
+            sheet.Cell(rowIndex, 10).Value = registration.BirthDate == default ? string.Empty : registration.BirthDate.ToString("dd.MM.yyyy");
             sheet.Cell(rowIndex, 11).Value = registration.City;
             sheet.Cell(rowIndex, 12).Value = registration.ChurchName;
             sheet.Cell(rowIndex, 13).Value = registration.SelectedPriceOption?.Title ?? string.Empty;

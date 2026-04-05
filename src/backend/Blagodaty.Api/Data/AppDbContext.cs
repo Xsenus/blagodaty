@@ -32,6 +32,8 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     public DbSet<TelegramSubscriptionDeliveryLog> TelegramSubscriptionDeliveryLogs => Set<TelegramSubscriptionDeliveryLog>();
     public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+    public DbSet<PhoneVerificationChallenge> PhoneVerificationChallenges => Set<PhoneVerificationChallenge>();
+    public DbSet<SessionTransferChallenge> SessionTransferChallenges => Set<SessionTransferChallenge>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -159,6 +161,19 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.Property(x => x.TokenHash).HasMaxLength(256);
             entity.Property(x => x.CreatedByIp).HasMaxLength(64);
             entity.Property(x => x.UserAgent).HasMaxLength(512);
+        });
+
+        builder.Entity<SessionTransferChallenge>(entity =>
+        {
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.UserId, x.ExpiresAtUtc });
+            entity.Property(x => x.TokenHash).HasMaxLength(256);
+            entity.Property(x => x.CreatedByIp).HasMaxLength(64);
+            entity.Property(x => x.UserAgent).HasMaxLength(512);
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<CampRegistration>(entity =>
@@ -315,6 +330,18 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.Property(x => x.Provider).HasMaxLength(32);
             entity.Property(x => x.EventType).HasMaxLength(64);
             entity.Property(x => x.Detail).HasMaxLength(1024);
+        });
+
+        builder.Entity<PhoneVerificationChallenge>(entity =>
+        {
+            entity.HasIndex(x => new { x.UserId, x.CreatedAtUtc });
+            entity.HasIndex(x => x.ExpiresAtUtc);
+            entity.Property(x => x.PhoneNumber).HasMaxLength(32);
+            entity.Property(x => x.CodeHash).HasMaxLength(128);
+            entity.HasOne(x => x.User)
+                .WithMany()
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<UserNotification>(entity =>

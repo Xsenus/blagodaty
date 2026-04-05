@@ -3,6 +3,7 @@ using Blagodaty.Api.Contracts.Camp;
 using Blagodaty.Api.Data;
 using Blagodaty.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace Blagodaty.Api.Services;
 
@@ -97,7 +98,7 @@ public sealed class EventRegistrationService
                     cancellationToken);
         }
 
-        var normalizedParticipants = NormalizeParticipants(request);
+        var normalizedParticipants = NormalizeParticipantsForRequest(request, requireAtLeastOneParticipant: request.Submit);
         var normalizedParticipantsCount = normalizedParticipants.Count;
         var existingOccupiedSeats = registration is not null && CountsAgainstCapacity(registration.Status)
             ? GetParticipantsCount(registration)
@@ -134,20 +135,51 @@ public sealed class EventRegistrationService
 
         var user = await _dbContext.Users.FirstAsync(item => item.Id == userId, cancellationToken);
         var previousStatus = registration.Status;
+        var normalizedContactEmail = request.ContactEmail.Trim();
+        var normalizedCity = request.City.Trim();
+        var normalizedChurchName = request.ChurchName.Trim();
+        var normalizedEmergencyContactName = request.EmergencyContactName.Trim();
+        var normalizedEmergencyContactPhone = request.EmergencyContactPhone.Trim();
+        var normalizedPrimaryFullName = normalizedParticipants.FirstOrDefault()?.FullName ?? request.FullName.Trim();
+        var parsedBirthDate = TryParseBirthDate(request.BirthDate);
 
         registration.EventEditionId = eventEdition.Id;
         registration.SelectedPriceOptionId = selectedPriceOption?.Id;
-        registration.ContactEmail = request.ContactEmail.Trim();
-        registration.FullName = normalizedParticipants[0].FullName;
-        registration.BirthDate = request.BirthDate;
-        registration.City = request.City.Trim();
-        registration.ChurchName = request.ChurchName.Trim();
-        registration.PhoneNumber = request.PhoneNumber.Trim();
+        var normalizedPhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber);
+        ValidateRequestForSubmission(
+            request,
+            eventEdition,
+            selectedPriceOption,
+            normalizedParticipants,
+            normalizedContactEmail,
+            parsedBirthDate,
+            normalizedCity,
+            normalizedChurchName,
+            normalizedPhoneNumber,
+            normalizedEmergencyContactName,
+            normalizedEmergencyContactPhone);
+        if (request.Submit && string.IsNullOrWhiteSpace(normalizedPhoneNumber))
+        {
+            throw new InvalidOperationException("Укажите корректный номер телефона участника.");
+        }
+
+        if (request.Submit &&
+            (!string.Equals(user.PhoneNumber, normalizedPhoneNumber, StringComparison.Ordinal) || !user.PhoneNumberConfirmed))
+        {
+            throw new InvalidOperationException("Перед отправкой заявки подтвердите номер телефона этим же номером.");
+        }
+
+        registration.ContactEmail = normalizedContactEmail;
+        registration.FullName = normalizedPrimaryFullName;
+        registration.BirthDate = parsedBirthDate ?? default;
+        registration.City = normalizedCity;
+        registration.ChurchName = normalizedChurchName;
+        registration.PhoneNumber = normalizedPhoneNumber ?? string.Empty;
         registration.HasCar = request.HasCar;
         registration.HasChildren = request.HasChildren || normalizedParticipants.Any(item => item.IsChild);
         registration.ParticipantsCount = normalizedParticipantsCount;
-        registration.EmergencyContactName = request.EmergencyContactName.Trim();
-        registration.EmergencyContactPhone = request.EmergencyContactPhone.Trim();
+        registration.EmergencyContactName = normalizedEmergencyContactName;
+        registration.EmergencyContactPhone = normalizedEmergencyContactPhone;
         registration.AccommodationPreference = request.AccommodationPreference;
         registration.HealthNotes = request.HealthNotes?.Trim();
         registration.AllergyNotes = request.AllergyNotes?.Trim();
@@ -158,14 +190,26 @@ public sealed class EventRegistrationService
         registration.UpdatedAtUtc = now;
         registration.SubmittedAtUtc = request.Submit ? now : null;
 
-        if (!string.Equals(user.PhoneNumber, registration.PhoneNumber, StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(registration.PhoneNumber) &&
+            !string.Equals(user.PhoneNumber, registration.PhoneNumber, StringComparison.Ordinal))
         {
             user.PhoneNumberConfirmed = false;
         }
 
-        user.PhoneNumber = registration.PhoneNumber;
-        user.City = registration.City;
-        user.ChurchName = registration.ChurchName;
+        if (!string.IsNullOrWhiteSpace(registration.PhoneNumber))
+        {
+            user.PhoneNumber = registration.PhoneNumber;
+        }
+
+        if (!string.IsNullOrWhiteSpace(registration.City))
+        {
+            user.City = registration.City;
+        }
+
+        if (!string.IsNullOrWhiteSpace(registration.ChurchName))
+        {
+            user.ChurchName = registration.ChurchName;
+        }
 
         registration.Participants.Clear();
         foreach (var participant in normalizedParticipants)
@@ -300,7 +344,7 @@ public sealed class EventRegistrationService
                 ? registration.ContactEmail
                 : TechnicalEmailHelper.ToVisibleEmail(registration.User?.Email),
             FullName = registration.FullName,
-            BirthDate = registration.BirthDate,
+            BirthDate = registration.BirthDate == default ? string.Empty : registration.BirthDate.ToString("yyyy-MM-dd"),
             City = registration.City,
             ChurchName = registration.ChurchName,
             PhoneNumber = registration.PhoneNumber,
@@ -372,7 +416,9 @@ public sealed class EventRegistrationService
         ];
     }
 
-    private static List<NormalizedParticipant> NormalizeParticipants(UpsertCampRegistrationRequest request)
+    private static List<NormalizedParticipant> NormalizeParticipants(
+        UpsertCampRegistrationRequest request,
+        bool requireAtLeastOneParticipant)
     {
         var sourceParticipants = request.Participants
             .Select((participant, index) => new NormalizedParticipant
@@ -404,6 +450,139 @@ public sealed class EventRegistrationService
                 SortOrder = 0
             }
         ];
+    }
+
+    private static List<NormalizedParticipant> NormalizeParticipantsForRequest(
+        UpsertCampRegistrationRequest request,
+        bool requireAtLeastOneParticipant)
+    {
+        var sourceParticipants = request.Participants
+            .Select((participant, index) => new NormalizedParticipant
+            {
+                FullName = participant.FullName.Trim(),
+                IsChild = participant.IsChild,
+                SortOrder = index
+            })
+            .Where(participant => !string.IsNullOrWhiteSpace(participant.FullName))
+            .ToList();
+
+        if (sourceParticipants.Count > 0)
+        {
+            return sourceParticipants;
+        }
+
+        var primaryFullName = request.FullName.Trim();
+        if (string.IsNullOrWhiteSpace(primaryFullName))
+        {
+            if (!requireAtLeastOneParticipant)
+            {
+                return [];
+            }
+
+            throw new InvalidOperationException("Укажите хотя бы одного участника для заявки.");
+        }
+
+        return
+        [
+            new NormalizedParticipant
+            {
+                FullName = primaryFullName,
+                IsChild = false,
+                SortOrder = 0
+            }
+        ];
+    }
+
+    private static DateOnly? TryParseBirthDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return DateOnly.TryParse(value.Trim(), out var birthDate) ? birthDate : null;
+    }
+
+    private static void ValidateRequestForSubmission(
+        UpsertCampRegistrationRequest request,
+        EventEdition eventEdition,
+        EventPriceOption? selectedPriceOption,
+        IReadOnlyCollection<NormalizedParticipant> normalizedParticipants,
+        string normalizedContactEmail,
+        DateOnly? parsedBirthDate,
+        string normalizedCity,
+        string normalizedChurchName,
+        string? normalizedPhoneNumber,
+        string normalizedEmergencyContactName,
+        string normalizedEmergencyContactPhone)
+    {
+        if (!request.Submit)
+        {
+            return;
+        }
+
+        var errors = new List<string>();
+        var hasActivePriceOptions = eventEdition.PriceOptions.Any(option => option.IsActive);
+        var emailValidator = new EmailAddressAttribute();
+
+        if (hasActivePriceOptions && selectedPriceOption is null)
+        {
+            errors.Add("Выберите тариф участия.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedContactEmail))
+        {
+            errors.Add("Укажите email для связи.");
+        }
+        else if (!emailValidator.IsValid(normalizedContactEmail))
+        {
+            errors.Add("Проверьте формат email.");
+        }
+
+        if (normalizedParticipants.Count == 0)
+        {
+            errors.Add("Укажите хотя бы одного участника.");
+        }
+
+        if (parsedBirthDate is null)
+        {
+            errors.Add("Укажите дату рождения основного участника.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedCity))
+        {
+            errors.Add("Укажите город.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedChurchName))
+        {
+            errors.Add("Укажите церковь.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedPhoneNumber))
+        {
+            errors.Add("Укажите корректный телефон участника.");
+        }
+
+        if (string.IsNullOrWhiteSpace(normalizedEmergencyContactName))
+        {
+            errors.Add("Укажите доверенное лицо для экстренной связи.");
+        }
+
+        if (string.IsNullOrWhiteSpace(PhoneNumberHelper.Normalize(normalizedEmergencyContactPhone)))
+        {
+            errors.Add("Укажите корректный телефон доверенного лица.");
+        }
+
+        if (!request.ConsentAccepted)
+        {
+            errors.Add("Подтвердите согласие на обработку персональных данных.");
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException(string.Join(" ", errors));
+        }
     }
 
     private sealed class NormalizedParticipant
