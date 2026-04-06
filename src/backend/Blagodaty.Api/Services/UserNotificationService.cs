@@ -151,7 +151,7 @@ public sealed class UserNotificationService
         }
 
         var eventTitle = registration.EventEdition.Title;
-        var eventLink = BuildCabinetLink($"/camp-registration?event={registration.EventEdition.Slug}");
+        var eventLink = BuildCampRegistrationLink(registration.EventEdition.Slug, "summary");
 
         await CreateNotificationAsync(
             registration.UserId,
@@ -222,7 +222,7 @@ public sealed class UserNotificationService
             severity,
             title,
             message,
-            BuildCabinetLink($"/camp-registration?event={registration.EventEdition.Slug}"),
+            BuildCampRegistrationLink(registration.EventEdition.Slug, "summary"),
             registration.EventEditionId,
             registration.Id,
             $"registration:{registration.Id}:status:{registration.Status}",
@@ -285,7 +285,7 @@ public sealed class UserNotificationService
                 NotificationSeverity.Warning,
                 "Регистрация скоро закроется",
                 $"У вас есть черновик заявки на «{eventItem.Title}». Регистрация закроется {FormatDateTime(eventItem.RegistrationClosesAtUtc)}.",
-                BuildCabinetLink($"/camp-registration?event={eventItem.Slug}"),
+                BuildCampRegistrationLink(eventItem.Slug, "form"),
                 eventItem.Id,
                 draft.RegistrationId,
                 $"event:{eventItem.Id}:closing-soon:draft",
@@ -424,6 +424,29 @@ public sealed class UserNotificationService
 
         var path = relativePath.StartsWith("/", StringComparison.Ordinal) ? relativePath : "/" + relativePath;
         return $"{baseUrl.TrimEnd('/')}{path}";
+    }
+
+    private string BuildCampRegistrationLink(string? eventSlug, string? focus = null)
+    {
+        var path = "/camp-registration";
+        var queryParts = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(eventSlug))
+        {
+            queryParts.Add($"event={Uri.EscapeDataString(eventSlug.Trim())}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(focus))
+        {
+            queryParts.Add($"focus={Uri.EscapeDataString(focus.Trim())}");
+        }
+
+        if (queryParts.Count > 0)
+        {
+            path = $"{path}?{string.Join("&", queryParts)}";
+        }
+
+        return BuildCabinetLink(path);
     }
 
     private static string FormatDateTime(DateTime value)

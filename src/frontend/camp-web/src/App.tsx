@@ -128,6 +128,91 @@ function formatRegistrationStatus(status?: AccountRegistrationSummary['status'] 
   }
 }
 
+type CabinetFocus = 'event' | 'phone' | 'form' | 'summary';
+
+function buildCabinetRegistrationPath(eventSlug?: string | null, focus?: CabinetFocus | null) {
+  const search = new URLSearchParams();
+  if (eventSlug) {
+    search.set('event', eventSlug);
+  }
+
+  if (focus) {
+    search.set('focus', focus);
+  }
+
+  const query = search.toString();
+  return query ? `/camp-registration?${query}` : '/camp-registration';
+}
+
+function getCabinetPathForRegistration(
+  registration: AccountRegistrationSummary | null,
+  fallbackEventSlug?: string | null,
+  isPhoneConfirmed = false,
+) {
+  if (!registration) {
+    return buildCabinetRegistrationPath(fallbackEventSlug, fallbackEventSlug ? 'event' : undefined);
+  }
+
+  const eventSlug = registration.eventSlug ?? fallbackEventSlug;
+  if (registration.status === 'Draft' && registration.isRegistrationOpen) {
+    return buildCabinetRegistrationPath(eventSlug, isPhoneConfirmed ? 'form' : 'phone');
+  }
+
+  if (
+    registration.status === 'Draft' ||
+    registration.status === 'Submitted' ||
+    registration.status === 'Confirmed' ||
+    registration.status === 'Cancelled'
+  ) {
+    return buildCabinetRegistrationPath(eventSlug, 'summary');
+  }
+
+  return buildCabinetRegistrationPath(eventSlug);
+}
+
+type LandingPrimaryAction =
+  | {
+      kind: 'modal';
+      eventSlug?: string | null;
+    }
+  | {
+      kind: 'cabinet';
+      path: string;
+    };
+
+function getLandingPrimaryAction(
+  registration: AccountRegistrationSummary | null,
+  fallbackEventSlug?: string | null,
+  isAuthenticated = false,
+  isPhoneConfirmed = false,
+): LandingPrimaryAction {
+  if (!isAuthenticated || !registration) {
+    return {
+      kind: 'modal',
+      eventSlug: fallbackEventSlug,
+    };
+  }
+
+  if (registration.status === 'Draft') {
+    return {
+      kind: 'modal',
+      eventSlug: registration.eventSlug ?? fallbackEventSlug,
+    };
+  }
+
+  if (registration.status === 'Cancelled' && registration.isRegistrationOpen) {
+    return {
+      kind: 'modal',
+      eventSlug: registration.eventSlug ?? fallbackEventSlug,
+    };
+  }
+
+  return {
+    kind: 'cabinet',
+    path: getCabinetPathForRegistration(registration, fallbackEventSlug, isPhoneConfirmed),
+  };
+}
+
 function getLandingActionState(
   registration: AccountRegistrationSummary | null,
   isAuthenticated: boolean,
@@ -651,9 +736,24 @@ export default function App() {
   );
   const selectedRegistration =
     (selectedEventSummary?.slug ? registrationsByEventSlug.get(selectedEventSummary.slug) : null) ?? null;
+  const isCabinetPhoneConfirmed =
+    Boolean(account?.user.phoneNumberConfirmed) &&
+    Boolean(account?.user.phoneNumber?.trim());
+  const isAuthenticated = Boolean(account);
+  const selectedCabinetPath = getCabinetPathForRegistration(
+    selectedRegistration,
+    selectedEventSummary?.slug ?? selectedEventSlug,
+    isCabinetPhoneConfirmed,
+  );
+  const selectedPrimaryAction = getLandingPrimaryAction(
+    selectedRegistration,
+    selectedEventSummary?.slug ?? selectedEventSlug,
+    isAuthenticated,
+    isCabinetPhoneConfirmed,
+  );
   const landingAction = getLandingActionState(
     selectedRegistration,
-    Boolean(account),
+    isAuthenticated,
     selectedEventSummary?.title ?? details?.title ?? null,
   );
 
@@ -751,6 +851,15 @@ export default function App() {
     })();
   }
 
+  function runLandingPrimaryAction(action: LandingPrimaryAction) {
+    if (action.kind === 'cabinet') {
+      openCabinet(action.path);
+      return;
+    }
+
+    openRegistration(action.eventSlug);
+  }
+
   return (
     <div className="camp-page">
       <div className="camp-glow camp-glow-left" aria-hidden="true" />
@@ -790,7 +899,7 @@ export default function App() {
             </div>
           ) : null}
 
-          <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+          <button className="button button-primary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
             {landingAction.headerButtonLabel}
           </button>
         </div>
@@ -815,13 +924,13 @@ export default function App() {
             </div>
 
             <div className="hero-actions">
-              <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+              <button className="button button-primary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
                 {landingAction.heroPrimaryLabel}
               </button>
               <a className="button button-secondary" href="#media">
                 Смотреть медиа
               </a>
-              <button className="button button-secondary" type="button" onClick={() => openCabinet('/')}>
+              <button className="button button-secondary" type="button" onClick={() => openCabinet(selectedCabinetPath)}>
                 Личный кабинет
               </button>
             </div>
@@ -856,7 +965,7 @@ export default function App() {
                 <li>Войти или создать кабинет без смены страницы.</li>
                 <li>Подтвердить телефон и сразу отправить анкету.</li>
               </ol>
-              <button className="button button-secondary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+              <button className="button button-secondary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
                 {landingAction.heroPrimaryLabel}
               </button>
             </article>
@@ -918,7 +1027,20 @@ export default function App() {
                       >
                         {selectedEventSlug === eventItem.slug ? 'Сейчас выбрано' : 'Показать детали'}
                       </button>
-                      <button className="button button-primary" type="button" onClick={() => openRegistration(eventItem.slug)}>
+                      <button
+                        className="button button-primary"
+                        type="button"
+                        onClick={() =>
+                          runLandingPrimaryAction(
+                            getLandingPrimaryAction(
+                              eventRegistration,
+                              eventItem.slug,
+                              isAuthenticated,
+                              isCabinetPhoneConfirmed,
+                            ),
+                          )
+                        }
+                      >
                         {primaryActionLabel}
                       </button>
                     </div>
@@ -1099,10 +1221,10 @@ export default function App() {
           </div>
 
           <div className="cta-actions">
-            <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+            <button className="button button-primary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
               {landingAction.heroPrimaryLabel}
             </button>
-            <button className="button button-secondary" type="button" onClick={() => openCabinet('/')}>
+            <button className="button button-secondary" type="button" onClick={() => openCabinet(selectedCabinetPath)}>
               Перейти в кабинет
             </button>
           </div>

@@ -46,6 +46,7 @@ type EditableParticipant = {
 };
 
 type ModalScrollTarget = 'event' | 'phone' | 'form' | 'summary';
+type CabinetFocus = 'event' | 'phone' | 'form' | 'summary';
 
 const EMPTY_PARTICIPANT: EditableParticipant = {
   fullName: '',
@@ -200,6 +201,20 @@ function formatDateTime(value?: string | null) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value));
+}
+
+function buildCabinetRegistrationPath(eventSlug?: string | null, focus?: CabinetFocus | null) {
+  const search = new URLSearchParams();
+  if (eventSlug) {
+    search.set('event', eventSlug);
+  }
+
+  if (focus) {
+    search.set('focus', focus);
+  }
+
+  const query = search.toString();
+  return query ? `/camp-registration?${query}` : '/camp-registration';
 }
 
 function formatTimeOnly(value?: string | null) {
@@ -1075,7 +1090,18 @@ export function RegistrationModal({
           </div>
 
           <div className="modal-sidebar-actions">
-            <button className="button button-secondary" type="button" onClick={() => onOpenCabinet('/')}>
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() =>
+                onOpenCabinet(
+                  buildCabinetRegistrationPath(
+                    completedRegistration?.eventSlug ?? selectedEventSlug,
+                    completedRegistration ? 'summary' : selectedEventSlug ? (phoneReady ? 'form' : 'phone') : 'event',
+                  ),
+                )
+              }
+            >
               Открыть кабинет отдельно
             </button>
           </div>
@@ -1223,7 +1249,14 @@ export function RegistrationModal({
                 <button
                   className="button button-secondary"
                   type="button"
-                  onClick={() => onOpenCabinet(`/camp-registration?event=${completedRegistration.eventSlug ?? selectedEventSlug ?? ''}`)}
+                  onClick={() =>
+                    onOpenCabinet(
+                      buildCabinetRegistrationPath(
+                        completedRegistration.eventSlug ?? selectedEventSlug,
+                        'summary',
+                      ),
+                    )
+                  }
                 >
                   Открыть заявку в кабинете
                 </button>

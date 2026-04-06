@@ -408,6 +408,11 @@ select {
   color: var(--text-main);
 }
 
+.validation-summary:focus {
+  outline: 2px solid rgba(216, 154, 104, 0.34);
+  outline-offset: 3px;
+}
+
 .validation-list {
   margin: 0;
   padding-left: 20px;
@@ -1141,10 +1146,62 @@ select {
   color: var(--text-main);
 }
 
+.event-switch-card-head,
+.event-switch-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.event-switch-card-head {
+  align-items: center;
+  justify-content: space-between;
+}
+
 .event-switch-card.active,
 .price-option-card.active {
   border-color: rgba(216, 154, 104, 0.45);
   background: linear-gradient(180deg, rgba(255, 251, 244, 0.94), rgba(248, 236, 215, 0.82));
+}
+
+.event-switch-status,
+.event-switch-pills span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(199, 171, 132, 0.2);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text-main);
+}
+
+.event-switch-status.status-draft {
+  background: rgba(252, 244, 228, 0.9);
+  border-color: rgba(216, 154, 104, 0.22);
+}
+
+.event-switch-status.status-submitted {
+  background: rgba(236, 243, 252, 0.92);
+  border-color: rgba(100, 132, 170, 0.22);
+}
+
+.event-switch-status.status-confirmed {
+  background: rgba(236, 247, 238, 0.92);
+  border-color: rgba(97, 145, 108, 0.18);
+}
+
+.event-switch-status.status-cancelled {
+  background: rgba(242, 239, 234, 0.92);
+  border-color: rgba(140, 140, 140, 0.18);
+}
+
+.event-switch-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(247, 242, 234, 0.86);
+  color: var(--text-main);
 }
 
 .price-option-list {
@@ -1368,6 +1425,44 @@ select {
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
 }
 
+.registration-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.registration-progress-card {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(199, 171, 132, 0.18);
+  background: rgba(255, 255, 255, 0.72);
+  text-align: left;
+  cursor: pointer;
+}
+
+.registration-progress-card span,
+.registration-progress-card em {
+  color: var(--text-soft);
+  font-style: normal;
+}
+
+.registration-progress-card.complete {
+  background: rgba(236, 247, 238, 0.92);
+  border-color: rgba(97, 145, 108, 0.18);
+}
+
+.registration-progress-card.warning {
+  background: rgba(252, 244, 228, 0.9);
+  border-color: rgba(216, 154, 104, 0.2);
+}
+
+.registration-progress-card:focus-visible {
+  outline: 2px solid rgba(216, 154, 104, 0.34);
+  outline-offset: 2px;
+}
+
 .glass-subcard {
   padding: 24px;
   border-radius: 24px;
@@ -1449,6 +1544,10 @@ select {
   }
 
   .phone-verification-row {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-progress-grid {
     grid-template-columns: 1fr;
   }
 

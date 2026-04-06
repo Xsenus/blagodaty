@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { NavLink } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import {
   getAccountNotifications,
@@ -26,6 +27,73 @@ function formatSeverity(severity: NotificationSeverity) {
       return 'Важно';
     default:
       return 'Уведомление';
+  }
+}
+
+type NotificationRegistrationFocus = 'event' | 'phone' | 'form' | 'summary';
+
+function buildRegistrationLink(eventSlug?: string | null, focus?: NotificationRegistrationFocus | null) {
+  const search = new URLSearchParams();
+  if (eventSlug) {
+    search.set('event', eventSlug);
+  }
+
+  if (focus) {
+    search.set('focus', focus);
+  }
+
+  const query = search.toString();
+  return query ? `/camp-registration?${query}` : '/camp-registration';
+}
+
+function getNotificationLink(notification: AccountNotification) {
+  const directLink = notification.linkUrl?.trim();
+  if (directLink) {
+    return directLink;
+  }
+
+  if (!notification.eventSlug) {
+    return null;
+  }
+
+  switch (notification.type) {
+    case 'RegistrationClosingSoon':
+      return buildRegistrationLink(notification.eventSlug, 'form');
+    case 'RegistrationSubmitted':
+    case 'RegistrationStatusChanged':
+      return buildRegistrationLink(notification.eventSlug, 'summary');
+    default:
+      return buildRegistrationLink(notification.eventSlug);
+  }
+}
+
+function isExternalUrl(value: string) {
+  return /^https?:\/\//i.test(value);
+}
+
+function getInternalAppHref(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith('/')) {
+    return trimmed;
+  }
+
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed, window.location.origin);
+    if (url.origin !== window.location.origin) {
+      return null;
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return null;
   }
 }
 
@@ -225,7 +293,13 @@ export function NotificationsPage() {
             </article>
           ) : null}
 
-          {response?.items.map((notification) => (
+          {response?.items.map((notification) => {
+            const notificationLink = getNotificationLink(notification);
+            const internalNotificationLink = notificationLink ? getInternalAppHref(notificationLink) : null;
+            const hasExternalLink =
+              notificationLink ? !internalNotificationLink && isExternalUrl(notificationLink) : false;
+
+            return (
             <article
               className={`user-card notification-card notification-${notification.severity.toLowerCase()}${notification.isRead ? ' notification-read' : ''}`}
               key={notification.id}
@@ -261,19 +335,26 @@ export function NotificationsPage() {
                   </button>
                 ) : null}
 
-                {notification.linkUrl ? (
-                  <a
-                    className="primary-button"
-                    href={notification.linkUrl}
-                    target={notification.linkUrl.startsWith('http') ? '_blank' : undefined}
-                    rel={notification.linkUrl.startsWith('http') ? 'noreferrer' : undefined}
-                  >
-                    Открыть
-                  </a>
+                {notificationLink ? (
+                  internalNotificationLink ? (
+                    <NavLink className="primary-button" to={internalNotificationLink}>
+                      Открыть
+                    </NavLink>
+                  ) : hasExternalLink ? (
+                    <a
+                      className="primary-button"
+                      href={notificationLink}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Открыть
+                    </a>
+                  ) : null
                 ) : null}
               </div>
             </article>
-          ))}
+            );
+          })}
 
           {error ? (
             <article className="user-card admin-empty-state">

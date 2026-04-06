@@ -246,8 +246,39 @@ function buildAuthPath(path: '/login' | '/register', redirectTarget: string) {
   return `${path}?${search.toString()}`;
 }
 
-function getRegistrationLink(eventSlug?: string | null) {
-  return eventSlug ? `/camp-registration?event=${eventSlug}` : '/camp-registration';
+type RegistrationLinkFocus = 'event' | 'phone' | 'form' | 'summary';
+
+function getRegistrationLink(eventSlug?: string | null, focus?: RegistrationLinkFocus | null) {
+  const search = new URLSearchParams();
+  if (eventSlug) {
+    search.set('event', eventSlug);
+  }
+
+  if (focus) {
+    search.set('focus', focus);
+  }
+
+  const query = search.toString();
+  return query ? `/camp-registration?${query}` : '/camp-registration';
+}
+
+function getRegistrationActionLink(
+  registration: AccountRegistrationSummary,
+  isPhoneConfirmed: boolean,
+) {
+  if (registration.status === 'Draft' && registration.isRegistrationOpen) {
+    return getRegistrationLink(registration.eventSlug, isPhoneConfirmed ? 'form' : 'phone');
+  }
+
+  if (registration.status === 'Draft') {
+    return getRegistrationLink(registration.eventSlug, 'summary');
+  }
+
+  if (registration.status === 'Submitted' || registration.status === 'Confirmed' || registration.status === 'Cancelled') {
+    return getRegistrationLink(registration.eventSlug, 'summary');
+  }
+
+  return getRegistrationLink(registration.eventSlug);
 }
 
 function getDashboardRegistrationPriority(status: RegistrationStatus) {
@@ -308,13 +339,13 @@ function getDashboardActionCard(
       title: 'Выберите событие и начните первую заявку',
       description: 'Откройте список мероприятий, выберите нужный сезон или выезд и сохраните анкету как черновик, чтобы спокойно вернуться позже.',
       primaryLabel: 'Перейти к мероприятиям',
-      primaryTo: '/camp-registration',
+      primaryTo: getRegistrationLink(undefined, 'event'),
       secondaryLabel: 'Открыть профиль',
       secondaryTo: '/profile',
     };
   }
 
-  const registrationLink = getRegistrationLink(registration.eventSlug);
+  const registrationLink = getRegistrationActionLink(registration, isPhoneConfirmed);
   const eventTitle = registration.eventTitle || 'выбранное мероприятие';
 
   if (registration.status === 'Draft' && !registration.isRegistrationOpen) {
@@ -394,7 +425,7 @@ function getDashboardActionCard(
     title: 'Текущая заявка не активна',
     description: `По событию "${eventTitle}" заявка сейчас не активна. При необходимости выберите другое мероприятие и начните новую анкету.`,
     primaryLabel: 'Перейти к мероприятиям',
-    primaryTo: '/camp-registration',
+    primaryTo: getRegistrationLink(undefined, 'event'),
     secondaryLabel: 'Открыть уведомления',
     secondaryTo: '/notifications',
   };
@@ -1389,7 +1420,7 @@ function DashboardPage() {
                 </div>
 
                 <div className="inline-links">
-                  <NavLink to={getRegistrationLink(registration.eventSlug)}>Открыть заявку</NavLink>
+                  <NavLink to={getRegistrationActionLink(registration, isPhoneConfirmed)}>Открыть заявку</NavLink>
                   <NavLink to="/notifications">Уведомления</NavLink>
                 </div>
               </article>
@@ -1401,7 +1432,7 @@ function DashboardPage() {
                 Откройте список мероприятий, выберите нужное событие и сохраните анкету как черновик или отправьте ее сразу.
               </p>
               <div className="inline-links">
-                <NavLink to="/camp-registration">Открыть мероприятия</NavLink>
+                <NavLink to={getRegistrationLink(undefined, 'event')}>Открыть мероприятия</NavLink>
                 <NavLink to="/profile">Заполнить профиль</NavLink>
               </div>
             </article>

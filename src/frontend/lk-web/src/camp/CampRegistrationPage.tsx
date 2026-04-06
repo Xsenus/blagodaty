@@ -19,6 +19,8 @@ type EditableParticipant = {
   isChild: boolean;
 };
 
+type RegistrationScrollTarget = 'event' | 'phone' | 'form' | 'summary';
+
 const EMPTY_PARTICIPANT: EditableParticipant = {
   fullName: '',
   isChild: false,
@@ -157,6 +159,40 @@ function formatStatus(status?: CampRegistration['status'] | null) {
     default:
       return 'Новая заявка';
   }
+}
+
+function getEventSwitchNote(
+  eventItem: PublicEventSummary,
+  registration: CurrentAccount['registrations'][number] | null,
+) {
+  if (registration) {
+    switch (registration.status) {
+      case 'Draft':
+        return eventItem.isRegistrationOpen
+          ? 'Черновик уже сохранён. Можно быстро вернуться и завершить заявку.'
+          : 'Черновик сохранён, но окно регистрации сейчас закрыто.';
+      case 'Submitted':
+        return 'Заявка уже отправлена. Здесь удобно быстро вернуться к её деталям.';
+      case 'Confirmed':
+        return 'Участие подтверждено. Карточка ведёт обратно к деталям поездки.';
+      case 'Cancelled':
+        return eventItem.isRegistrationOpen
+          ? 'Предыдущая заявка закрыта. При необходимости можно оформить новую.'
+          : 'Заявка отменена. Сейчас доступен только просмотр деталей.';
+      default:
+        break;
+    }
+  }
+
+  if (eventItem.isRegistrationClosingSoon) {
+    return 'Регистрация скоро закроется, поэтому лучше не откладывать анкету.';
+  }
+
+  if (!eventItem.isRegistrationOpen) {
+    return 'Регистрация закрыта, но событие уже можно открыть и подготовить данные заранее.';
+  }
+
+  return 'Событие открыто для регистрации, можно сразу переходить к анкете.';
 }
 
 function formatProviderLabel(identity: ExternalIdentity) {
@@ -360,6 +396,52 @@ function collectRegistrationValidationErrors(
   return errors;
 }
 
+function getRegistrationScrollTarget(
+  form: SaveRegistrationRequest,
+  selectedEvent: PublicEventDetails | null,
+  requireConfirmedPhone: boolean,
+  isPhoneConfirmed: boolean,
+): RegistrationScrollTarget {
+  if (!selectedEvent) {
+    return 'event';
+  }
+
+  if (requireConfirmedPhone) {
+    if (!form.phoneNumber.trim() || !isValidPhone(form.phoneNumber) || !isPhoneConfirmed) {
+      return 'phone';
+    }
+  }
+
+  return 'summary';
+}
+
+function parseRegistrationScrollTarget(search: string): RegistrationScrollTarget | null {
+  const rawFocus = new URLSearchParams(search).get('focus');
+  switch (rawFocus) {
+    case 'event':
+    case 'phone':
+    case 'form':
+    case 'summary':
+      return rawFocus;
+    default:
+      return null;
+  }
+}
+
+function buildRegistrationSearch(eventSlug?: string | null, focus?: RegistrationScrollTarget | null) {
+  const search = new URLSearchParams();
+  if (eventSlug) {
+    search.set('event', eventSlug);
+  }
+
+  if (focus) {
+    search.set('focus', focus);
+  }
+
+  const query = search.toString();
+  return query ? `?${query}` : '';
+}
+
 function buildPrefillForm(
   account: CurrentAccount | null,
   selectedEvent: PublicEventDetails,
@@ -423,6 +505,7 @@ export function CampRegistrationFlowPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const requestedEventSlug = new URLSearchParams(location.search).get('event');
+  const requestedFocus = parseRegistrationScrollTarget(location.search);
 
   const [events, setEvents] = useState<PublicEventSummary[]>([]);
   const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(null);
@@ -439,6 +522,20 @@ export function CampRegistrationFlowPage() {
   const [draftSyncError, setDraftSyncError] = useState<string | null>(null);
   const [draftSyncAtUtc, setDraftSyncAtUtc] = useState<string | null>(null);
   const lastDraftSnapshotRef = useRef<string | null>(null);
+  const lastRequestedFocusRef = useRef<string | null>(null);
+  const eventSectionRef = useRef<HTMLElement | null>(null);
+  const phoneSectionRef = useRef<HTMLElement | null>(null);
+  const formSectionRef = useRef<HTMLElement | null>(null);
+  const validationSummaryRef = useRef<HTMLDivElement | null>(null);
+  const registrationsByEventSlug = useMemo(
+    () =>
+      new Map(
+        (auth.account?.registrations ?? [])
+          .filter((item) => Boolean(item.eventSlug))
+          .map((item) => [item.eventSlug as string, item]),
+      ),
+    [auth.account?.registrations],
+  );
 
   useEffect(() => {
     void loadEvents();
@@ -457,6 +554,36 @@ export function CampRegistrationFlowPage() {
 
     void loadSelectedEvent(selectedEventSlug);
   }, [selectedEventSlug, auth.account?.user.id]);
+
+  useEffect(() => {
+    if (!requestedFocus) {
+      lastRequestedFocusRef.current = null;
+      return;
+    }
+
+    if (isLoadingEvents || isLoadingRegistration) {
+      return;
+    }
+
+    if (requestedFocus !== 'event' && !selectedEvent) {
+      return;
+    }
+
+    const focusKey = `${selectedEventSlug ?? requestedEventSlug ?? ''}:${requestedFocus}`;
+    if (lastRequestedFocusRef.current === focusKey) {
+      return;
+    }
+
+    scrollToTarget(requestedFocus);
+    lastRequestedFocusRef.current = focusKey;
+  }, [
+    isLoadingEvents,
+    isLoadingRegistration,
+    requestedEventSlug,
+    requestedFocus,
+    selectedEvent,
+    selectedEventSlug,
+  ]);
 
   const completedParticipants = useMemo(
     () => form.participants.filter((participant) => participant.fullName.trim()),
@@ -477,6 +604,50 @@ export function CampRegistrationFlowPage() {
         : [],
     [form, isPhoneConfirmed, selectedEvent, validationMode],
   );
+  const hasTariffChoice =
+    !selectedEvent?.priceOptions.some((option) => option.isActive) ||
+    Boolean(form.selectedPriceOptionId);
+  const hasEmailReady =
+    Boolean(form.contactEmail.trim()) &&
+    isValidEmail(form.contactEmail);
+  const hasTravelDetails =
+    Boolean(form.birthDate) &&
+    Boolean(form.city.trim()) &&
+    Boolean(form.churchName.trim());
+  const hasEmergencyContact =
+    Boolean(form.emergencyContactName.trim()) &&
+    Boolean(form.emergencyContactPhone.trim()) &&
+    isValidPhone(form.emergencyContactPhone);
+  const hasParticipantDetails = completedParticipants.length > 0;
+  const readinessCompleteCount = [
+    hasEmailReady,
+    hasParticipantDetails,
+    hasTravelDetails,
+    hasEmergencyContact,
+    form.consentAccepted,
+  ].filter(Boolean).length;
+
+  function scrollToTarget(target: RegistrationScrollTarget) {
+    const nextElement =
+      target === 'event'
+        ? eventSectionRef.current
+        : target === 'phone'
+          ? phoneSectionRef.current
+          : target === 'form'
+            ? formSectionRef.current
+            : validationSummaryRef.current;
+
+    window.requestAnimationFrame(() => {
+      nextElement?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+
+      if (target === 'summary') {
+        validationSummaryRef.current?.focus();
+      }
+    });
+  }
 
   useEffect(() => {
     if (!selectedEvent || !selectedEventSlug || !auth.session?.accessToken || isLoadingRegistration || isSaving) {
@@ -532,7 +703,7 @@ export function CampRegistrationFlowPage() {
         navigate(
           {
             pathname: '/camp-registration',
-            search: `?event=${preferredSlug}`,
+            search: buildRegistrationSearch(preferredSlug, requestedFocus),
           },
           { replace: true },
         );
@@ -610,6 +781,7 @@ export function CampRegistrationFlowPage() {
       const nextError = 'Сначала выберите мероприятие.';
       setError(nextError);
       toast.error('Мероприятие не выбрано', nextError);
+      scrollToTarget('event');
       return;
     }
 
@@ -619,6 +791,7 @@ export function CampRegistrationFlowPage() {
         : 'Чтобы сохранить текущий черновик, заполните обязательные поля формы.';
       setError(nextError);
       setMessage(null);
+      scrollToTarget(getRegistrationScrollTarget(form, selectedEvent, submitMode, isPhoneConfirmed));
       toast.error('Проверьте форму', nextValidationErrors[0]);
       return;
     }
@@ -688,7 +861,7 @@ export function CampRegistrationFlowPage() {
         </div>
       </header>
 
-      <section className="glass-card stack-form">
+      <section className="glass-card stack-form" ref={eventSectionRef}>
         <div className="section-inline">
           <div>
             <p className="mini-eyebrow">Выбор события</p>
@@ -698,7 +871,10 @@ export function CampRegistrationFlowPage() {
         </div>
 
         <div className="event-switch-grid">
-          {events.map((eventItem) => (
+          {events.map((eventItem) => {
+            const eventRegistration = registrationsByEventSlug.get(eventItem.slug) ?? null;
+
+            return (
             <button
               key={eventItem.id}
               className={`event-switch-card${selectedEventSlug === eventItem.slug ? ' active' : ''}`}
@@ -708,13 +884,20 @@ export function CampRegistrationFlowPage() {
                 navigate(
                   {
                     pathname: '/camp-registration',
-                    search: `?event=${eventItem.slug}`,
+                    search: buildRegistrationSearch(eventItem.slug),
                   },
                   { replace: true },
                 );
               }}
             >
-              <span className="mini-eyebrow">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
+              <div className="event-switch-card-head">
+                <span className="mini-eyebrow">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
+                {eventRegistration ? (
+                  <span className={`event-switch-status status-${eventRegistration.status.toLowerCase()}`}>
+                    {formatStatus(eventRegistration.status)}
+                  </span>
+                ) : null}
+              </div>
               <strong>{eventItem.title}</strong>
               <span>{formatDateRangeCompact(eventItem.startsAtUtc, eventItem.endsAtUtc)}</span>
               <span>{eventItem.location || 'Локация уточняется'}</span>
@@ -723,8 +906,15 @@ export function CampRegistrationFlowPage() {
                   ? `от ${formatMoney(eventItem.priceFromAmount, eventItem.priceCurrency || 'RUB')}`
                   : 'Цена уточняется'}
               </span>
+              <p className="event-switch-note">{getEventSwitchNote(eventItem, eventRegistration)}</p>
+              <div className="event-switch-pills">
+                <span>{eventItem.isRegistrationOpen ? 'Регистрация открыта' : 'Регистрация закрыта'}</span>
+                {eventItem.isRegistrationClosingSoon ? <span>Скоро закрывается</span> : null}
+                {eventRegistration ? <span>Участников: {eventRegistration.participantsCount}</span> : null}
+              </div>
             </button>
-          ))}
+            );
+          })}
         </div>
 
         {!events.length && !isLoadingEvents ? (
@@ -756,6 +946,52 @@ export function CampRegistrationFlowPage() {
               </div>
             </div>
 
+            <div className="registration-progress-grid" aria-label="Состояние заявки">
+              <button
+                className={`registration-progress-card${selectedEvent && hasTariffChoice ? ' complete' : ' warning'}`}
+                type="button"
+                onClick={() => scrollToTarget('event')}
+              >
+                <span>Событие</span>
+                <strong>{selectedEvent.title}</strong>
+                <em>
+                  {hasTariffChoice
+                    ? selectedEvent.isRegistrationOpen
+                      ? 'Событие и тариф уже выбраны, можно двигаться дальше.'
+                      : 'Событие и тариф выбраны, но окно регистрации сейчас закрыто.'
+                    : 'Выберите тариф участия, чтобы заявка была полностью собрана.'}
+                </em>
+              </button>
+
+              <button
+                className={`registration-progress-card${isPhoneConfirmed ? ' complete' : ' warning'}`}
+                type="button"
+                onClick={() => scrollToTarget('phone')}
+              >
+                <span>Телефон</span>
+                <strong>{isPhoneConfirmed ? 'Номер подтверждён' : form.phoneNumber.trim() ? 'Нужна проверка номера' : 'Укажите телефон'}</strong>
+                <em>
+                  {isPhoneConfirmed
+                    ? `${form.phoneNumber} готов для уведомлений и финальной отправки заявки.`
+                    : 'Подтвердите номер в кабинете, чтобы не упереться в ошибку на последнем шаге.'}
+                </em>
+              </button>
+
+              <button
+                className={`registration-progress-card${readinessCompleteCount === 5 ? ' complete' : ' warning'}`}
+                type="button"
+                onClick={() => scrollToTarget('form')}
+              >
+                <span>Анкета</span>
+                <strong>{`Готово блоков: ${readinessCompleteCount}/5`}</strong>
+                <em>
+                  {readinessCompleteCount === 5
+                    ? 'Основные разделы заполнены. Можно сохранить или отправить заявку.'
+                    : 'Проверьте участников, детали поездки, экстренный контакт и согласие на обработку данных.'}
+                </em>
+              </button>
+            </div>
+
             {availablePriceOptions.length ? (
               <div className="price-option-list">
                 {availablePriceOptions.map((option) => {
@@ -781,7 +1017,7 @@ export function CampRegistrationFlowPage() {
             ) : null}
 
             <div className="registration-section-grid">
-              <section className="glass-subcard stack-form">
+              <section className="glass-subcard stack-form" ref={phoneSectionRef}>
                 <div className="section-inline">
                   <div>
                     <p className="mini-eyebrow">Контакты</p>
@@ -833,7 +1069,7 @@ export function CampRegistrationFlowPage() {
                 />
               </section>
 
-              <section className="glass-subcard stack-form">
+              <section className="glass-subcard stack-form" ref={formSectionRef}>
                 <div className="section-inline">
                   <div>
                     <p className="mini-eyebrow">Состав</p>
@@ -1080,7 +1316,7 @@ export function CampRegistrationFlowPage() {
 
             {message ? <p className="form-success">{message}</p> : null}
             {validationErrors.length ? (
-              <div className="validation-summary">
+              <div className="validation-summary" ref={validationSummaryRef} tabIndex={-1}>
                 <strong>
                   {validationMode === 'submit'
                     ? 'Перед отправкой осталось проверить:'
@@ -1101,6 +1337,11 @@ export function CampRegistrationFlowPage() {
             {!error && !draftSyncError && draftSyncState === 'saved' && draftSyncAtUtc ? (
               <p className="form-muted draft-sync-status">Черновик сохранён автоматически в {formatTimeOnly(draftSyncAtUtc)}.</p>
             ) : null}
+            {!selectedEvent.isRegistrationOpen ? (
+              <p className="form-muted draft-sync-status">
+                Окно регистрации сейчас закрыто. Черновик можно обновлять, но финальная отправка станет доступна только после открытия регистрации.
+              </p>
+            ) : null}
 
             <div className="inline-links">
               <NavLink to="/profile">Открыть профиль</NavLink>
@@ -1119,10 +1360,10 @@ export function CampRegistrationFlowPage() {
               <button
                 className="primary-button"
                 type="button"
-                disabled={isSaving}
+                disabled={isSaving || !selectedEvent.isRegistrationOpen}
                 onClick={async () => submit(true)}
               >
-                {isSaving ? 'Отправляем...' : 'Отправить заявку'}
+                {isSaving ? 'Отправляем...' : selectedEvent.isRegistrationOpen ? 'Отправить заявку' : 'Регистрация закрыта'}
               </button>
             </div>
           </>
