@@ -63,6 +63,7 @@ public static class AccountMapper
             RegistrationStatus = registrationStatus,
             RegistrationContactEmail = null,
             RegistrationParticipantsCount = null,
+            RegistrationParticipants = Array.Empty<AdminRegistrationParticipantDto>(),
             RegistrationHasCar = null,
             RegistrationHasChildren = null,
             RegistrationUpdatedAtUtc = registrationUpdatedAtUtc,

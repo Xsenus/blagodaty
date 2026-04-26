@@ -45,9 +45,35 @@ public sealed class AdminUserDto
     public string? RegistrationEventTitle { get; init; }
     public RegistrationStatus? RegistrationStatus { get; init; }
     public string? RegistrationContactEmail { get; init; }
+    public string? RegistrationFullName { get; init; }
+    public DateOnly? RegistrationBirthDate { get; init; }
+    public string? RegistrationPhoneNumber { get; init; }
+    public bool? RegistrationPhoneNumberConfirmed { get; init; }
+    public Guid? RegistrationSelectedPriceOptionId { get; init; }
+    public string? RegistrationSelectedPriceOptionTitle { get; init; }
+    public decimal? RegistrationSelectedPriceOptionAmount { get; init; }
+    public string? RegistrationSelectedPriceOptionCurrency { get; init; }
     public int? RegistrationParticipantsCount { get; init; }
+    public required IReadOnlyCollection<AdminRegistrationParticipantDto> RegistrationParticipants { get; init; }
     public bool? RegistrationHasCar { get; init; }
     public bool? RegistrationHasChildren { get; init; }
+    public string? RegistrationEmergencyContactName { get; init; }
+    public string? RegistrationEmergencyContactPhone { get; init; }
+    public AccommodationPreference? RegistrationAccommodationPreference { get; init; }
+    public string? RegistrationHealthNotes { get; init; }
+    public string? RegistrationAllergyNotes { get; init; }
+    public string? RegistrationSpecialNeeds { get; init; }
+    public string? RegistrationMotivation { get; init; }
+    public bool? RegistrationConsentAccepted { get; init; }
+    public DateTime? RegistrationCreatedAtUtc { get; init; }
+    public DateTime? RegistrationSubmittedAtUtc { get; init; }
     public DateTime? RegistrationUpdatedAtUtc { get; init; }
     public required IReadOnlyCollection<ExternalIdentityDto> ExternalIdentities { get; init; }
+}
+
+public sealed class AdminRegistrationParticipantDto
+{
+    public required string FullName { get; init; }
+    public required bool IsChild { get; init; }
+    public required int SortOrder { get; init; }
 }

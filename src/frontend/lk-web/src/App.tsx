@@ -39,6 +39,7 @@ import { useToast } from './ui/ToastProvider';
 import { normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPanel';
 import type {
   AccountRegistrationSummary,
+  AccommodationPreference,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
   AdminEventDetails,
@@ -144,6 +145,12 @@ const contentBlockLabels: Record<EventContentBlockType, string> = {
   Faq: '\u0412\u043e\u043f\u0440\u043e\u0441\u044b \u0438 \u043e\u0442\u0432\u0435\u0442\u044b',
 };
 
+const accommodationPreferenceLabels: Record<AccommodationPreference, string> = {
+  Tent: '\u041f\u0430\u043b\u0430\u0442\u043a\u0430',
+  Cabin: '\u0414\u043e\u043c\u0438\u043a',
+  Either: '\u0411\u0435\u0437 \u0440\u0430\u0437\u043d\u0438\u0446\u044b',
+};
+
 function formatEventKind(kind: EventKind) {
   return eventKindLabels[kind] ?? kind;
 }
@@ -221,6 +228,32 @@ function formatMoney(value?: number | null, currency = 'RUB') {
     currency,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatOptional(value?: string | null, fallback = '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e') {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : fallback;
+}
+
+function formatYesNo(value?: boolean | null) {
+  if (value === undefined || value === null) {
+    return '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e';
+  }
+
+  return value ? '\u0414\u0430' : '\u041d\u0435\u0442';
+}
+
+function formatDateOnly(value?: string | null) {
+  if (!value) {
+    return '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u0430';
+  }
+
+  const [year, month, day] = value.split('-');
+  return year && month && day ? `${day}.${month}.${year}` : value;
+}
+
+function formatAccommodationPreference(value?: AccommodationPreference | null) {
+  return value ? accommodationPreferenceLabels[value] ?? value : '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e';
 }
 
 function normalizeRedirectPath(value?: string | null) {
@@ -2677,9 +2710,16 @@ function AdminPage() {
                   user.registrationStatus &&
                   draftRegistrationStatus !== user.registrationStatus,
                 );
+                const registrationParticipants = user.registrationParticipants ?? [];
+                const registrationPrice = user.registrationSelectedPriceOptionTitle
+                  ? `${user.registrationSelectedPriceOptionTitle} • ${formatMoney(
+                      user.registrationSelectedPriceOptionAmount,
+                      user.registrationSelectedPriceOptionCurrency || 'RUB',
+                    )}`
+                  : '\u041d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d';
 
                 return (
-                <article className="user-card" key={`registration-${user.id}`}>
+                <article className="user-card" key={`registration-${user.registrationId ?? user.id}`}>
                   <div className="user-card-head">
                     <div>
                       <strong className="user-name">{user.displayName}</strong>
@@ -2712,6 +2752,130 @@ function AdminPage() {
                       <strong>{formatDateTime(user.lastLoginAtUtc)}</strong>
                     </div>
                   </div>
+
+                  {user.registrationId ? (
+                    <details className="registration-details">
+                      <summary>
+                        <span>Полная анкета</span>
+                        <small>Обновлена: {formatDateTime(user.registrationUpdatedAtUtc)}</small>
+                      </summary>
+
+                      <div className="registration-detail-grid">
+                        <div>
+                          <span>Мероприятие</span>
+                          <strong>{formatOptional(user.registrationEventTitle, 'Не указано')}</strong>
+                        </div>
+                        <div>
+                          <span>Статус</span>
+                          <strong>{formatStatus(draftRegistrationStatus)}</strong>
+                        </div>
+                        <div>
+                          <span>Тариф</span>
+                          <strong>{registrationPrice}</strong>
+                        </div>
+                        <div>
+                          <span>Email заявки</span>
+                          <strong>{formatOptional(user.registrationContactEmail)}</strong>
+                        </div>
+                        <div>
+                          <span>ФИО основного участника</span>
+                          <strong>{formatOptional(user.registrationFullName)}</strong>
+                        </div>
+                        <div>
+                          <span>Дата рождения</span>
+                          <strong>{formatDateOnly(user.registrationBirthDate)}</strong>
+                        </div>
+                        <div>
+                          <span>Телефон</span>
+                          <strong>{formatOptional(user.registrationPhoneNumber)}</strong>
+                        </div>
+                        <div>
+                          <span>Телефон подтверждён</span>
+                          <strong>{formatYesNo(user.registrationPhoneNumberConfirmed)}</strong>
+                        </div>
+                        <div>
+                          <span>Город</span>
+                          <strong>{formatOptional(user.city)}</strong>
+                        </div>
+                        <div>
+                          <span>Церковь</span>
+                          <strong>{formatOptional(user.churchName)}</strong>
+                        </div>
+                        <div>
+                          <span>Размещение</span>
+                          <strong>{formatAccommodationPreference(user.registrationAccommodationPreference)}</strong>
+                        </div>
+                        <div>
+                          <span>Автомобиль</span>
+                          <strong>{formatYesNo(user.registrationHasCar)}</strong>
+                        </div>
+                        <div>
+                          <span>Едет с детьми</span>
+                          <strong>{formatYesNo(user.registrationHasChildren)}</strong>
+                        </div>
+                        <div>
+                          <span>Доверенное лицо</span>
+                          <strong>{formatOptional(user.registrationEmergencyContactName)}</strong>
+                        </div>
+                        <div>
+                          <span>Телефон доверенного лица</span>
+                          <strong>{formatOptional(user.registrationEmergencyContactPhone)}</strong>
+                        </div>
+                        <div>
+                          <span>Согласие на обработку</span>
+                          <strong>{formatYesNo(user.registrationConsentAccepted)}</strong>
+                        </div>
+                        <div>
+                          <span>Создана</span>
+                          <strong>{formatDateTime(user.registrationCreatedAtUtc)}</strong>
+                        </div>
+                        <div>
+                          <span>Отправлена</span>
+                          <strong>{formatDateTime(user.registrationSubmittedAtUtc)}</strong>
+                        </div>
+                      </div>
+
+                      <div className="registration-detail-section">
+                        <div className="section-inline compact-inline">
+                          <strong>Участники</strong>
+                          <span className="role-pill muted-pill">
+                            Всего: {user.registrationParticipantsCount ?? registrationParticipants.length}
+                          </span>
+                        </div>
+                        <div className="registration-participant-list">
+                          {registrationParticipants.length ? (
+                            registrationParticipants.map((participant) => (
+                              <div key={`${user.registrationId}-${participant.sortOrder}`}>
+                                <strong>{participant.fullName}</strong>
+                                <span>{participant.isChild ? 'Ребёнок' : 'Взрослый'}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="form-muted">Участники не указаны.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="registration-notes-grid">
+                        <div>
+                          <span>Здоровье и ограничения</span>
+                          <p>{formatOptional(user.registrationHealthNotes, 'Нет данных')}</p>
+                        </div>
+                        <div>
+                          <span>Аллергии</span>
+                          <p>{formatOptional(user.registrationAllergyNotes, 'Нет данных')}</p>
+                        </div>
+                        <div>
+                          <span>Особые условия</span>
+                          <p>{formatOptional(user.registrationSpecialNeeds, 'Нет данных')}</p>
+                        </div>
+                        <div>
+                          <span>Комментарий</span>
+                          <p>{formatOptional(user.registrationMotivation, 'Нет данных')}</p>
+                        </div>
+                      </div>
+                    </details>
+                  ) : null}
 
                   {user.registrationId ? (
                     <div className="action-row">

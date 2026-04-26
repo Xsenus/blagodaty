@@ -1107,6 +1107,106 @@ select {
   word-break: break-word;
 }
 
+.registration-details {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(98, 124, 115, 0.16);
+  background: rgba(250, 250, 247, 0.66);
+}
+
+.registration-details summary {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.registration-details summary::marker {
+  color: var(--text-accent);
+}
+
+.registration-details summary small {
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.registration-detail-grid,
+.registration-notes-grid,
+.registration-participant-list {
+  display: grid;
+  gap: 12px;
+}
+
+.registration-detail-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.registration-detail-grid div,
+.registration-notes-grid div,
+.registration-participant-list div {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.registration-detail-grid span,
+.registration-notes-grid span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--text-accent);
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.registration-detail-grid strong,
+.registration-participant-list strong {
+  color: var(--text-main);
+  word-break: break-word;
+}
+
+.registration-detail-section {
+  display: grid;
+  gap: 12px;
+}
+
+.compact-inline {
+  align-items: center;
+}
+
+.registration-participant-list {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.registration-participant-list div {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.registration-participant-list span {
+  color: var(--text-soft);
+}
+
+.registration-notes-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.registration-notes-grid p {
+  margin: 0;
+  color: var(--text-main);
+  white-space: pre-wrap;
+}
+
 .event-switch-grid,
 .price-option-list {
   display: grid;
@@ -1401,6 +1501,8 @@ select {
   .event-inline-grid,
   .event-toggle-row,
   .user-info-grid,
+  .registration-detail-grid,
+  .registration-notes-grid,
   .provider-diagnostics-grid,
   .gallery-upload-panel,
   .gallery-grid,

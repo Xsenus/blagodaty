@@ -272,6 +272,12 @@ export type AdminRoleDefinition = {
   memberDisplayNames: string[];
 };
 
+export type AdminRegistrationParticipant = {
+  fullName: string;
+  isChild: boolean;
+  sortOrder: number;
+};
+
 export type AdminUser = {
   id: string;
   registrationId?: string | null;
@@ -290,9 +296,28 @@ export type AdminUser = {
   registrationEventTitle?: string | null;
   registrationStatus?: RegistrationStatus | null;
   registrationContactEmail?: string | null;
+  registrationFullName?: string | null;
+  registrationBirthDate?: string | null;
+  registrationPhoneNumber?: string | null;
+  registrationPhoneNumberConfirmed?: boolean | null;
+  registrationSelectedPriceOptionId?: string | null;
+  registrationSelectedPriceOptionTitle?: string | null;
+  registrationSelectedPriceOptionAmount?: number | null;
+  registrationSelectedPriceOptionCurrency?: string | null;
   registrationParticipantsCount?: number | null;
+  registrationParticipants: AdminRegistrationParticipant[];
   registrationHasCar?: boolean | null;
   registrationHasChildren?: boolean | null;
+  registrationEmergencyContactName?: string | null;
+  registrationEmergencyContactPhone?: string | null;
+  registrationAccommodationPreference?: AccommodationPreference | null;
+  registrationHealthNotes?: string | null;
+  registrationAllergyNotes?: string | null;
+  registrationSpecialNeeds?: string | null;
+  registrationMotivation?: string | null;
+  registrationConsentAccepted?: boolean | null;
+  registrationCreatedAtUtc?: string | null;
+  registrationSubmittedAtUtc?: string | null;
   registrationUpdatedAtUtc?: string | null;
   externalIdentities: ExternalIdentity[];
 };

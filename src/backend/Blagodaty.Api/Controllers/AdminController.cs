@@ -180,25 +180,12 @@ public sealed class AdminController : ControllerBase
         var totalPages = CalculateTotalPages(totalItems, pageSize);
         page = Math.Min(page, totalPages);
 
-        var pagedRegistrations = await registrations
-            .OrderByDescending(registration => registration.UpdatedAtUtc)
-            .ThenByDescending(registration => registration.CreatedAtUtc)
-            .Select(registration => new RegistrationListItem
-            {
-                RegistrationId = registration.Id,
-                UserId = registration.UserId,
-                EventEditionId = registration.EventEditionId,
-                EventSlug = registration.EventEdition!.Slug,
-                EventTitle = registration.EventEdition.Title,
-                ContactEmail = registration.ContactEmail,
-                ParticipantsCount = registration.ParticipantsCount,
-                HasCar = registration.HasCar,
-                HasChildren = registration.HasChildren,
-                Status = registration.Status,
-                UpdatedAtUtc = registration.UpdatedAtUtc
-            })
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var pagedRegistrations = await SelectRegistrationListItems(
+                registrations
+                    .OrderByDescending(registration => registration.UpdatedAtUtc)
+                    .ThenByDescending(registration => registration.CreatedAtUtc)
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize))
             .ToListAsync();
 
         var orderedUserIds = pagedRegistrations
@@ -215,9 +202,11 @@ public sealed class AdminController : ControllerBase
             .Where(user => orderedUserIds.Contains(user.Id))
             .ToListAsync();
 
-        var registrationByUserId = pagedRegistrations.ToDictionary(
-            registration => registration.UserId,
-            registration => registration);
+        var registrationByUserId = pagedRegistrations
+            .GroupBy(registration => registration.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First());
 
         var mappedItems = await MapAdminUsersAsync(users, registrationByUserId, orderedUserIds: orderedUserIds);
         return Ok(CreatePagedResponse(page, pageSize, totalItems, mappedItems));
@@ -346,24 +335,17 @@ public sealed class AdminController : ControllerBase
             .AsNoTracking()
             .FirstAsync(item => item.Id == registration.UserId, HttpContext.RequestAborted);
 
+        var registrationListItem = await SelectRegistrationListItems(
+                _dbContext.CampRegistrations
+                    .AsNoTracking()
+                    .Where(item => item.Id == registration.Id))
+            .FirstAsync(HttpContext.RequestAborted);
+
         var mappedUser = await MapAdminUsersAsync(
             [user],
             registrationsByUserId: new Dictionary<Guid, RegistrationListItem>
             {
-                [registration.UserId] = new RegistrationListItem
-                {
-                    RegistrationId = registration.Id,
-                    UserId = registration.UserId,
-                    EventEditionId = registration.EventEditionId,
-                    EventSlug = registration.EventEdition?.Slug,
-                    EventTitle = registration.EventEdition?.Title,
-                    ContactEmail = registration.ContactEmail,
-                    ParticipantsCount = registration.ParticipantsCount,
-                    HasCar = registration.HasCar,
-                    HasChildren = registration.HasChildren,
-                    Status = registration.Status,
-                    UpdatedAtUtc = registration.UpdatedAtUtc
-                }
+                [registrationListItem.UserId] = registrationListItem
             },
             orderedUserIds: [user.Id]);
 
@@ -422,8 +404,12 @@ public sealed class AdminController : ControllerBase
             EF.Functions.ILike(registration.User.LastName, pattern) ||
             (registration.User.Email != null && EF.Functions.ILike(registration.User.Email, pattern)) ||
             EF.Functions.ILike(registration.ContactEmail, pattern) ||
-            (registration.User.City != null && EF.Functions.ILike(registration.User.City, pattern)) ||
-            (registration.User.ChurchName != null && EF.Functions.ILike(registration.User.ChurchName, pattern)) ||
+            EF.Functions.ILike(registration.FullName, pattern) ||
+            EF.Functions.ILike(registration.PhoneNumber, pattern) ||
+            EF.Functions.ILike(registration.City, pattern) ||
+            EF.Functions.ILike(registration.ChurchName, pattern) ||
+            EF.Functions.ILike(registration.EmergencyContactName, pattern) ||
+            EF.Functions.ILike(registration.EmergencyContactPhone, pattern) ||
             registration.Participants.Any(participant => EF.Functions.ILike(participant.FullName, pattern)));
     }
 
@@ -462,8 +448,8 @@ public sealed class AdminController : ControllerBase
                     DisplayName = user.DisplayName,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
-                    City = user.City,
-                    ChurchName = user.ChurchName,
+                    City = registration?.City ?? user.City,
+                    ChurchName = registration?.ChurchName ?? user.ChurchName,
                     PhoneNumber = user.PhoneNumber,
                     Roles = rolesByUserId.GetValueOrDefault(user.Id, Array.Empty<string>()),
                     CreatedAtUtc = user.CreatedAtUtc,
@@ -473,9 +459,28 @@ public sealed class AdminController : ControllerBase
                     RegistrationEventTitle = registration?.EventTitle,
                     RegistrationStatus = registration?.Status,
                     RegistrationContactEmail = registration?.ContactEmail,
+                    RegistrationFullName = registration?.FullName,
+                    RegistrationBirthDate = registration?.BirthDate,
+                    RegistrationPhoneNumber = registration?.PhoneNumber,
+                    RegistrationPhoneNumberConfirmed = registration?.PhoneNumberConfirmed,
+                    RegistrationSelectedPriceOptionId = registration?.SelectedPriceOptionId,
+                    RegistrationSelectedPriceOptionTitle = registration?.SelectedPriceOptionTitle,
+                    RegistrationSelectedPriceOptionAmount = registration?.SelectedPriceOptionAmount,
+                    RegistrationSelectedPriceOptionCurrency = registration?.SelectedPriceOptionCurrency,
                     RegistrationParticipantsCount = registration?.ParticipantsCount,
+                    RegistrationParticipants = registration?.Participants ?? Array.Empty<AdminRegistrationParticipantDto>(),
                     RegistrationHasCar = registration?.HasCar,
                     RegistrationHasChildren = registration?.HasChildren,
+                    RegistrationEmergencyContactName = registration?.EmergencyContactName,
+                    RegistrationEmergencyContactPhone = registration?.EmergencyContactPhone,
+                    RegistrationAccommodationPreference = registration?.AccommodationPreference,
+                    RegistrationHealthNotes = registration?.HealthNotes,
+                    RegistrationAllergyNotes = registration?.AllergyNotes,
+                    RegistrationSpecialNeeds = registration?.SpecialNeeds,
+                    RegistrationMotivation = registration?.Motivation,
+                    RegistrationConsentAccepted = registration?.ConsentAccepted,
+                    RegistrationCreatedAtUtc = registration?.CreatedAtUtc,
+                    RegistrationSubmittedAtUtc = registration?.SubmittedAtUtc,
                     RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc,
                     ExternalIdentities = externalIdentitiesByUserId.GetValueOrDefault(
                         user.Id,
@@ -512,26 +517,66 @@ public sealed class AdminController : ControllerBase
             return [];
         }
 
-        var registrations = await _dbContext.CampRegistrations
+        var registrations = await SelectRegistrationListItems(_dbContext.CampRegistrations
             .AsNoTracking()
-            .Where(registration => userIds.Contains(registration.UserId) && registration.EventEditionId == eventEditionId)
-            .Select(registration => new RegistrationListItem
-            {
-                RegistrationId = registration.Id,
-                UserId = registration.UserId,
-                EventEditionId = registration.EventEditionId,
-                EventSlug = registration.EventEdition!.Slug,
-                EventTitle = registration.EventEdition.Title,
-                ContactEmail = registration.ContactEmail,
-                ParticipantsCount = registration.ParticipantsCount,
-                HasCar = registration.HasCar,
-                HasChildren = registration.HasChildren,
-                Status = registration.Status,
-                UpdatedAtUtc = registration.UpdatedAtUtc
-            })
+            .Where(registration => userIds.Contains(registration.UserId) && registration.EventEditionId == eventEditionId))
             .ToListAsync();
 
-        return registrations.ToDictionary(registration => registration.UserId);
+        return registrations
+            .GroupBy(registration => registration.UserId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(registration => registration.UpdatedAtUtc)
+                    .ThenByDescending(registration => registration.CreatedAtUtc)
+                    .First());
+    }
+
+    private static IQueryable<RegistrationListItem> SelectRegistrationListItems(IQueryable<CampRegistration> registrations)
+    {
+        return registrations.Select(registration => new RegistrationListItem
+        {
+            RegistrationId = registration.Id,
+            UserId = registration.UserId,
+            EventEditionId = registration.EventEditionId,
+            EventSlug = registration.EventEdition != null ? registration.EventEdition.Slug : null,
+            EventTitle = registration.EventEdition != null ? registration.EventEdition.Title : null,
+            ContactEmail = registration.ContactEmail,
+            FullName = registration.FullName,
+            BirthDate = registration.BirthDate,
+            PhoneNumber = registration.PhoneNumber,
+            PhoneNumberConfirmed = registration.User.PhoneNumberConfirmed,
+            City = registration.City,
+            ChurchName = registration.ChurchName,
+            SelectedPriceOptionId = registration.SelectedPriceOptionId,
+            SelectedPriceOptionTitle = registration.SelectedPriceOption != null ? registration.SelectedPriceOption.Title : null,
+            SelectedPriceOptionAmount = registration.SelectedPriceOption != null ? (decimal?)registration.SelectedPriceOption.Amount : null,
+            SelectedPriceOptionCurrency = registration.SelectedPriceOption != null ? registration.SelectedPriceOption.Currency : null,
+            ParticipantsCount = registration.ParticipantsCount,
+            Participants = registration.Participants
+                .OrderBy(participant => participant.SortOrder)
+                .Select(participant => new AdminRegistrationParticipantDto
+                {
+                    FullName = participant.FullName,
+                    IsChild = participant.IsChild,
+                    SortOrder = participant.SortOrder
+                })
+                .ToArray(),
+            HasCar = registration.HasCar,
+            HasChildren = registration.HasChildren,
+            EmergencyContactName = registration.EmergencyContactName,
+            EmergencyContactPhone = registration.EmergencyContactPhone,
+            AccommodationPreference = registration.AccommodationPreference,
+            HealthNotes = registration.HealthNotes,
+            AllergyNotes = registration.AllergyNotes,
+            SpecialNeeds = registration.SpecialNeeds,
+            Motivation = registration.Motivation,
+            ConsentAccepted = registration.ConsentAccepted,
+            CreatedAtUtc = registration.CreatedAtUtc,
+            SubmittedAtUtc = registration.SubmittedAtUtc,
+            Status = registration.Status,
+            UpdatedAtUtc = registration.UpdatedAtUtc
+        });
     }
 
     private async Task<Dictionary<Guid, IReadOnlyCollection<Blagodaty.Api.Contracts.Account.ExternalIdentityDto>>> GetExternalIdentitiesByUserIdAsync(IReadOnlyCollection<Guid> userIds)
@@ -603,9 +648,30 @@ public sealed class AdminController : ControllerBase
         public string? EventSlug { get; init; }
         public string? EventTitle { get; init; }
         public string? ContactEmail { get; init; }
+        public string? FullName { get; init; }
+        public DateOnly BirthDate { get; init; }
+        public string? PhoneNumber { get; init; }
+        public bool PhoneNumberConfirmed { get; init; }
+        public string? City { get; init; }
+        public string? ChurchName { get; init; }
+        public Guid? SelectedPriceOptionId { get; init; }
+        public string? SelectedPriceOptionTitle { get; init; }
+        public decimal? SelectedPriceOptionAmount { get; init; }
+        public string? SelectedPriceOptionCurrency { get; init; }
         public int ParticipantsCount { get; init; }
+        public required IReadOnlyCollection<AdminRegistrationParticipantDto> Participants { get; init; }
         public bool HasCar { get; init; }
         public bool HasChildren { get; init; }
+        public string? EmergencyContactName { get; init; }
+        public string? EmergencyContactPhone { get; init; }
+        public AccommodationPreference AccommodationPreference { get; init; }
+        public string? HealthNotes { get; init; }
+        public string? AllergyNotes { get; init; }
+        public string? SpecialNeeds { get; init; }
+        public string? Motivation { get; init; }
+        public bool ConsentAccepted { get; init; }
+        public required DateTime CreatedAtUtc { get; init; }
+        public DateTime? SubmittedAtUtc { get; init; }
         public required RegistrationStatus Status { get; init; }
         public required DateTime UpdatedAtUtc { get; init; }
     }
