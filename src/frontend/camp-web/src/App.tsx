@@ -1,83 +1,87 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  ApiError,
-  createSessionTransferTicket,
-  getCurrentAccount,
-  getPublicEvent,
-  getPublicEvents,
-  getPublicSiteSettings,
-  login as loginRequest,
-  logout as logoutRequest,
-  refreshSession as refreshSessionRequest,
-  register as registerRequest,
-} from './lib/api';
+import { getPublicEvent, getPublicEvents, getPublicSiteSettings } from './lib/api';
 import { RegistrationModal } from './components/RegistrationModal';
-import { lkBaseUrl } from './lib/config';
 import type {
-  AccountRegistrationSummary,
-  AuthResponse,
+  CampRegistration,
   PublicEventContentBlock,
   PublicEventDetails,
   PublicEventMediaItem,
-  PublicEventSummary,
   PublicSiteSocialLink,
-  SessionState,
 } from './types';
 
-const STORAGE_KEY = 'blagodaty.camp.session';
+const PLACE_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/87.929919%2C50.228723';
+const PLACE_REVIEWS_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/tab/reviews';
+const PLACE_PHOTOS_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/tab/photos';
+const PLACE_IMAGES: PublicEventMediaItem[] = [
+  {
+    id: 'ekoail-mountains',
+    type: 'Image',
+    url: 'https://i6.photo.2gis.com/main/branch/27/70000001077460445/common',
+    title: 'Горный вид рядом с Экоаил',
+    caption: 'Курай, Республика Алтай',
+  },
+  {
+    id: 'ekoail-map',
+    type: 'Image',
+    url: 'https://share.api.2gis.ru/getimage?city=gornoaltaysk&zoom=17&center=87.929919%2C50.228723&title=%D0%AD%D0%BA%D0%BE%D0%B0%D0%B8%D0%BB&desc=%D0%A3%D0%BB%D0%B8%D1%86%D0%B0%20%D0%9C%D0%B8%D1%80%D0%B0%2C%C2%A07%D0%B0%3Cbr%20%2F%3E%D1%81.%C2%A0%D0%9A%D1%83%D1%80%D0%B0%D0%B9',
+    title: 'Экоаил на карте',
+    caption: '87.929919, 50.228723',
+  },
+];
+
+const PLACE_FACTS = [
+  'Экоаил',
+  'ул. Мира, 7а, с. Курай',
+  'Рейтинг 4.4 в 2ГИС',
+  '22 оценки',
+  '24 фото, 13 отзывов',
+  'Коттедж, беседки, парковка',
+  'До 15 мест',
+];
+
+const PLACE_REVIEWS = [
+  {
+    title: 'Вид на горы',
+    text: 'В отзывах чаще всего отмечают панорамные окна и открытый вид на Северо-Чуйский хребет.',
+  },
+  {
+    title: 'Тихая база',
+    text: 'Гости пишут про спокойную территорию, простое размещение и отдых рядом с природой.',
+  },
+  {
+    title: 'Что учесть',
+    text: 'В карточке есть и критичные отзывы: заранее уточняйте заезд, бытовые условия и температуру в домиках.',
+  },
+];
 
 const fallbackHighlights = [
-  'Походы, молитва, вечерние костры и спокойный темп, где церковь проводит время вместе.',
-  'Прозрачная логистика: даты, тарифы, состав заявки, контакты и статусы участия в одном месте.',
-  'Регистрация теперь проходит прямо на лендинге: без скачков по страницам и без потери контекста.',
+  'Выезд в Горный Алтай с проживанием на природе.',
+  'Палатки, домики, костры, общение и молитва.',
+  'Заявка подаётся сразу на этой странице, аккаунт не нужен.',
 ];
 
 const fallbackThingsToBring = [
-  'Спальник, коврик, удобную одежду и тёплые вещи на вечер.',
-  'Средства личной гигиены, дождевик и личную аптечку при необходимости.',
-  'Библию, блокнот, ручку и открытое сердце к Богу и людям.',
+  'Спальник, коврик, фонарик, удобную обувь и тёплые вещи.',
+  'Средства личной гигиены, дождевик и личную аптечку.',
+  'Библию, блокнот, ручку и документы.',
 ];
 
 const fallbackFaq = [
   {
-    question: 'Что изменилось в регистрации?',
-    answer: 'Теперь пользователь может создать аккаунт, подтвердить телефон и отправить анкету, не покидая эту страницу.',
+    question: 'Нужно ли создавать кабинет?',
+    answer: 'Нет. Нажмите «Зарегистрироваться», заполните анкету и отправьте заявку.',
   },
   {
-    question: 'Где смотреть статус после отправки?',
-    answer: 'Статус заявки по-прежнему хранится в личном кабинете, но переход туда больше не обязателен для самой регистрации.',
+    question: 'Где находится место?',
+    answer: 'Экоаил, улица Мира, 7а, село Курай, Республика Алтай.',
   },
   {
-    question: 'Почему здесь показаны фото и видео, даже если команда их ещё не загрузила?',
-    answer: 'Для теста добавлены демо-блоки медиа. Когда появится реальный контент, он автоматически заменит демо-варианты.',
+    question: 'Можно ли указать несколько участников?',
+    answer: 'Да. В форме можно добавить участников и отметить детей.',
   },
 ];
 
-const fallbackImageItems: PublicEventMediaItem[] = [
-  {
-    id: 'demo-photo-1',
-    type: 'Image',
-    url: '/demo/camp-public-demo.png',
-    title: 'Демо-фото атмосферы',
-    caption: 'Здесь затем появятся реальные кадры лагеря и выезда.',
-  },
-  {
-    id: 'demo-photo-2',
-    type: 'Image',
-    url: '/demo/camp-app-demo.png',
-    title: 'Демо-фото территории',
-    caption: 'Карточка проверяет сетку, адаптив и подписи.',
-  },
-  {
-    id: 'demo-photo-3',
-    type: 'Image',
-    url: '/demo/lk-app-demo.png',
-    title: 'Демо-фото программы',
-    caption: 'После загрузки из админки этот блок заменится автоматически.',
-  },
-];
-const fallbackVideoPosterUrl = '/demo/camp-public-demo.png';
 const HISTORY_PAGE_FLAG = 'blagodatyCampPage';
 const HISTORY_MODAL_PUSH_FLAG = 'blagodatyCampModalPushed';
 
@@ -113,244 +117,19 @@ function formatCurrency(value?: number | null, currency = 'RUB') {
   }).format(value);
 }
 
-function formatRegistrationStatus(status?: AccountRegistrationSummary['status'] | null) {
-  switch (status) {
-    case 'Draft':
-      return 'Черновик';
-    case 'Submitted':
-      return 'Отправлена';
-    case 'Confirmed':
-      return 'Подтверждена';
-    case 'Cancelled':
-      return 'Отменена';
-    default:
-      return 'Новая заявка';
-  }
-}
-
-type CabinetFocus = 'event' | 'phone' | 'form' | 'summary';
-
-function buildCabinetRegistrationPath(eventSlug?: string | null, focus?: CabinetFocus | null) {
-  const search = new URLSearchParams();
-  if (eventSlug) {
-    search.set('event', eventSlug);
-  }
-
-  if (focus) {
-    search.set('focus', focus);
-  }
-
-  const query = search.toString();
-  return query ? `/camp-registration?${query}` : '/camp-registration';
-}
-
-function getCabinetPathForRegistration(
-  registration: AccountRegistrationSummary | null,
-  fallbackEventSlug?: string | null,
-  isPhoneConfirmed = false,
-) {
-  if (!registration) {
-    return buildCabinetRegistrationPath(fallbackEventSlug, fallbackEventSlug ? 'event' : undefined);
-  }
-
-  const eventSlug = registration.eventSlug ?? fallbackEventSlug;
-  if (registration.status === 'Draft' && registration.isRegistrationOpen) {
-    return buildCabinetRegistrationPath(eventSlug, isPhoneConfirmed ? 'form' : 'phone');
-  }
-
-  if (
-    registration.status === 'Draft' ||
-    registration.status === 'Submitted' ||
-    registration.status === 'Confirmed' ||
-    registration.status === 'Cancelled'
-  ) {
-    return buildCabinetRegistrationPath(eventSlug, 'summary');
-  }
-
-  return buildCabinetRegistrationPath(eventSlug);
-}
-
-type LandingPrimaryAction =
-  | {
-      kind: 'modal';
-      eventSlug?: string | null;
-    }
-  | {
-      kind: 'cabinet';
-      path: string;
-    };
-
-function getLandingPrimaryAction(
-  registration: AccountRegistrationSummary | null,
-  fallbackEventSlug?: string | null,
-  isAuthenticated = false,
-  isPhoneConfirmed = false,
-): LandingPrimaryAction {
-  if (!isAuthenticated || !registration) {
-    return {
-      kind: 'modal',
-      eventSlug: fallbackEventSlug,
-    };
-  }
-
-  if (registration.status === 'Draft') {
-    return {
-      kind: 'modal',
-      eventSlug: registration.eventSlug ?? fallbackEventSlug,
-    };
-  }
-
-  if (registration.status === 'Cancelled' && registration.isRegistrationOpen) {
-    return {
-      kind: 'modal',
-      eventSlug: registration.eventSlug ?? fallbackEventSlug,
-    };
-  }
-
-  return {
-    kind: 'cabinet',
-    path: getCabinetPathForRegistration(registration, fallbackEventSlug, isPhoneConfirmed),
-  };
-}
-
-function getLandingActionState(
-  registration: AccountRegistrationSummary | null,
-  isAuthenticated: boolean,
-  eventTitle?: string | null,
-) {
-  const title = eventTitle || 'выбранное событие';
-
-  if (!isAuthenticated) {
-    return {
-      headerButtonLabel: 'Регистрация',
-      heroPrimaryLabel: 'Зарегистрироваться здесь',
-      heroNoteTitle: 'Весь путь теперь собран в одном окне',
-      heroNoteDescription: 'Сначала событие, затем аккаунт, подтверждение телефона, анкета и отправка без перехода в другой интерфейс.',
-      ctaTitle: 'Откройте модалку и пройдите весь путь регистрации прямо на этой странице',
-      ctaDescription: 'Создание кабинета, подтверждение телефона и отправка заявки теперь не разорваны между публичным сайтом и отдельным интерфейсом.',
-    };
-  }
-
-  if (!registration) {
-    return {
-      headerButtonLabel: 'Оформить участие',
-      heroPrimaryLabel: 'Оформить участие',
-      heroNoteTitle: 'Аккаунт уже активен, можно начинать без повторного входа',
-      heroNoteDescription: `По событию "${title}" заявки пока нет. Откройте модалку и сохраните первый черновик прямо отсюда.`,
-      ctaTitle: 'Аккаунт уже готов, осталось открыть заявку по нужному событию',
-      ctaDescription: 'Модалка откроется сразу в рабочем сценарии: номер, анкета и отправка заявки без повторной авторизации.',
-    };
-  }
-
-  if (registration.status === 'Draft') {
-    return {
-      headerButtonLabel: 'Продолжить заявку',
-      heroPrimaryLabel: 'Продолжить заявку',
-      heroNoteTitle: 'Черновик уже сохранён',
-      heroNoteDescription: `По событию "${title}" уже есть черновик. Можно вернуться в модалку, подтвердить номер и довести заявку до отправки.`,
-      ctaTitle: 'Черновик уже создан, осталось завершить регистрацию',
-      ctaDescription: 'Лендинг теперь подходит и для возврата в процесс: не нужно искать кабинет, если вы просто хотите продолжить заявку.',
-    };
-  }
-
-  if (registration.status === 'Submitted') {
-    return {
-      headerButtonLabel: 'Моя заявка',
-      heroPrimaryLabel: 'Открыть мою заявку',
-      heroNoteTitle: 'Заявка уже отправлена команде',
-      heroNoteDescription: `По событию "${title}" анкета уже отправлена. Здесь можно быстро вернуться к деталям, а в кабинете следить за статусом и уведомлениями.`,
-      ctaTitle: 'Регистрация уже завершена, теперь важны статус и уведомления',
-      ctaDescription: 'Страница стала полезной и после отправки: можно быстро открыть заявку снова или перейти в кабинет без повторного входа.',
-    };
-  }
-
-  if (registration.status === 'Confirmed') {
-    return {
-      headerButtonLabel: 'Моя поездка',
-      heroPrimaryLabel: 'Открыть детали поездки',
-      heroNoteTitle: 'Участие уже подтверждено',
-      heroNoteDescription: `По событию "${title}" участие подтверждено. Отсюда можно быстро перейти к деталям заявки и кабинету, не теряя контекст.`,
-      ctaTitle: 'Заявка подтверждена, детали поездки уже доступны',
-      ctaDescription: 'Публичная страница теперь остаётся полезной и после подтверждения: это не тупик, а удобная точка входа обратно в сценарий.',
-    };
-  }
-
-  return {
-    headerButtonLabel: 'Открыть заявку',
-    heroPrimaryLabel: 'Открыть заявку',
-    heroNoteTitle: 'Сценарий можно продолжить с текущего состояния',
-    heroNoteDescription: `По событию "${title}" уже есть история регистрации. Откройте форму или кабинет, чтобы посмотреть актуальное состояние.`,
-    ctaTitle: 'Откройте текущую заявку и продолжите с сохранённого места',
-    ctaDescription: 'Публичная страница теперь не обрывает путь пользователя, а возвращает его прямо к актуальной заявке.',
-  };
-}
-
-function getEventCardPrimaryActionLabel(
-  eventItem: PublicEventSummary,
-  registration: AccountRegistrationSummary | null,
-  isAuthenticated: boolean,
-) {
-  if (!registration) {
-    if (!eventItem.isRegistrationOpen) {
-      return isAuthenticated ? 'Подготовить анкету' : 'Открыть форму';
-    }
-
-    return 'Оформить участие';
-  }
-
-  switch (registration.status) {
-    case 'Draft':
-      return eventItem.isRegistrationOpen ? 'Продолжить заявку' : 'Открыть черновик';
-    case 'Submitted':
-      return 'Открыть заявку';
-    case 'Confirmed':
-      return 'Детали поездки';
-    case 'Cancelled':
-      return eventItem.isRegistrationOpen ? 'Подать заново' : 'Посмотреть статус';
-    default:
-      return isAuthenticated ? 'Открыть заявку' : 'Оформить участие';
-  }
-}
-
-function getEventCardNote(
-  eventItem: PublicEventSummary,
-  registration: AccountRegistrationSummary | null,
-  isAuthenticated: boolean,
-) {
-  if (registration) {
-    switch (registration.status) {
-      case 'Draft':
-        return eventItem.isRegistrationOpen
-          ? 'Черновик уже сохранён. Можно вернуться и завершить заявку без повторного входа.'
-          : 'Черновик сохранён, но окно регистрации сейчас закрыто. Детали всё равно можно открыть и проверить.';
-      case 'Submitted':
-        return 'Заявка уже отправлена команде. Здесь удобно быстро вернуться к деталям и текущему статусу.';
-      case 'Confirmed':
-        return 'Участие подтверждено. Карточка теперь работает как быстрый вход обратно в детали поездки.';
-      case 'Cancelled':
-        return eventItem.isRegistrationOpen
-          ? 'Предыдущая заявка закрыта. При необходимости можно открыть форму и оформить участие заново.'
-          : 'Заявка отменена. Сейчас карточка полезна как быстрый доступ к истории и деталям события.';
-      default:
-        break;
-    }
-  }
-
-  if (eventItem.isRegistrationClosingSoon) {
-    return 'Регистрация скоро закроется, поэтому лучше не откладывать анкету на потом.';
-  }
-
-  if (!eventItem.isRegistrationOpen) {
-    return 'Окно регистрации сейчас закрыто, но событие уже можно посмотреть и заранее подготовить данные.';
-  }
-
-  return isAuthenticated
-    ? 'Аккаунт уже активен. Можно открыть модалку и начать заявку сразу по выбранному сезону.'
-    : 'Регистрация начинается прямо на этой странице: без перехода в кабинет и без потери контекста.';
-}
-
 function getBlocks(details: PublicEventDetails | undefined, blockType: PublicEventContentBlock['blockType']) {
   return details?.contentBlocks.filter((block) => block.blockType === blockType).map((block) => block.body) ?? [];
+}
+
+function getFaqBlocks(details: PublicEventDetails | undefined) {
+  return (
+    details?.contentBlocks
+      .filter((block) => block.blockType === 'Faq')
+      .map((block) => ({
+        question: block.title || 'Вопрос',
+        answer: block.body,
+      })) ?? []
+  );
 }
 
 function getSocialLinksForPlacement(links: PublicSiteSocialLink[] | undefined, placement: 'header' | 'footer') {
@@ -469,104 +248,38 @@ function writeCampUrlState(nextState: CampUrlState, options?: { historyMode?: 'p
   window.history.replaceState(nextHistoryState, '', nextUrl);
 }
 
-function readStoredSession(): SessionState | null {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as SessionState;
-  } catch {
-    window.localStorage.removeItem(STORAGE_KEY);
-    return null;
-  }
-}
-
-function writeStoredSession(session: SessionState | null) {
-  if (!session) {
-    window.localStorage.removeItem(STORAGE_KEY);
-    return;
-  }
-
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-}
-
 export default function App() {
   const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(() => readCampUrlState().eventSlug);
   const [isModalOpen, setIsModalOpen] = useState(() => readCampUrlState().isRegistrationOpen);
-  const [session, setSession] = useState<SessionState | null>(null);
-  const [account, setAccount] = useState<Awaited<ReturnType<typeof getCurrentAccount>> | null>(null);
-  const [isSessionReady, setIsSessionReady] = useState(false);
-  const refreshPromiseRef = useRef<Promise<SessionState> | null>(null);
+  const [lastSubmittedRegistration, setLastSubmittedRegistration] = useState<CampRegistration | null>(null);
 
   const eventsQuery = useQuery({
     queryKey: ['public-events'],
     queryFn: getPublicEvents,
-    retry: false,
+    staleTime: 30_000,
   });
 
   const siteSettingsQuery = useQuery({
     queryKey: ['public-site-settings'],
     queryFn: getPublicSiteSettings,
-    retry: false,
+    staleTime: 60_000,
   });
 
   const events = eventsQuery.data?.events ?? [];
 
   useEffect(() => {
-    if (events.length === 0) {
-      return;
-    }
-
-    if (selectedEventSlug && events.some((event) => event.slug === selectedEventSlug)) {
+    if (selectedEventSlug || !events.length) {
       return;
     }
 
     const initialSlug = events.find((event) => event.isRegistrationOpen)?.slug ?? events[0]?.slug ?? null;
     if (initialSlug) {
-      selectEvent(initialSlug);
+      setSelectedEventSlug(initialSlug);
+      writeCampUrlState({ eventSlug: initialSlug, isRegistrationOpen: isModalOpen }, { historyMode: 'replace' });
     }
-  }, [events, selectedEventSlug]);
-
-  const selectedEventSummary = useMemo(
-    () => events.find((event) => event.slug === selectedEventSlug) ?? events.find((event) => event.isRegistrationOpen) ?? events[0] ?? null,
-    [events, selectedEventSlug],
-  );
-
-  const selectedEventQuery = useQuery({
-    queryKey: ['public-event', selectedEventSummary?.slug],
-    queryFn: () => getPublicEvent(selectedEventSummary!.slug),
-    enabled: Boolean(selectedEventSummary?.slug),
-    retry: false,
-  });
+  }, [events, isModalOpen, selectedEventSlug]);
 
   useEffect(() => {
-    const stored = readStoredSession();
-    if (!stored) {
-      setIsSessionReady(true);
-      return;
-    }
-
-    void bootstrap(stored);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return undefined;
-    }
-
-    writeCampUrlState(
-      {
-        eventSlug: selectedEventSlug,
-        isRegistrationOpen: isModalOpen,
-      },
-      {
-        historyMode: 'replace',
-        modalPushed: false,
-      },
-    );
-
     const handlePopState = () => {
       const nextState = readCampUrlState();
       setSelectedEventSlug(nextState.eventSlug);
@@ -574,138 +287,20 @@ export default function App() {
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  async function bootstrap(stored: SessionState) {
-    try {
-      const currentAccount = await getCurrentAccount(stored.accessToken);
-      setSession(stored);
-      setAccount(currentAccount);
-      writeStoredSession(stored);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        try {
-          const nextSession = await refreshActiveSession(stored);
-          const currentAccount = await getCurrentAccount(nextSession.accessToken);
-          setSession(nextSession);
-          setAccount(currentAccount);
-          writeStoredSession(nextSession);
-        } catch {
-          clearSessionState();
-        }
-      } else {
-        clearSessionState();
-      }
-    } finally {
-      setIsSessionReady(true);
-    }
-  }
+  const selectedEventSummary = useMemo(
+    () => events.find((event) => event.slug === selectedEventSlug) ?? events[0] ?? null,
+    [events, selectedEventSlug],
+  );
 
-  function applySession(payload: AuthResponse) {
-    const nextSession = {
-      accessToken: payload.accessToken,
-      refreshToken: payload.refreshToken,
-      accessTokenExpiresAtUtc: payload.accessTokenExpiresAtUtc,
-      refreshTokenExpiresAtUtc: payload.refreshTokenExpiresAtUtc,
-    };
-
-    setSession(nextSession);
-    writeStoredSession(nextSession);
-    return nextSession;
-  }
-
-  function clearSessionState() {
-    writeStoredSession(null);
-    setSession(null);
-    setAccount(null);
-  }
-
-  async function refreshActiveSession(currentSession: SessionState) {
-    if (!refreshPromiseRef.current) {
-      refreshPromiseRef.current = (async () => {
-        const refreshed = await refreshSessionRequest(currentSession);
-        return applySession({
-          accessToken: refreshed.accessToken,
-          refreshToken: refreshed.refreshToken,
-          accessTokenExpiresAtUtc: refreshed.accessTokenExpiresAtUtc,
-          refreshTokenExpiresAtUtc: refreshed.refreshTokenExpiresAtUtc,
-          user: refreshed.user,
-        });
-      })().finally(() => {
-        refreshPromiseRef.current = null;
-      });
-    }
-
-    return await refreshPromiseRef.current;
-  }
-
-  async function withSessionRetry<T>(operation: (accessToken: string) => Promise<T>) {
-    if (!session) {
-      throw new Error('Сессия не найдена. Войдите снова.');
-    }
-
-    try {
-      return await operation(session.accessToken);
-    } catch (error) {
-      if (!(error instanceof ApiError && error.status === 401)) {
-        throw error;
-      }
-
-      try {
-        const refreshedSession = await refreshActiveSession(session);
-        return await operation(refreshedSession.accessToken);
-      } catch (refreshError) {
-        if (refreshError instanceof ApiError) {
-          clearSessionState();
-          throw new Error('Сессия истекла. Войдите снова, локальный черновик формы сохранён.');
-        }
-
-        throw refreshError;
-      }
-    }
-  }
-
-  async function acceptAuthResponse(payload: AuthResponse) {
-    const nextSession = applySession(payload);
-    const currentAccount = await getCurrentAccount(nextSession.accessToken);
-    setAccount(currentAccount);
-  }
-
-  async function handleLogin(payload: { email: string; password: string }) {
-    const response = await loginRequest(payload);
-    await acceptAuthResponse(response);
-  }
-
-  async function handleRegister(payload: {
-    email: string;
-    password: string;
-    firstName: string;
-    lastName: string;
-    displayName?: string;
-  }) {
-    const response = await registerRequest(payload);
-    await acceptAuthResponse(response);
-  }
-
-  async function handleLogout() {
-    if (session?.refreshToken) {
-      try {
-        await logoutRequest(session.refreshToken);
-      } catch {
-        // ignore transport errors on logout
-      }
-    }
-
-    clearSessionState();
-  }
-
-  async function reloadAccount() {
-    const currentAccount = await withSessionRetry((accessToken) => getCurrentAccount(accessToken));
-    setAccount(currentAccount);
-  }
+  const selectedEventQuery = useQuery({
+    queryKey: ['public-event', selectedEventSummary?.slug],
+    queryFn: () => getPublicEvent(selectedEventSummary?.slug ?? ''),
+    enabled: Boolean(selectedEventSummary?.slug),
+    staleTime: 30_000,
+  });
 
   const details = selectedEventQuery.data;
   const siteSettings = siteSettingsQuery.data;
@@ -713,58 +308,19 @@ export default function App() {
   const footerSocials = getSocialLinksForPlacement(siteSettings?.socialLinks, 'footer');
   const highlights = getBlocks(details, 'Highlight');
   const thingsToBring = getBlocks(details, 'WhatToBring');
-  const faqBlocks = details?.contentBlocks
-    .filter((block) => block.blockType === 'Faq')
-    .map((block) => ({
-      question: block.title || 'Вопрос',
-      answer: block.body,
-    })) ?? [];
+  const faqBlocks = getFaqBlocks(details);
   const actualMedia = splitMedia(details?.mediaItems ?? []);
-  const imageItems = actualMedia.images.length ? actualMedia.images : fallbackImageItems;
+  const imageItems = [
+    ...PLACE_IMAGES,
+    ...actualMedia.images.filter((item) => !PLACE_IMAGES.some((placeImage) => placeImage.url === item.url)),
+  ];
   const videoItems = actualMedia.videos;
-  const isUsingFallbackMedia = (details?.mediaItems.length ?? 0) === 0;
-  const showFallbackVideoCard = videoItems.length === 0;
-  const heroImage = selectedEventSummary?.primaryImageUrl || actualMedia.images[0]?.url || fallbackImageItems[0].url;
-  const registrationsByEventSlug = useMemo(
-    () =>
-      new Map(
-        (account?.registrations ?? [])
-          .filter((item) => Boolean(item.eventSlug))
-          .map((item) => [item.eventSlug as string, item]),
-      ),
-    [account?.registrations],
-  );
-  const selectedRegistration =
-    (selectedEventSummary?.slug ? registrationsByEventSlug.get(selectedEventSummary.slug) : null) ?? null;
-  const isCabinetPhoneConfirmed =
-    Boolean(account?.user.phoneNumberConfirmed) &&
-    Boolean(account?.user.phoneNumber?.trim());
-  const isAuthenticated = Boolean(account);
-  const selectedCabinetPath = getCabinetPathForRegistration(
-    selectedRegistration,
-    selectedEventSummary?.slug ?? selectedEventSlug,
-    isCabinetPhoneConfirmed,
-  );
-  const selectedPrimaryAction = getLandingPrimaryAction(
-    selectedRegistration,
-    selectedEventSummary?.slug ?? selectedEventSlug,
-    isAuthenticated,
-    isCabinetPhoneConfirmed,
-  );
-  const landingAction = getLandingActionState(
-    selectedRegistration,
-    isAuthenticated,
-    selectedEventSummary?.title ?? details?.title ?? null,
-  );
+  const heroImage = selectedEventSummary?.primaryImageUrl || actualMedia.images[0]?.url || PLACE_IMAGES[0].url;
+  const activeHighlights = highlights.length ? highlights : fallbackHighlights;
+  const activeThingsToBring = thingsToBring.length ? thingsToBring : fallbackThingsToBring;
+  const activeFaq = faqBlocks.length ? faqBlocks : fallbackFaq;
 
-  function selectEvent(
-    slug: string,
-    options?: {
-      historyMode?: 'push' | 'replace';
-      isRegistrationOpen?: boolean;
-      modalPushed?: boolean;
-    },
-  ) {
+  function selectEvent(slug: string, options?: { historyMode?: 'push' | 'replace'; isRegistrationOpen?: boolean }) {
     const nextModalOpen = options?.isRegistrationOpen ?? isModalOpen;
     setSelectedEventSlug(slug);
     writeCampUrlState(
@@ -774,7 +330,7 @@ export default function App() {
       },
       {
         historyMode: options?.historyMode ?? 'replace',
-        modalPushed: options?.modalPushed ?? (nextModalOpen ? getCampHistoryState().isModalPushed : false),
+        modalPushed: nextModalOpen,
       },
     );
   }
@@ -792,24 +348,20 @@ export default function App() {
         isRegistrationOpen: true,
       },
       {
-        historyMode: isModalOpen ? 'replace' : 'push',
+        historyMode: 'push',
         modalPushed: true,
       },
     );
   }
 
   function closeRegistration() {
-    if (typeof window === 'undefined') {
-      setIsModalOpen(false);
-      return;
-    }
+    setIsModalOpen(false);
 
-    if (getCampHistoryState().isModalPushed) {
+    if (typeof window !== 'undefined' && getCampHistoryState().isModalPushed) {
       window.history.back();
       return;
     }
 
-    setIsModalOpen(false);
     writeCampUrlState(
       {
         eventSlug: selectedEventSlug,
@@ -817,67 +369,31 @@ export default function App() {
       },
       {
         historyMode: 'replace',
-        modalPushed: false,
       },
     );
   }
 
-  function openCabinet(path = '/') {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const targetWindow = window.open('about:blank', '_blank');
-
-    void (async () => {
-      const nextUrl = new URL(path, lkBaseUrl);
-
-      if (session?.accessToken) {
-        try {
-          const transfer = await withSessionRetry((accessToken) => createSessionTransferTicket(accessToken));
-          nextUrl.searchParams.set('transfer', transfer.token);
-        } catch {
-          // fall back to the regular cabinet URL if transfer creation fails
-        }
-      }
-
-      if (targetWindow) {
-        targetWindow.opener = null;
-        targetWindow.location.replace(nextUrl.toString());
-        return;
-      }
-
-      window.location.assign(nextUrl.toString());
-    })();
-  }
-
-  function runLandingPrimaryAction(action: LandingPrimaryAction) {
-    if (action.kind === 'cabinet') {
-      openCabinet(action.path);
-      return;
-    }
-
-    openRegistration(action.eventSlug);
+  function handleSubmitted(registration: CampRegistration) {
+    setLastSubmittedRegistration(registration);
+    void eventsQuery.refetch();
+    void selectedEventQuery.refetch();
   }
 
   return (
     <div className="camp-page">
-      <div className="camp-glow camp-glow-left" aria-hidden="true" />
-      <div className="camp-glow camp-glow-right" aria-hidden="true" />
-      <div className="camp-grid-noise" aria-hidden="true" />
-
       <header className="camp-header container">
-        <div className="brand-lockup">
+        <a className="brand-lockup" href="#top" aria-label="Blagodaty Camp">
           <span className="brand-mark">B</span>
-          <div>
-            <p className="brand-kicker">Blagodaty</p>
-            <p className="brand-title">Camp & Events</p>
-          </div>
-        </div>
+          <span>
+            <span className="brand-kicker">Blagodaty</span>
+            <span className="brand-title">Camp</span>
+          </span>
+        </a>
 
         <nav className="site-nav">
-          <a href="#events">События</a>
-          <a href="#media">Фото и видео</a>
+          <a href="#facts">О событии</a>
+          <a href="#place">Место</a>
+          <a href="#reviews">Отзывы</a>
           <a href="#program">Программа</a>
           <a href="#faq">FAQ</a>
         </nav>
@@ -893,268 +409,211 @@ export default function App() {
             </div>
           ) : null}
 
-          {account ? (
-            <div className="account-chip">
-              <span>{account.user.displayName || account.user.email}</span>
-            </div>
-          ) : null}
-
-          <button className="button button-primary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
-            {landingAction.headerButtonLabel}
+          <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+            Зарегистрироваться
           </button>
         </div>
       </header>
 
-      <main className="camp-main container">
-        <section className="hero-grid">
-          <div className="hero-copy">
-            <p className="section-kicker">{selectedEventSummary?.seasonLabel || selectedEventSummary?.seriesTitle || 'Blagodaty Camp'}</p>
-            <h1>{selectedEventSummary?.title || 'Летний выезд и церковные события Blagodaty'}</h1>
+      <main className="camp-main" id="top">
+        <section className="hero-panel" style={{ backgroundImage: `linear-gradient(90deg, rgba(18, 29, 35, 0.78), rgba(18, 29, 35, 0.22)), url("${heroImage}")` }}>
+          <div className="container hero-inner">
+            <p className="section-kicker">{selectedEventSummary?.seasonLabel || 'Лето 2026'}</p>
+            <h1>{selectedEventSummary?.title || 'Blagodaty Camp'}</h1>
             <p className="hero-lead">
               {details?.shortDescription ||
                 selectedEventSummary?.shortDescription ||
-                'Собранная страница мероприятия с медиа, программой и полноценной регистрацией прямо внутри модального окна.'}
+                'Церковный выезд в Горный Алтай: проживание на природе, общение, молитва и совместное время.'}
             </p>
 
             <div className="hero-badges">
-              <span>{details?.location || selectedEventSummary?.location || 'Локация уточняется'}</span>
+              <span>{details?.location || selectedEventSummary?.location || 'с. Курай, Республика Алтай'}</span>
               <span>{formatDateRange(details?.startsAtUtc || selectedEventSummary?.startsAtUtc, details?.endsAtUtc || selectedEventSummary?.endsAtUtc)}</span>
               <span>{formatCurrency(selectedEventSummary?.priceFromAmount, selectedEventSummary?.priceCurrency || 'RUB')}</span>
-              {selectedRegistration ? <span>{formatRegistrationStatus(selectedRegistration.status)}</span> : null}
             </div>
 
             <div className="hero-actions">
-              <button className="button button-primary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
-                {landingAction.heroPrimaryLabel}
+              <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+                Зарегистрироваться
               </button>
-              <a className="button button-secondary" href="#media">
-                Смотреть медиа
+              <a className="button button-secondary hero-map-link" href={PLACE_URL} target="_blank" rel="noreferrer">
+                Открыть место в 2ГИС
               </a>
-              <button className="button button-secondary" type="button" onClick={() => openCabinet(selectedCabinetPath)}>
-                Личный кабинет
-              </button>
             </div>
-
-            <div className="hero-note-card">
-              <strong>{landingAction.heroNoteTitle}</strong>
-              <p>{landingAction.heroNoteDescription}</p>
-              {selectedRegistration ? (
-                <div className="hero-note-pills">
-                  <span>{formatRegistrationStatus(selectedRegistration.status)}</span>
-                  <span>Участников: {selectedRegistration.participantsCount}</span>
-                  {selectedRegistration.isRegistrationClosingSoon ? <span>Скоро закрывается</span> : null}
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="hero-visual-stack">
-            <article className="hero-poster-card">
-              <img src={heroImage} alt={selectedEventSummary?.title || 'Blagodaty Camp'} />
-              <div className="poster-overlay">
-                <span className="summary-chip">{selectedEventSummary?.isRegistrationOpen ? 'Регистрация открыта' : 'Следите за анонсом'}</span>
-                <strong>{selectedEventSummary?.seriesTitle || 'Blagodaty events'}</strong>
-                <p>{details?.fullDescription || 'Живая страница события с фото, видео, расписанием и заявкой без лишних переходов.'}</p>
-              </div>
-            </article>
-
-            <article className="hero-side-card">
-              <p className="section-kicker">Путь участника</p>
-              <ol className="process-list">
-                <li>Выбрать событие и открыть модалку.</li>
-                <li>Войти или создать кабинет без смены страницы.</li>
-                <li>Подтвердить телефон и сразу отправить анкету.</li>
-              </ol>
-              <button className="button button-secondary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
-                {landingAction.heroPrimaryLabel}
-              </button>
-            </article>
           </div>
         </section>
 
-        <section className="section-block" id="events">
-          <div className="section-heading">
-            <p className="section-kicker">События</p>
-            <h2>Выберите сезон без ощущения, что страница разваливается по блокам</h2>
+        <section className="facts-strip container" id="facts">
+          <article>
+            <span>Даты</span>
+            <strong>{formatDateRange(details?.startsAtUtc || selectedEventSummary?.startsAtUtc, details?.endsAtUtc || selectedEventSummary?.endsAtUtc)}</strong>
+          </article>
+          <article>
+            <span>Место</span>
+            <strong>Экоаил, с. Курай</strong>
+          </article>
+          <article>
+            <span>Стоимость</span>
+            <strong>{formatCurrency(selectedEventSummary?.priceFromAmount, selectedEventSummary?.priceCurrency || 'RUB')}</strong>
+          </article>
+          <article>
+            <span>Места</span>
+            <strong>{details?.remainingCapacity ?? selectedEventSummary?.remainingCapacity ?? details?.capacity ?? selectedEventSummary?.capacity ?? 'Без лимита'}</strong>
+          </article>
+        </section>
+
+        {events.length > 1 ? (
+          <section className="section-block container" id="events">
+            <div className="section-heading">
+              <p className="section-kicker">События</p>
+              <h2>Доступные сезоны</h2>
+            </div>
+
+            <div className="event-grid">
+              {events.map((eventItem) => (
+                <article className={`event-card${selectedEventSlug === eventItem.slug ? ' active' : ''}`} key={eventItem.id}>
+                  <div className="event-card-head">
+                    <span className="summary-chip">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
+                    <span className="summary-chip">{eventItem.isRegistrationOpen ? 'Открыта' : 'Закрыта'}</span>
+                  </div>
+                  <h3>{eventItem.title}</h3>
+                  <p>{eventItem.shortDescription}</p>
+                  <div className="event-meta">
+                    <span>{formatDateRange(eventItem.startsAtUtc, eventItem.endsAtUtc)}</span>
+                    <span>{eventItem.location || 'Локация уточняется'}</span>
+                    <span>{formatCurrency(eventItem.priceFromAmount, eventItem.priceCurrency || 'RUB')}</span>
+                  </div>
+                  <div className="event-card-actions">
+                    <button className="button button-secondary" type="button" onClick={() => selectEvent(eventItem.slug)}>
+                      {selectedEventSlug === eventItem.slug ? 'Выбрано' : 'Показать'}
+                    </button>
+                    <button className="button button-primary" type="button" onClick={() => openRegistration(eventItem.slug)}>
+                      Зарегистрироваться
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="place-section container" id="place">
+          <div className="place-copy">
+            <p className="section-kicker">Место</p>
+            <h2>Экоаил, село Курай</h2>
+            <p>Улица Мира, 7а, Кош-Агачский район, Республика Алтай.</p>
+
+            <div className="place-facts">
+              {PLACE_FACTS.map((fact) => (
+                <span key={fact}>{fact}</span>
+              ))}
+            </div>
+
+            <a className="button button-secondary" href={PLACE_URL} target="_blank" rel="noreferrer">
+              Смотреть в 2ГИС
+            </a>
           </div>
 
-          <div className="event-grid">
-            {events.length ? (
-              events.map((eventItem) => {
-                const eventRegistration = registrationsByEventSlug.get(eventItem.slug) ?? null;
-                const primaryActionLabel = getEventCardPrimaryActionLabel(eventItem, eventRegistration, Boolean(account));
-                const eventNote = getEventCardNote(eventItem, eventRegistration, Boolean(account));
+          <div className="place-photos">
+            {PLACE_IMAGES.map((item, index) => (
+              <img className={index === 0 ? 'place-photo-main' : 'place-photo-map'} src={item.url} alt={item.title || 'Экоаил'} key={item.id} loading="lazy" />
+            ))}
+          </div>
+        </section>
 
-                return (
-                  <article className={`event-card${selectedEventSlug === eventItem.slug ? ' active' : ''}`} key={eventItem.id}>
-                    <div className="event-card-head">
-                      <span className="summary-chip">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
-                      {eventRegistration ? (
-                        <span className={`event-status-chip status-${eventRegistration.status.toLowerCase()}`}>
-                          {formatRegistrationStatus(eventRegistration.status)}
-                        </span>
-                      ) : null}
-                    </div>
-                    <h3>{eventItem.title}</h3>
-                    <p>{eventItem.shortDescription}</p>
-                    <div className="event-meta">
-                      <span>{formatDateRange(eventItem.startsAtUtc, eventItem.endsAtUtc)}</span>
-                      <span>{eventItem.location || 'Локация уточняется'}</span>
-                      <span>{formatCurrency(eventItem.priceFromAmount, eventItem.priceCurrency || 'RUB')}</span>
-                      {eventItem.isRegistrationClosingSoon ? <span>Скоро закрывается</span> : null}
-                    </div>
-                    <div className="event-card-note">
-                      <strong>{eventRegistration ? 'Ваше состояние по событию' : 'Что можно сделать сейчас'}</strong>
-                      <p>{eventNote}</p>
-                      {eventRegistration ? (
-                        <div className="event-card-note-pills">
-                          <span>Участников: {eventRegistration.participantsCount}</span>
-                          <span>
-                            Обновлено:{' '}
-                            {new Intl.DateTimeFormat('ru-RU', {
-                              day: '2-digit',
-                              month: 'short',
-                            }).format(new Date(eventRegistration.updatedAtUtc))}
-                          </span>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div className="event-card-actions">
-                      <button
-                        className="button button-secondary"
-                        type="button"
-                        onClick={() => selectEvent(eventItem.slug, { isRegistrationOpen: isModalOpen })}
-                      >
-                        {selectedEventSlug === eventItem.slug ? 'Сейчас выбрано' : 'Показать детали'}
-                      </button>
-                      <button
-                        className="button button-primary"
-                        type="button"
-                        onClick={() =>
-                          runLandingPrimaryAction(
-                            getLandingPrimaryAction(
-                              eventRegistration,
-                              eventItem.slug,
-                              isAuthenticated,
-                              isCabinetPhoneConfirmed,
-                            ),
-                          )
-                        }
-                      >
-                        {primaryActionLabel}
-                      </button>
-                    </div>
-                  </article>
-                );
-              })
-            ) : (
-              <article className="event-card">
-                <h3>Список событий появится здесь</h3>
-                <p>Страница уже готова к нескольким сезонам и мероприятиям, даже если публикации еще не заполнены.</p>
+        <section className="section-block container place-reviews-section" id="reviews">
+          <div className="section-heading">
+            <p className="section-kicker">Отзывы 2ГИС</p>
+            <h2>Что пишут о комплексе</h2>
+            <p>По карточке Экоаила в 2ГИС: рейтинг 4.4, 22 оценки, 13 отзывов и 24 фото.</p>
+          </div>
+
+          <div className="place-review-grid">
+            {PLACE_REVIEWS.map((review) => (
+              <article className="place-review-card" key={review.title}>
+                <strong>{review.title}</strong>
+                <p>{review.text}</p>
               </article>
-            )}
+            ))}
+          </div>
+
+          <div className="place-review-footer">
+            <span>Перед поездкой можно открыть свежие отзывы и все фото места в 2ГИС.</span>
+            <a className="button button-secondary" href={PLACE_REVIEWS_URL} target="_blank" rel="noreferrer">
+              Открыть отзывы
+            </a>
           </div>
         </section>
 
-        <section className="feature-grid">
-          <article className="feature-card">
-            <p className="section-kicker">Сильная сторона</p>
-            <h3>Хорошая событийная база</h3>
-            <p>В проекте уже есть каталог событий, цены, расписание, медиа, кабинет и роли. Основа у системы сильная.</p>
-          </article>
-          <article className="feature-card">
-            <p className="section-kicker">Слабая сторона</p>
-            <h3>Разорванный пользовательский путь</h3>
-            <p>Раньше публичная страница только подталкивала к переходу в кабинет, а ключевое действие распадалось на несколько экранов.</p>
-          </article>
-          <article className="feature-card">
-            <p className="section-kicker">Что исправлено</p>
-            <h3>Собранный сценарий</h3>
-            <p>Теперь акцент смещен с “посмотрите и уйдите” на “прочитайте, убедитесь и зарегистрируйтесь здесь же”.</p>
-          </article>
-        </section>
-
-        <section className="section-block" id="media">
+        <section className="section-block container" id="media">
           <div className="section-heading">
-            <p className="section-kicker">Фото и видео</p>
-            <h2>Медиаблоки появились сразу, а не только когда их когда-нибудь загрузят</h2>
+            <p className="section-kicker">Фото</p>
+            <h2>Территория и окрестности</h2>
           </div>
-
-          {isUsingFallbackMedia ? (
-            <p className="section-hint">Сейчас показаны демо-медиа для теста верстки. Когда команда добавит реальные материалы, секция автоматически подхватит их из backend.</p>
-          ) : null}
 
           <div className="media-grid">
             {imageItems.map((item) => (
               <a className="media-card media-card-image" href={item.url} key={item.id} target="_blank" rel="noreferrer">
-                <img src={item.url} alt={item.title || selectedEventSummary?.title || 'Фото события'} loading="lazy" />
+                <img src={item.url} alt={item.title || selectedEventSummary?.title || 'Фото места'} loading="lazy" />
                 <div className="media-card-copy">
-                  <strong>{item.title || 'Фотография события'}</strong>
+                  <strong>{item.title || 'Фото'}</strong>
                   {item.caption ? <span>{item.caption}</span> : null}
                 </div>
               </a>
             ))}
           </div>
 
-          <div className="video-grid">
-            {videoItems.map((item) => {
-              const embedUrl = resolveVideoEmbedUrl(item.url);
-
-              return (
-                <article className="video-card" key={item.id}>
-                  <div className="video-frame">
-                    {embedUrl ? (
-                      <iframe
-                        src={embedUrl}
-                        title={item.title || 'Видео события'}
-                        loading="lazy"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                      />
-                    ) : isDirectVideoFile(item.url) ? (
-                      <video controls preload="metadata" poster={item.thumbnailUrl || undefined}>
-                        <source src={item.url} />
-                      </video>
-                    ) : (
-                      <a className="video-fallback" href={item.url} target="_blank" rel="noreferrer">
-                        Открыть видео
-                      </a>
-                    )}
-                  </div>
-
-                  <div className="media-card-copy">
-                    <strong>{item.title || 'Видео события'}</strong>
-                    {item.caption ? <span>{item.caption}</span> : null}
-                  </div>
-                </article>
-              );
-            })}
-
-            {showFallbackVideoCard ? (
-              <article className="video-card video-card-placeholder">
-                <div className="video-frame video-frame-placeholder">
-                  <img src={fallbackVideoPosterUrl} alt="Демо-видео Blagodaty Camp" loading="lazy" />
-                  <div className="video-placeholder-overlay">
-                    <span className="play-badge">▶</span>
-                    <strong>Тестовый видео-блок</strong>
-                  </div>
-                </div>
-
-                <div className="media-card-copy">
-                  <strong>Здесь появятся реальные видео</strong>
-                  <span>Пока секция проверяет композицию, высоты карточек и адаптив даже без загруженных роликов.</span>
-                </div>
-              </article>
-            ) : null}
+          <div className="place-review-footer media-source-footer">
+            <span>В карточке места опубликованы 24 фото комплекса и окрестностей.</span>
+            <a className="button button-secondary" href={PLACE_PHOTOS_URL} target="_blank" rel="noreferrer">
+              Все фото в 2ГИС
+            </a>
           </div>
+
+          {videoItems.length ? (
+            <div className="video-grid">
+              {videoItems.map((item) => {
+                const embedUrl = resolveVideoEmbedUrl(item.url);
+
+                return (
+                  <article className="video-card" key={item.id}>
+                    <div className="video-frame">
+                      {embedUrl ? (
+                        <iframe
+                          src={embedUrl}
+                          title={item.title || 'Видео события'}
+                          loading="lazy"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      ) : isDirectVideoFile(item.url) ? (
+                        <video controls preload="metadata" poster={item.thumbnailUrl || undefined}>
+                          <source src={item.url} />
+                        </video>
+                      ) : (
+                        <a className="video-fallback" href={item.url} target="_blank" rel="noreferrer">
+                          Открыть видео
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="media-card-copy">
+                      <strong>{item.title || 'Видео'}</strong>
+                      {item.caption ? <span>{item.caption}</span> : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : null}
         </section>
 
-        <section className="content-grid" id="program">
+        <section className="content-grid container" id="program">
           <article className="content-card">
-            <p className="section-kicker">Что важно сразу</p>
-            <h2>{selectedEventSummary?.title || 'Главное о ближайшем событии'}</h2>
+            <p className="section-kicker">Главное</p>
+            <h2>{selectedEventSummary?.title || 'Blagodaty Camp'}</h2>
             <ul className="content-list">
-              {(highlights.length ? highlights : fallbackHighlights).map((item) => (
+              {activeHighlights.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -1173,10 +632,10 @@ export default function App() {
           </article>
 
           <article className="content-card">
-            <p className="section-kicker">Организация</p>
-            <h2>Что взять с собой и как подготовиться спокойно</h2>
+            <p className="section-kicker">С собой</p>
+            <h2>Что взять</h2>
             <ul className="content-list">
-              {(thingsToBring.length ? thingsToBring : fallbackThingsToBring).map((item) => (
+              {activeThingsToBring.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
@@ -1187,7 +646,7 @@ export default function App() {
                   <article className="pricing-row" key={option.id}>
                     <div>
                       <strong>{option.title}</strong>
-                      <p>{option.description || 'Активный тариф для этого события.'}</p>
+                      <p>{option.description || 'Тариф участия'}</p>
                     </div>
                     <span>{formatCurrency(option.amount, option.currency)}</span>
                   </article>
@@ -1197,14 +656,14 @@ export default function App() {
           </article>
         </section>
 
-        <section className="section-block" id="faq">
+        <section className="section-block container" id="faq">
           <div className="section-heading">
             <p className="section-kicker">FAQ</p>
-            <h2>Что уже продумано в новом сценарии страницы</h2>
+            <h2>Коротко по делу</h2>
           </div>
 
           <div className="faq-grid">
-            {(faqBlocks.length ? faqBlocks : fallbackFaq).map((item) => (
+            {activeFaq.map((item) => (
               <article className="faq-card" key={item.question}>
                 <h3>{item.question}</h3>
                 <p>{item.answer}</p>
@@ -1213,29 +672,25 @@ export default function App() {
           </div>
         </section>
 
-        <section className="cta-banner">
+        <section className="cta-banner container">
           <div>
-            <p className="section-kicker">Следующий шаг</p>
-            <h2>{landingAction.ctaTitle}</h2>
-            <p>{landingAction.ctaDescription}</p>
+            <p className="section-kicker">Заявка</p>
+            <h2>Регистрация без кабинета</h2>
+            <p>Форма откроется сразу на этом сайте.</p>
+            {lastSubmittedRegistration ? <p>Последняя отправленная заявка: {lastSubmittedRegistration.fullName}</p> : null}
           </div>
 
-          <div className="cta-actions">
-            <button className="button button-primary" type="button" onClick={() => runLandingPrimaryAction(selectedPrimaryAction)}>
-              {landingAction.heroPrimaryLabel}
-            </button>
-            <button className="button button-secondary" type="button" onClick={() => openCabinet(selectedCabinetPath)}>
-              Перейти в кабинет
-            </button>
-          </div>
+          <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+            Зарегистрироваться
+          </button>
         </section>
       </main>
 
       {siteSettings?.socialLinksEnabled && (footerSocials.length || siteSettings?.socialLinksTitle || siteSettings?.socialLinksDescription) ? (
         <footer className="site-footer container">
           <div className="site-footer-copy">
-            <p className="section-kicker">{siteSettings?.socialLinksTitle || 'Мы на связи'}</p>
-            <p>{siteSettings?.socialLinksDescription || 'Следите за новостями, объявлениями и новыми событиями общины.'}</p>
+            <p className="section-kicker">{siteSettings?.socialLinksTitle || 'Контакты'}</p>
+            <p>{siteSettings?.socialLinksDescription || 'Следите за новостями и объявлениями общины.'}</p>
           </div>
 
           {footerSocials.length ? (
@@ -1257,15 +712,7 @@ export default function App() {
         selectedEvent={details ?? null}
         selectedEventSlug={selectedEventSlug}
         onSelectEvent={(slug) => selectEvent(slug, { isRegistrationOpen: isModalOpen })}
-        session={session}
-        account={account}
-        isSessionReady={isSessionReady}
-        onLogin={handleLogin}
-        onRegister={handleRegister}
-        withSession={withSessionRetry}
-        onOpenCabinet={openCabinet}
-        onReloadAccount={reloadAccount}
-        onLogout={handleLogout}
+        onSubmitted={handleSubmitted}
       />
     </div>
   );

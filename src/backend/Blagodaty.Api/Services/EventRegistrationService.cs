@@ -2,6 +2,8 @@ using Blagodaty.Api.Contracts.Account;
 using Blagodaty.Api.Contracts.Camp;
 using Blagodaty.Api.Data;
 using Blagodaty.Api.Models;
+using Blagodaty.Api.Security;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.ComponentModel.DataAnnotations;
 
@@ -9,21 +11,27 @@ namespace Blagodaty.Api.Services;
 
 public sealed class EventRegistrationService
 {
+    private const string DefaultGuestCity = "Новосибирск";
+    private const string DefaultGuestChurchName = "Благодать";
+
     private readonly AppDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
     private readonly EventCatalogService _eventCatalogService;
     private readonly UserNotificationService _userNotificationService;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     public EventRegistrationService(
         AppDbContext dbContext,
         TimeProvider timeProvider,
         EventCatalogService eventCatalogService,
-        UserNotificationService userNotificationService)
+        UserNotificationService userNotificationService,
+        UserManager<ApplicationUser> userManager)
     {
         _dbContext = dbContext;
         _timeProvider = timeProvider;
         _eventCatalogService = eventCatalogService;
         _userNotificationService = userNotificationService;
+        _userManager = userManager;
     }
 
     public async Task<EventEdition?> GetAccessibleEventEditionBySlugAsync(
@@ -136,8 +144,12 @@ public sealed class EventRegistrationService
         var user = await _dbContext.Users.FirstAsync(item => item.Id == userId, cancellationToken);
         var previousStatus = registration.Status;
         var normalizedContactEmail = request.ContactEmail.Trim();
-        var normalizedCity = request.City.Trim();
-        var normalizedChurchName = request.ChurchName.Trim();
+        var normalizedCity = string.IsNullOrWhiteSpace(request.City)
+            ? DefaultGuestCity
+            : request.City.Trim();
+        var normalizedChurchName = string.IsNullOrWhiteSpace(request.ChurchName)
+            ? DefaultGuestChurchName
+            : request.ChurchName.Trim();
         var normalizedEmergencyContactName = request.EmergencyContactName.Trim();
         var normalizedEmergencyContactPhone = request.EmergencyContactPhone.Trim();
         var normalizedPrimaryFullName = normalizedParticipants.FirstOrDefault()?.FullName ?? request.FullName.Trim();
@@ -237,6 +249,152 @@ public sealed class EventRegistrationService
         {
             await _userNotificationService.NotifyRegistrationSubmittedAsync(saved, cancellationToken);
         }
+
+        return MapRegistration(saved);
+    }
+
+    public async Task<CampRegistrationResponse> SubmitGuestRegistrationAsync(
+        EventEdition eventEdition,
+        UpsertCampRegistrationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        request.Submit = true;
+
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var normalizedParticipants = NormalizeParticipantsForRequest(request, requireAtLeastOneParticipant: true);
+        var normalizedParticipantsCount = normalizedParticipants.Count;
+        var remainingCapacity = await _eventCatalogService.GetRemainingCapacityAsync(eventEdition.Id, cancellationToken);
+
+        EventPriceOption? selectedPriceOption = null;
+        if (request.SelectedPriceOptionId is not null)
+        {
+            selectedPriceOption = eventEdition.PriceOptions
+                .FirstOrDefault(option =>
+                    option.Id == request.SelectedPriceOptionId.Value &&
+                    option.IsActive &&
+                    _eventCatalogService.IsPriceAvailable(option));
+
+            if (selectedPriceOption is null)
+            {
+                throw new InvalidOperationException("Выбранный тариф не найден или уже недоступен для этого мероприятия.");
+            }
+        }
+
+        if (!_eventCatalogService.IsRegistrationOpen(eventEdition, remainingCapacity))
+        {
+            throw new InvalidOperationException("Регистрация на выбранное мероприятие сейчас закрыта или лимит мест уже достигнут.");
+        }
+
+        if (!eventEdition.WaitlistEnabled &&
+            remainingCapacity.HasValue &&
+            normalizedParticipantsCount > remainingCapacity.Value)
+        {
+            throw new InvalidOperationException(
+                $"Для этой заявки сейчас доступно только {remainingCapacity.Value} мест, а вы указали {normalizedParticipantsCount}.");
+        }
+
+        var normalizedContactEmail = request.ContactEmail.Trim();
+        var normalizedCity = string.IsNullOrWhiteSpace(request.City)
+            ? DefaultGuestCity
+            : request.City.Trim();
+        var normalizedChurchName = string.IsNullOrWhiteSpace(request.ChurchName)
+            ? DefaultGuestChurchName
+            : request.ChurchName.Trim();
+        var normalizedEmergencyContactName = request.EmergencyContactName.Trim();
+        var normalizedEmergencyContactPhone = request.EmergencyContactPhone.Trim();
+        var normalizedPrimaryFullName = normalizedParticipants.First().FullName;
+        var parsedBirthDate = TryParseBirthDate(request.BirthDate);
+        var normalizedPhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber);
+
+        ValidateRequestForSubmission(
+            request,
+            eventEdition,
+            selectedPriceOption,
+            normalizedParticipants,
+            normalizedContactEmail,
+            parsedBirthDate,
+            normalizedCity,
+            normalizedChurchName,
+            normalizedPhoneNumber,
+            normalizedEmergencyContactName,
+            normalizedEmergencyContactPhone);
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var guestUser = BuildGuestUser(
+            normalizedPrimaryFullName,
+            normalizedPhoneNumber,
+            normalizedCity,
+            normalizedChurchName,
+            now);
+        var createResult = await _userManager.CreateAsync(guestUser);
+        if (!createResult.Succeeded)
+        {
+            var message = string.Join(" ", createResult.Errors.Select(error => error.Description));
+            throw new InvalidOperationException($"Не удалось сохранить гостевую заявку. {message}");
+        }
+
+        if (await _dbContext.Roles.AnyAsync(role => role.Name == AppRoles.Member, cancellationToken))
+        {
+            var roleResult = await _userManager.AddToRoleAsync(guestUser, AppRoles.Member);
+            if (!roleResult.Succeeded)
+            {
+                var message = string.Join(" ", roleResult.Errors.Select(error => error.Description));
+                throw new InvalidOperationException($"Не удалось сохранить роль гостевой заявки. {message}");
+            }
+        }
+
+        var registration = new CampRegistration
+        {
+            UserId = guestUser.Id,
+            EventEditionId = eventEdition.Id,
+            SelectedPriceOptionId = selectedPriceOption?.Id,
+            Status = RegistrationStatus.Submitted,
+            ContactEmail = normalizedContactEmail,
+            FullName = normalizedPrimaryFullName,
+            BirthDate = parsedBirthDate ?? default,
+            City = normalizedCity,
+            ChurchName = normalizedChurchName,
+            PhoneNumber = normalizedPhoneNumber ?? string.Empty,
+            HasCar = request.HasCar,
+            HasChildren = request.HasChildren || normalizedParticipants.Any(item => item.IsChild),
+            ParticipantsCount = normalizedParticipantsCount,
+            EmergencyContactName = normalizedEmergencyContactName,
+            EmergencyContactPhone = PhoneNumberHelper.Normalize(normalizedEmergencyContactPhone) ?? normalizedEmergencyContactPhone,
+            AccommodationPreference = request.AccommodationPreference,
+            HealthNotes = request.HealthNotes?.Trim(),
+            AllergyNotes = request.AllergyNotes?.Trim(),
+            SpecialNeeds = request.SpecialNeeds?.Trim(),
+            Motivation = request.Motivation?.Trim(),
+            ConsentAccepted = request.ConsentAccepted,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now,
+            SubmittedAtUtc = now
+        };
+
+        foreach (var participant in normalizedParticipants)
+        {
+            registration.Participants.Add(new CampRegistrationParticipant
+            {
+                FullName = participant.FullName,
+                IsChild = participant.IsChild,
+                SortOrder = participant.SortOrder
+            });
+        }
+
+        _dbContext.CampRegistrations.Add(registration);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        var saved = await _dbContext.CampRegistrations
+            .AsNoTracking()
+            .Include(item => item.User)
+            .Include(item => item.EventEdition)
+            .ThenInclude(item => item!.EventSeries)
+            .Include(item => item.SelectedPriceOption)
+            .Include(item => item.Participants.OrderBy(participant => participant.SortOrder))
+            .FirstAsync(item => item.Id == registration.Id, cancellationToken);
+
+        await _userNotificationService.NotifyRegistrationSubmittedAsync(saved, cancellationToken);
 
         return MapRegistration(saved);
     }
@@ -549,27 +707,13 @@ public sealed class EventRegistrationService
             errors.Add("Укажите дату рождения основного участника.");
         }
 
-        if (string.IsNullOrWhiteSpace(normalizedCity))
-        {
-            errors.Add("Укажите город.");
-        }
-
-        if (string.IsNullOrWhiteSpace(normalizedChurchName))
-        {
-            errors.Add("Укажите церковь.");
-        }
-
         if (string.IsNullOrWhiteSpace(normalizedPhoneNumber))
         {
             errors.Add("Укажите корректный телефон участника.");
         }
 
-        if (string.IsNullOrWhiteSpace(normalizedEmergencyContactName))
-        {
-            errors.Add("Укажите доверенное лицо для экстренной связи.");
-        }
-
-        if (string.IsNullOrWhiteSpace(PhoneNumberHelper.Normalize(normalizedEmergencyContactPhone)))
+        if (!string.IsNullOrWhiteSpace(normalizedEmergencyContactPhone) &&
+            string.IsNullOrWhiteSpace(PhoneNumberHelper.Normalize(normalizedEmergencyContactPhone)))
         {
             errors.Add("Укажите корректный телефон доверенного лица.");
         }
@@ -583,6 +727,36 @@ public sealed class EventRegistrationService
         {
             throw new InvalidOperationException(string.Join(" ", errors));
         }
+    }
+
+    private static ApplicationUser BuildGuestUser(
+        string fullName,
+        string? normalizedPhoneNumber,
+        string? city,
+        string? churchName,
+        DateTime createdAtUtc)
+    {
+        var displayName = string.IsNullOrWhiteSpace(fullName) ? "Гость" : fullName.Trim();
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var firstName = parts.FirstOrDefault() ?? displayName;
+        var lastName = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
+        var technicalEmail = $"guest-{Guid.NewGuid():N}@guest.blagodaty.local";
+
+        return new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            UserName = technicalEmail,
+            Email = technicalEmail,
+            FirstName = firstName,
+            LastName = lastName,
+            DisplayName = displayName,
+            City = string.IsNullOrWhiteSpace(city) ? null : city.Trim(),
+            ChurchName = string.IsNullOrWhiteSpace(churchName) ? null : churchName.Trim(),
+            PhoneNumber = normalizedPhoneNumber,
+            PhoneNumberConfirmed = false,
+            EmailConfirmed = false,
+            CreatedAtUtc = createdAtUtc
+        };
     }
 
     private sealed class NormalizedParticipant

@@ -154,3 +154,13 @@ export function saveEventRegistration(accessToken: string, slug: string, payload
     accessToken,
   );
 }
+
+export function submitGuestEventRegistration(slug: string, payload: SaveRegistrationRequest) {
+  return request<CampRegistration>(`/api/events/${slug}/registration`, {
+    method: 'POST',
+    body: JSON.stringify({
+      ...payload,
+      submit: true,
+    }),
+  });
+}
