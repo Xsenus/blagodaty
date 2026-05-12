@@ -57,14 +57,6 @@ const PLACE_IMAGES: PublicEventMediaItem[] = [
   },
 ];
 
-const PLACE_FACTS = [
-  'Экоаил',
-  'ул. Мира, 7а',
-  'село Курай',
-  'Палаточный формат',
-  'До 35 мест',
-];
-
 const PLACE_REVIEWS = [
   {
     title: 'Погода и условия',
@@ -607,22 +599,20 @@ export default function App() {
 
         <section className="place-section container" id="place">
           <div className="place-copy">
-            <p className="section-kicker">Место</p>
-            <h2>
-              Экоаил
-              <span>село Курай</span>
-            </h2>
-            <p>Улица Мира, 7а, Кош-Агачский район, Республика Алтай.</p>
+            <div className="place-copy-overlay">
+              <p className="section-kicker">Место</p>
+              <h2>
+                Экоаил
+                <span>село Курай</span>
+              </h2>
+              <p>Открытая Курайская степь, вид на Северо-Чуйский хребет и палаточный формат рядом с горами.</p>
 
-            <div className="place-facts">
-              {PLACE_FACTS.map((fact) => (
-                <span key={fact}>{fact}</span>
-              ))}
+              <div className="place-copy-notes" aria-label="Особенности места">
+                <span>просторная территория</span>
+                <span>горные виды</span>
+                <span>палаточный поход</span>
+              </div>
             </div>
-
-            <a className="button button-secondary" href={PLACE_URL} target="_blank" rel="noreferrer">
-              Смотреть в 2ГИС
-            </a>
           </div>
 
           <div className="place-photos">

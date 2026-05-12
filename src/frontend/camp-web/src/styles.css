@@ -1591,15 +1591,25 @@ body {
 }
 
 .place-copy {
+  position: relative;
   display: grid;
-  align-content: center;
-  gap: 16px;
+  align-items: end;
+  min-height: 520px;
+  overflow: hidden;
   padding: 28px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(240, 246, 238, 0.88));
+    linear-gradient(180deg, rgba(12, 25, 27, 0.12), rgba(12, 25, 27, 0.82)),
+    url("./assets/camp/kurai-steppe-horses.jpg") center / cover;
   box-shadow: var(--shadow-soft);
+  color: #f8fbf7;
+}
+
+.place-copy-overlay {
+  display: grid;
+  gap: 16px;
+  max-width: 30rem;
 }
 
 .place-copy h2 {
@@ -1608,28 +1618,37 @@ body {
   font-size: 3rem;
   line-height: 1;
   font-weight: 400;
-  color: var(--text-main);
+  color: #ffffff;
 }
 
 .place-copy h2 span {
   display: block;
 }
 
-.place-facts {
+.place-copy .section-kicker {
+  color: #f3c783;
+}
+
+.place-copy p {
+  color: rgba(248, 251, 247, 0.86);
+}
+
+.place-copy-notes {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-.place-facts span {
+.place-copy-notes span {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid rgba(49, 95, 83, 0.18);
-  background: rgba(255, 255, 255, 0.74);
-  color: var(--text-main);
+  border: 1px solid rgba(248, 251, 247, 0.28);
+  background: rgba(248, 251, 247, 0.15);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
 }
 
 .place-photos {
