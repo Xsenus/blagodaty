@@ -363,11 +363,21 @@ public static class AppDbSeeder
             .Where(item => item.EventEditionId == edition.Id)
             .ExecuteDeleteAsync();
         AddDefaultCampScheduleItems(edition, year);
+        foreach (var scheduleItem in edition.ScheduleItems)
+        {
+            scheduleItem.EventEditionId = edition.Id;
+            dbContext.Entry(scheduleItem).State = EntityState.Added;
+        }
 
         await dbContext.EventContentBlocks
             .Where(item => item.EventEditionId == edition.Id)
             .ExecuteDeleteAsync();
         AddDefaultCampContentBlocks(edition, campOptions);
+        foreach (var contentBlock in edition.ContentBlocks)
+        {
+            contentBlock.EventEditionId = edition.Id;
+            dbContext.Entry(contentBlock).State = EntityState.Added;
+        }
 
         if (versionSetting is null)
         {
