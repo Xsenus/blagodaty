@@ -147,8 +147,8 @@ const contentBlockLabels: Record<EventContentBlockType, string> = {
 
 const accommodationPreferenceLabels: Record<AccommodationPreference, string> = {
   Tent: '\u041f\u0430\u043b\u0430\u0442\u043a\u0430',
-  Cabin: '\u0414\u043e\u043c\u0438\u043a',
-  Either: '\u0411\u0435\u0437 \u0440\u0430\u0437\u043d\u0438\u0446\u044b',
+  Cabin: '\u0414\u043e\u043c\u0438\u043a (\u0441\u0442\u0430\u0440\u044b\u0439 \u0432\u0430\u0440\u0438\u0430\u043d\u0442)',
+  Either: '\u041d\u0443\u0436\u043d\u044b \u0434\u043e\u043f. \u0443\u0441\u043b\u043e\u0432\u0438\u044f',
 };
 
 function formatEventKind(kind: EventKind) {
@@ -2810,7 +2810,7 @@ function AdminPage() {
                           <strong>{formatYesNo(user.registrationHasCar)}</strong>
                         </div>
                         <div>
-                          <span>Едет с детьми</span>
+                          <span>Есть участник 16-17 лет</span>
                           <strong>{formatYesNo(user.registrationHasChildren)}</strong>
                         </div>
                         <div>
@@ -2847,7 +2847,10 @@ function AdminPage() {
                             registrationParticipants.map((participant) => (
                               <div key={`${user.registrationId}-${participant.sortOrder}`}>
                                 <strong>{participant.fullName}</strong>
-                                <span>{participant.isChild ? 'Ребёнок' : 'Взрослый'}</span>
+                                <span>
+                                  {participant.isChild ? '16-17 лет' : 'Взрослый'}
+                                  {participant.birthDate ? ` • ${formatDateOnly(participant.birthDate)}` : ''}
+                                </span>
                               </div>
                             ))
                           ) : (

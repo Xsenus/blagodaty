@@ -2,6 +2,7 @@ using Blagodaty.Api.Contracts.Admin;
 using Blagodaty.Api.Data;
 using Blagodaty.Api.Models;
 using Blagodaty.Api.Security;
+using Blagodaty.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,10 +15,14 @@ namespace Blagodaty.Api.Controllers;
 public sealed class AdminEventsController : ControllerBase
 {
     private readonly AppDbContext _dbContext;
+    private readonly EventRegistrationExportService _registrationExportService;
 
-    public AdminEventsController(AppDbContext dbContext)
+    public AdminEventsController(
+        AppDbContext dbContext,
+        EventRegistrationExportService registrationExportService)
     {
         _dbContext = dbContext;
+        _registrationExportService = registrationExportService;
     }
 
     [HttpGet]
@@ -131,6 +136,50 @@ public sealed class AdminEventsController : ControllerBase
         {
             return BadRequest(new { message = exception.Message });
         }
+    }
+
+    [HttpGet("{eventId:guid}/registrations/export")]
+    public async Task<IActionResult> ExportRegistrations([FromRoute] Guid eventId)
+    {
+        var slug = await _dbContext.EventEditions
+            .AsNoTracking()
+            .Where(item => item.Id == eventId)
+            .Select(item => item.Slug)
+            .FirstOrDefaultAsync(HttpContext.RequestAborted);
+        if (slug is null)
+        {
+            return NotFound();
+        }
+
+        var export = await _registrationExportService.ExportBySlugAsync(slug, HttpContext.RequestAborted);
+        if (export is null)
+        {
+            return NotFound();
+        }
+
+        var stream = System.IO.File.OpenRead(export.FilePath);
+        HttpContext.Response.OnCompleted(() =>
+        {
+            stream.Dispose();
+            try
+            {
+                if (System.IO.File.Exists(export.FilePath))
+                {
+                    System.IO.File.Delete(export.FilePath);
+                }
+            }
+            catch
+            {
+                // The temp export is best-effort cleanup; download success should not fail here.
+            }
+
+            return Task.CompletedTask;
+        });
+
+        return File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            export.FileName);
     }
 
     private async Task<EventEdition?> FindEditionAsync(Guid eventId)

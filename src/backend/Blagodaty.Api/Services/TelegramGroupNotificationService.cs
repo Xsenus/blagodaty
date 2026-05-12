@@ -204,8 +204,8 @@ public sealed class TelegramGroupNotificationService
     private static string FormatAccommodation(AccommodationPreference preference) => preference switch
     {
         AccommodationPreference.Tent => "палатка",
-        AccommodationPreference.Cabin => "домик",
-        AccommodationPreference.Either => "без разницы",
+        AccommodationPreference.Cabin => "домик (старый вариант)",
+        AccommodationPreference.Either => "нужны доп. условия",
         _ => preference.ToString()
     };
 }

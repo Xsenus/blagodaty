@@ -167,6 +167,7 @@ export type SessionState = {
 export type CampRegistrationParticipant = {
   id: string;
   fullName: string;
+  birthDate?: string | null;
   isChild: boolean;
   sortOrder: number;
 };
@@ -220,6 +221,7 @@ export type SaveRegistrationRequest = {
   hasChildren: boolean;
   participants: Array<{
     fullName: string;
+    birthDate?: string;
     isChild: boolean;
   }>;
   emergencyContactName: string;
@@ -274,6 +276,7 @@ export type AdminRoleDefinition = {
 
 export type AdminRegistrationParticipant = {
   fullName: string;
+  birthDate?: string | null;
   isChild: boolean;
   sortOrder: number;
 };
@@ -548,6 +551,29 @@ export type AdminSiteSettings = {
   socialLinksTitle?: string | null;
   socialLinksDescription?: string | null;
   socialLinks: AdminSiteSocialLink[];
+  contactsEnabled: boolean;
+  contactsTitle?: string | null;
+  contactsDescription?: string | null;
+  contactPeople: AdminSiteContactPerson[];
+};
+
+export type AdminSiteContactPerson = {
+  id: string;
+  name: string;
+  role: string;
+  description?: string | null;
+  enabled: boolean;
+  showInFooter: boolean;
+  sortOrder: number;
+  links: AdminSiteContactLink[];
+};
+
+export type AdminSiteContactLink = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  sortOrder: number;
 };
 
 export type GalleryAssetKind = 'Image' | 'Video' | 'File';
@@ -588,6 +614,53 @@ export type UpdateAdminSiteSettingsRequest = {
   socialLinksTitle?: string;
   socialLinksDescription?: string;
   socialLinks: UpdateAdminSiteSocialLinkRequest[];
+  contactsEnabled: boolean;
+  contactsTitle?: string;
+  contactsDescription?: string;
+  contactPeople: UpdateAdminSiteContactPersonRequest[];
+};
+
+export type UpdateAdminSiteContactPersonRequest = {
+  id: string;
+  name: string;
+  role?: string;
+  description?: string;
+  enabled: boolean;
+  showInFooter: boolean;
+  sortOrder: number;
+  links: UpdateAdminSiteContactLinkRequest[];
+};
+
+export type UpdateAdminSiteContactLinkRequest = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  sortOrder: number;
+};
+
+export type AdminGoogleSheetsSyncSettings = {
+  enabled: boolean;
+  spreadsheetId?: string | null;
+  sheetName?: string | null;
+  hasServiceAccountJson: boolean;
+  serviceAccountEmail?: string | null;
+  lastSyncedAtUtc?: string | null;
+  lastError?: string | null;
+};
+
+export type UpdateAdminGoogleSheetsSyncSettingsRequest = {
+  enabled: boolean;
+  spreadsheetId?: string;
+  sheetName?: string;
+  serviceAccountJson?: string;
+};
+
+export type AdminGoogleSheetsSyncRunResponse = {
+  synced: boolean;
+  message: string;
+  rowsWritten?: number | null;
+  syncedAtUtc?: string | null;
 };
 
 export type PublicSiteSocialLink = {
@@ -605,6 +678,28 @@ export type PublicSiteSettings = {
   socialLinksTitle?: string | null;
   socialLinksDescription?: string | null;
   socialLinks: PublicSiteSocialLink[];
+  contactsEnabled: boolean;
+  contactsTitle?: string | null;
+  contactsDescription?: string | null;
+  contactPeople: PublicSiteContactPerson[];
+};
+
+export type PublicSiteContactPerson = {
+  id: string;
+  name: string;
+  role: string;
+  description?: string | null;
+  showInFooter: boolean;
+  sortOrder: number;
+  links: PublicSiteContactLink[];
+};
+
+export type PublicSiteContactLink = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  sortOrder: number;
 };
 
 export type PublicEventPriceOption = {

@@ -22,7 +22,7 @@ public sealed class CampRegistration
     public int ParticipantsCount { get; set; } = 1;
     public string EmergencyContactName { get; set; } = string.Empty;
     public string EmergencyContactPhone { get; set; } = string.Empty;
-    public AccommodationPreference AccommodationPreference { get; set; } = AccommodationPreference.Either;
+    public AccommodationPreference AccommodationPreference { get; set; } = AccommodationPreference.Tent;
     public string? HealthNotes { get; set; }
     public string? AllergyNotes { get; set; }
     public string? SpecialNeeds { get; set; }

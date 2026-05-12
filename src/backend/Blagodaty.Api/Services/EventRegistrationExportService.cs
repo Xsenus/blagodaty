@@ -167,14 +167,15 @@ public sealed class EventRegistrationExportService
         IReadOnlyList<CampRegistration> registrations)
     {
         sheet.Cell(1, 1).Value = $"Состав групп: {eventTitle}";
-        sheet.Range(1, 1, 1, 7).Merge().Style.Font.SetBold().Font.SetFontSize(14);
+        sheet.Range(1, 1, 1, 8).Merge().Style.Font.SetBold().Font.SetFontSize(14);
 
         var headers = new[]
         {
             "№ заявки",
             "Контактное лицо",
             "Участник",
-            "Ребёнок",
+            "Дата рождения",
+            "16-17 лет",
             "Статус",
             "Телефон",
             "Email"
@@ -197,6 +198,7 @@ public sealed class EventRegistrationExportService
                 : [new CampRegistrationParticipant
                     {
                         FullName = registration.FullName,
+                        BirthDate = registration.BirthDate == default ? null : registration.BirthDate,
                         IsChild = registration.HasChildren,
                         SortOrder = 0
                     }];
@@ -206,10 +208,11 @@ public sealed class EventRegistrationExportService
                 sheet.Cell(rowIndex, 1).Value = registration.Id.ToString();
                 sheet.Cell(rowIndex, 2).Value = registration.FullName;
                 sheet.Cell(rowIndex, 3).Value = participant.FullName;
-                sheet.Cell(rowIndex, 4).Value = participant.IsChild ? "Да" : "Нет";
-                sheet.Cell(rowIndex, 5).Value = FormatRegistrationStatus(registration.Status);
-                sheet.Cell(rowIndex, 6).Value = registration.PhoneNumber;
-                sheet.Cell(rowIndex, 7).Value = !string.IsNullOrWhiteSpace(registration.ContactEmail)
+                sheet.Cell(rowIndex, 4).Value = participant.BirthDate?.ToString("dd.MM.yyyy") ?? string.Empty;
+                sheet.Cell(rowIndex, 5).Value = participant.IsChild ? "Да" : "Нет";
+                sheet.Cell(rowIndex, 6).Value = FormatRegistrationStatus(registration.Status);
+                sheet.Cell(rowIndex, 7).Value = registration.PhoneNumber;
+                sheet.Cell(rowIndex, 8).Value = !string.IsNullOrWhiteSpace(registration.ContactEmail)
                     ? registration.ContactEmail
                     : TechnicalEmailHelper.ToVisibleEmail(registration.User.Email);
                 rowIndex++;
@@ -272,6 +275,7 @@ public sealed class EventRegistrationExportService
             : [new CampRegistrationParticipant
                 {
                     FullName = registration.FullName,
+                    BirthDate = registration.BirthDate == default ? null : registration.BirthDate,
                     IsChild = registration.HasChildren,
                     SortOrder = 0
                 }];
@@ -279,7 +283,12 @@ public sealed class EventRegistrationExportService
         return string.Join(
             "\n",
             participants.Select((participant, index) =>
-                $"{index + 1}. {participant.FullName}{(participant.IsChild ? " (ребёнок)" : string.Empty)}"));
+                $"{index + 1}. {participant.FullName}{FormatParticipantBirthDate(participant)}{(participant.IsChild ? " (16-17 лет)" : string.Empty)}"));
+    }
+
+    private static string FormatParticipantBirthDate(CampRegistrationParticipant participant)
+    {
+        return participant.BirthDate.HasValue ? $" ({participant.BirthDate.Value:dd.MM.yyyy})" : string.Empty;
     }
 
     private static string FormatTelegram(TelegramIdentityProjection? telegram)
@@ -309,8 +318,8 @@ public sealed class EventRegistrationExportService
     private static string FormatAccommodation(AccommodationPreference preference) => preference switch
     {
         AccommodationPreference.Tent => "Палатка",
-        AccommodationPreference.Cabin => "Домик",
-        AccommodationPreference.Either => "Без разницы",
+        AccommodationPreference.Cabin => "Домик (старый вариант)",
+        AccommodationPreference.Either => "Нужны доп. условия",
         _ => preference.ToString()
     };
 

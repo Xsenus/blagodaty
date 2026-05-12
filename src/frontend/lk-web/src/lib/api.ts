@@ -7,6 +7,8 @@ import type {
   AdminEventsResponse,
   AdminGalleryAsset,
   AdminGalleryAssetsResponse,
+  AdminGoogleSheetsSyncRunResponse,
+  AdminGoogleSheetsSyncSettings,
   AdminDatabaseBackupsOverview,
   AdminDatabaseBackupCreateResponse,
   AdminTelegramChat,
@@ -32,6 +34,7 @@ import type {
   CreateAdminTelegramSubscriptionRequest,
   UpsertAdminEventRequest,
   UpdateAdminDatabaseBackupSettingsRequest,
+  UpdateAdminGoogleSheetsSyncSettingsRequest,
   UpdateAdminTelegramSubscriptionRequest,
   UpdateAdminSiteSettingsRequest,
   UpdateProfileRequest,
@@ -610,6 +613,19 @@ export async function downloadAdminBackup(accessToken: string, relativePath: str
   window.URL.revokeObjectURL(objectUrl);
 }
 
+export async function downloadAdminEventRegistrationsExport(accessToken: string, eventId: string) {
+  const { blob, fileName } = await download(`/api/admin/events/${eventId}/registrations/export`, accessToken);
+
+  const objectUrl = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = fileName ?? 'registrations.xlsx';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.URL.revokeObjectURL(objectUrl);
+}
+
 export function createAdminEvent(accessToken: string, payload: UpsertAdminEventRequest) {
   return request<AdminEventDetails>(
     '/api/admin/events',
@@ -642,6 +658,34 @@ export function updateAdminSiteSettings(accessToken: string, payload: UpdateAdmi
     {
       method: 'PUT',
       body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function getAdminGoogleSheetsSyncSettings(accessToken: string) {
+  return request<AdminGoogleSheetsSyncSettings>('/api/admin/google-sheets-sync', {}, accessToken);
+}
+
+export function updateAdminGoogleSheetsSyncSettings(
+  accessToken: string,
+  payload: UpdateAdminGoogleSheetsSyncSettingsRequest,
+) {
+  return request<AdminGoogleSheetsSyncSettings>(
+    '/api/admin/google-sheets-sync',
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function runAdminGoogleSheetsSync(accessToken: string) {
+  return request<AdminGoogleSheetsSyncRunResponse>(
+    '/api/admin/google-sheets-sync/sync',
+    {
+      method: 'POST',
     },
     accessToken,
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   createAdminEvent,
+  downloadAdminEventRegistrationsExport,
   getAdminEventDetails,
   getAdminEvents,
   updateAdminEvent,
@@ -306,6 +307,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
   const [isListLoading, setIsListLoading] = useState(false);
   const [isDetailsLoading, setIsDetailsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<EventEditorTab>('main');
@@ -398,6 +400,25 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
       toast.error('Не удалось загрузить мероприятия', nextError);
     } finally {
       setIsListLoading(false);
+    }
+  }
+
+  async function handleExportRegistrations() {
+    if (!accessToken || !currentEventId || isCreateMode) {
+      return;
+    }
+
+    setIsExporting(true);
+    setError(null);
+    try {
+      await downloadAdminEventRegistrationsExport(accessToken, currentEventId);
+      toast.success('Выгрузка готова', 'Excel-файл с заявками скачан. Его можно открыть или импортировать в Google Таблицы.');
+    } catch (exportError) {
+      const nextError = exportError instanceof Error ? exportError.message : 'Не удалось скачать выгрузку заявок.';
+      setError(nextError);
+      toast.error('Не удалось скачать выгрузку', nextError);
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -650,6 +671,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
               <p>{eventItem.seasonLabel || eventItem.seriesTitle}</p>
               <p>{formatDateTime(eventItem.startsAtUtc)}</p>
               <div className="role-pills">
+                <span className="role-pill">Редактировать</span>
                 <span className="role-pill">Заявок: {eventItem.registrationsCount}</span>
                 <span className="role-pill muted-pill">
                   {eventItem.remainingCapacity == null ? 'Без лимита' : `Осталось: ${eventItem.remainingCapacity}`}
@@ -666,9 +688,21 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
             <p className="mini-eyebrow">{isCreateMode ? 'Новый выпуск' : 'Редактор'}</p>
             <h3>{isCreateMode ? 'Карточка мероприятия' : draft.title || 'Карточка мероприятия'}</h3>
           </div>
-          <button className="primary-button" type="submit" disabled={isSaving || isDetailsLoading}>
-            {isSaving ? 'Сохраняем...' : isCreateMode ? 'Создать' : 'Сохранить'}
-          </button>
+          <div className="inline-links">
+            {!isCreateMode ? (
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={handleExportRegistrations}
+                disabled={isExporting || isDetailsLoading}
+              >
+                {isExporting ? 'Готовим...' : 'Скачать таблицу'}
+              </button>
+            ) : null}
+            <button className="primary-button" type="submit" disabled={isSaving || isDetailsLoading}>
+              {isSaving ? 'Сохраняем...' : isCreateMode ? 'Создать' : 'Сохранить'}
+            </button>
+          </div>
         </div>
 
         {selectedSummary ? (

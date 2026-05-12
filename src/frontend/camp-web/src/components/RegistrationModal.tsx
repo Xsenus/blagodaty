@@ -20,15 +20,18 @@ type RegistrationModalProps = {
 
 type EditableParticipant = {
   fullName: string;
+  birthDate?: string;
   isChild: boolean;
 };
 
 const EMPTY_PARTICIPANT: EditableParticipant = {
   fullName: '',
+  birthDate: '',
   isChild: false,
 };
 const DEFAULT_CITY = 'Новосибирск';
 const DEFAULT_CHURCH_NAME = 'Благодать';
+const MINIMUM_PARTICIPANT_AGE = 16;
 
 function createEmptyForm(): SaveRegistrationRequest {
   return {
@@ -44,7 +47,7 @@ function createEmptyForm(): SaveRegistrationRequest {
     participants: [{ ...EMPTY_PARTICIPANT }],
     emergencyContactName: '',
     emergencyContactPhone: '',
-    accommodationPreference: 'Either',
+    accommodationPreference: 'Tent',
     healthNotes: '',
     allergyNotes: '',
     specialNeeds: '',
@@ -52,6 +55,10 @@ function createEmptyForm(): SaveRegistrationRequest {
     consentAccepted: false,
     submit: true,
   };
+}
+
+function normalizeAccommodationPreference(value?: AccommodationPreference | null): AccommodationPreference {
+  return value === 'Either' || value === 'Tent' ? value : 'Tent';
 }
 
 function getDraftStorageKey(eventSlug?: string | null) {
@@ -102,6 +109,7 @@ function readDraftForm(storageKey: string | null): SaveRegistrationRequest | nul
     const participants = Array.isArray(parsed.participants)
       ? parsed.participants.map((participant) => ({
           fullName: typeof participant?.fullName === 'string' ? participant.fullName : '',
+          birthDate: typeof participant?.birthDate === 'string' ? participant.birthDate : '',
           isChild: Boolean(participant?.isChild),
         }))
       : [{ ...EMPTY_PARTICIPANT }];
@@ -121,7 +129,7 @@ function readDraftForm(storageKey: string | null): SaveRegistrationRequest | nul
       phoneNumber: typeof parsed.phoneNumber === 'string' ? parsed.phoneNumber : '',
       emergencyContactName: typeof parsed.emergencyContactName === 'string' ? parsed.emergencyContactName : '',
       emergencyContactPhone: typeof parsed.emergencyContactPhone === 'string' ? parsed.emergencyContactPhone : '',
-      accommodationPreference: parsed.accommodationPreference ?? 'Either',
+      accommodationPreference: normalizeAccommodationPreference(parsed.accommodationPreference),
       healthNotes: typeof parsed.healthNotes === 'string' ? parsed.healthNotes : '',
       allergyNotes: typeof parsed.allergyNotes === 'string' ? parsed.allergyNotes : '',
       specialNeeds: typeof parsed.specialNeeds === 'string' ? parsed.specialNeeds : '',
@@ -206,12 +214,61 @@ function isValidPhone(value: string) {
   return /^\+\d{10,15}$/.test(normalizePhone(value));
 }
 
-function ensureParticipants(participants: EditableParticipant[], fallbackFullName = '') {
+function parseDateInput(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function getAgeAtDate(birthDateValue: string, targetDateValue?: string | null) {
+  const birthDate = parseDateInput(birthDateValue);
+  const targetDate = targetDateValue ? new Date(targetDateValue) : new Date();
+  if (!birthDate || Number.isNaN(targetDate.getTime())) {
+    return null;
+  }
+
+  let age = targetDate.getFullYear() - birthDate.year;
+  const targetMonth = targetDate.getMonth() + 1;
+  const targetDay = targetDate.getDate();
+  if (targetMonth < birthDate.month || (targetMonth === birthDate.month && targetDay < birthDate.day)) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function isMinimumAgeReached(birthDateValue: string, eventStartsAtUtc?: string | null) {
+  const age = getAgeAtDate(birthDateValue, eventStartsAtUtc);
+  return age !== null && age >= MINIMUM_PARTICIPANT_AGE;
+}
+
+function isMinorParticipant(birthDateValue: string | undefined, eventStartsAtUtc?: string | null) {
+  if (!birthDateValue) {
+    return false;
+  }
+
+  const age = getAgeAtDate(birthDateValue, eventStartsAtUtc);
+  return age !== null && age >= MINIMUM_PARTICIPANT_AGE && age < 18;
+}
+
+function ensureParticipants(
+  participants: EditableParticipant[],
+  fallbackFullName = '',
+  primaryBirthDate = '',
+  eventStartsAtUtc?: string | null,
+) {
   const sanitized = participants
-    .map((participant) => ({
-      fullName: participant.fullName.trim(),
-      isChild: participant.isChild,
-    }))
+    .map((participant, index) => {
+      const birthDate = (index === 0 ? primaryBirthDate || participant.birthDate : participant.birthDate) ?? '';
+      return {
+        fullName: participant.fullName.trim(),
+        birthDate,
+        isChild: birthDate ? isMinorParticipant(birthDate, eventStartsAtUtc) : participant.isChild,
+      };
+    })
     .filter((participant) => participant.fullName);
 
   if (sanitized.length > 0) {
@@ -222,14 +279,15 @@ function ensureParticipants(participants: EditableParticipant[], fallbackFullNam
     ? [
         {
           fullName: fallbackFullName.trim(),
+          birthDate: primaryBirthDate,
           isChild: false,
         },
       ]
     : [];
 }
 
-function buildSubmitPayload(form: SaveRegistrationRequest): SaveRegistrationRequest {
-  const participants = ensureParticipants(form.participants, form.fullName);
+function buildSubmitPayload(form: SaveRegistrationRequest, selectedEvent: PublicEventDetails): SaveRegistrationRequest {
+  const participants = ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent.startsAtUtc);
 
   return {
     ...form,
@@ -282,6 +340,33 @@ function collectRegistrationValidationErrors(form: SaveRegistrationRequest, sele
 
   if (!form.birthDate) {
     errors.push('Укажите дату рождения основного участника.');
+  } else if (!isMinimumAgeReached(form.birthDate, selectedEvent.startsAtUtc)) {
+    errors.push(`К участию допускаются участники с ${MINIMUM_PARTICIPANT_AGE} лет на дату начала похода.`);
+  }
+
+  const normalizedParticipants = ensureParticipants(
+    form.participants,
+    form.fullName,
+    form.birthDate,
+    selectedEvent.startsAtUtc,
+  );
+  normalizedParticipants.slice(1).forEach((participant) => {
+    if (!participant.birthDate) {
+      errors.push(`Укажите дату рождения участника: ${participant.fullName}.`);
+      return;
+    }
+
+    if (!isMinimumAgeReached(participant.birthDate, selectedEvent.startsAtUtc)) {
+      errors.push(`Участнику ${participant.fullName} должно быть не меньше ${MINIMUM_PARTICIPANT_AGE} лет на дату начала похода.`);
+    }
+  });
+
+  const hasMinorParticipant = normalizedParticipants.some((participant) =>
+    isMinorParticipant(participant.birthDate, selectedEvent.startsAtUtc),
+  );
+  const primaryAge = form.birthDate ? getAgeAtDate(form.birthDate, selectedEvent.startsAtUtc) : null;
+  if (hasMinorParticipant && (primaryAge === null || primaryAge < 18)) {
+    errors.push('Участника 16-17 лет может зарегистрировать только взрослый родитель или сопровождающий.');
   }
 
   if (!form.phoneNumber.trim()) {
@@ -329,8 +414,12 @@ export function RegistrationModal({
     () => selectedEvent?.priceOptions.filter((option) => option.isActive) ?? [],
     [selectedEvent?.priceOptions],
   );
-  const participantsCount = form.participants.filter((participant) => participant.fullName.trim()).length || 1;
-  const childrenCount = form.participants.filter((participant) => participant.fullName.trim() && participant.isChild).length;
+  const completedParticipants = useMemo(
+    () => ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent?.startsAtUtc),
+    [form.birthDate, form.fullName, form.participants, selectedEvent?.startsAtUtc],
+  );
+  const participantsCount = completedParticipants.length || 1;
+  const childrenCount = completedParticipants.filter((participant) => participant.isChild).length;
   const validationErrors = validationMode ? collectRegistrationValidationErrors(form, selectedEvent) : [];
 
   useEffect(() => {
@@ -399,7 +488,14 @@ export function RegistrationModal({
         ...current,
         participants: normalizedParticipants,
         fullName: normalizedParticipants[0]?.fullName ?? '',
-        hasChildren: current.hasChildren || normalizedParticipants.some((participant) => participant.isChild),
+        hasChildren:
+          current.hasChildren ||
+          ensureParticipants(
+            normalizedParticipants,
+            current.fullName,
+            current.birthDate,
+            selectedEvent?.startsAtUtc,
+          ).some((participant) => participant.isChild),
       };
     });
   }
@@ -416,7 +512,7 @@ export function RegistrationModal({
 
     setIsSaving(true);
     try {
-      const saved = await submitGuestEventRegistration(selectedEvent.slug, buildSubmitPayload(form));
+      const saved = await submitGuestEventRegistration(selectedEvent.slug, buildSubmitPayload(form, selectedEvent));
       setCompletedRegistration(saved);
       clearDraftForm(draftStorageKey);
       onSubmitted?.(saved);
@@ -623,7 +719,7 @@ export function RegistrationModal({
 
                       <div className="participant-summary-row">
                         <span className="summary-chip">Участников: {participantsCount}</span>
-                        <span className="summary-chip">Детей: {childrenCount}</span>
+                        <span className="summary-chip">16-17 лет: {childrenCount}</span>
                       </div>
 
                       <div className="participant-list">
@@ -664,24 +760,40 @@ export function RegistrationModal({
                                 />
                               </label>
 
+                              {index > 0 ? (
+                                <label>
+                                  <span>Дата рождения</span>
+                                  <input
+                                    type="date"
+                                    value={participant.birthDate ?? ''}
+                                    onChange={(event) => {
+                                      const birthDate = event.target.value;
+                                      updateParticipants((items) =>
+                                        items.map((item, currentIndex) =>
+                                          currentIndex === index
+                                            ? {
+                                                ...item,
+                                                birthDate,
+                                              }
+                                            : item,
+                                        ),
+                                      );
+                                    }}
+                                    required
+                                  />
+                                </label>
+                              ) : null}
+
                               <label className="checkbox-row compact-checkbox-row">
                                 <input
                                   type="checkbox"
-                                  checked={participant.isChild}
-                                  onChange={(event) =>
-                                    updateParticipants((items) =>
-                                      items.map((item, currentIndex) =>
-                                        currentIndex === index
-                                          ? {
-                                              ...item,
-                                              isChild: event.target.checked,
-                                            }
-                                          : item,
-                                      ),
-                                    )
-                                  }
+                                  checked={isMinorParticipant(
+                                    index === 0 ? form.birthDate : participant.birthDate,
+                                    selectedEvent?.startsAtUtc,
+                                  )}
+                                  disabled
                                 />
-                                <span>Ребёнок</span>
+                                <span>16-17 лет</span>
                               </label>
                             </div>
                           </article>
@@ -710,9 +822,8 @@ export function RegistrationModal({
                               }))
                             }
                           >
-                            <option value="Either">Любой формат</option>
                             <option value="Tent">Палатка</option>
-                            <option value="Cabin">Домик</option>
+                            <option value="Either">Нужны доп. условия</option>
                           </select>
                         </label>
 
@@ -751,7 +862,7 @@ export function RegistrationModal({
                             checked={form.hasChildren}
                             onChange={(event) => setForm((current) => ({ ...current, hasChildren: event.target.checked }))}
                           />
-                          <span>Еду с детьми</span>
+                          <span>Еду с несовершеннолетним участником</span>
                         </label>
                       </div>
                     </div>

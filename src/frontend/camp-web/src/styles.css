@@ -748,6 +748,40 @@ img {
   margin-bottom: 18px;
 }
 
+.footer-contacts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.footer-contact {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.footer-contact strong,
+.footer-contact span,
+.footer-contact p {
+  display: block;
+  margin: 0;
+}
+
+.footer-contact span,
+.footer-contact p {
+  color: var(--text-soft);
+}
+
+.footer-contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .modal-root {
   position: fixed;
   inset: 0;
@@ -1317,6 +1351,7 @@ select:focus {
   .success-summary-grid,
   .modal-form-grid,
   .modal-event-grid,
+  .footer-contacts,
   .modal-progress-grid {
     grid-template-columns: 1fr;
   }
@@ -1669,6 +1704,178 @@ body {
   color: var(--text-main);
 }
 
+.activities-section {
+  display: grid;
+  gap: 20px;
+}
+
+.activities-section .section-heading {
+  max-width: 820px;
+}
+
+.activities-section .section-heading p:last-child {
+  margin: 0;
+  color: var(--text-soft);
+}
+
+.activities-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.activities-map-panel {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.activities-map {
+  width: 100%;
+  height: min(62vh, 640px);
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid rgba(49, 95, 83, 0.18);
+  border-radius: 8px;
+  background: #dfe9e4;
+  box-shadow: var(--shadow-soft);
+}
+
+.activities-map-note {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border: 1px solid rgba(49, 95, 83, 0.14);
+  border-radius: 8px;
+  background: rgba(248, 251, 247, 0.86);
+}
+
+.activities-map-note strong {
+  color: var(--text-main);
+}
+
+.activities-map-note span {
+  color: var(--text-soft);
+}
+
+.activities-list {
+  display: grid;
+  gap: 10px;
+  max-height: 720px;
+  min-width: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.activity-card {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid rgba(49, 95, 83, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 22px rgba(31, 47, 43, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.activity-card:hover,
+.activity-card.active {
+  border-color: rgba(191, 111, 52, 0.36);
+  box-shadow: 0 14px 30px rgba(31, 47, 43, 0.1);
+}
+
+.activity-card.active {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 244, 236, 0.94));
+}
+
+.activity-card-trigger {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding: 16px 16px 12px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.activity-card-trigger:focus-visible {
+  outline: 2px solid rgba(191, 111, 52, 0.42);
+  outline-offset: -3px;
+}
+
+.activity-card-kicker {
+  color: var(--text-accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.activity-card-trigger strong {
+  color: var(--text-main);
+  font-size: 1.06rem;
+  line-height: 1.2;
+}
+
+.activity-card-summary {
+  color: var(--text-soft);
+}
+
+.activity-meta-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.activity-meta-row span {
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(239, 244, 236, 0.9);
+  color: var(--text-main);
+  font-size: 0.92rem;
+}
+
+.activity-source-link {
+  justify-self: start;
+  margin: 0 16px 16px;
+  color: var(--text-accent);
+  font-weight: 700;
+  border-bottom: 1px solid rgba(156, 102, 52, 0.28);
+}
+
+.activity-source-link:hover {
+  color: var(--accent-strong);
+}
+
+.leaflet-container {
+  font: inherit;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  border-radius: 8px;
+  color: var(--text-main);
+}
+
+.leaflet-popup-content {
+  max-width: 220px;
+  margin: 12px 14px;
+  color: var(--text-main);
+  font-size: 0.92rem;
+  line-height: 1.35;
+}
+
+.leaflet-control-attribution {
+  font-size: 0.7rem;
+}
+
 .media-source-footer {
   margin-top: 16px;
 }
@@ -1820,6 +2027,20 @@ input[type="radio"] {
   .place-review-grid {
     grid-template-columns: 1fr 1fr;
   }
+
+  .activities-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .activities-map-panel {
+    position: static;
+  }
+
+  .activities-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none;
+    padding-right: 0;
+  }
 }
 
 @media (max-width: 860px) {
@@ -1836,11 +2057,21 @@ input[type="radio"] {
   .place-section,
   .place-photos,
   .facts-strip,
-  .place-review-grid {
+  .place-review-grid,
+  .activities-list {
     grid-template-columns: 1fr;
   }
 
   .place-review-footer {
+    display: grid;
+  }
+
+  .activities-map {
+    height: 460px;
+    min-height: 420px;
+  }
+
+  .activities-map-note {
     display: grid;
   }
 
@@ -1878,5 +2109,22 @@ input[type="radio"] {
   .content-card h2,
   .cta-banner h2 {
     font-size: 2rem;
+  }
+
+  .activities-map {
+    height: 380px;
+    min-height: 340px;
+  }
+
+  .activity-card-trigger {
+    padding: 14px 14px 10px;
+  }
+
+  .activity-meta-row {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-source-link {
+    margin-inline: 14px;
   }
 }

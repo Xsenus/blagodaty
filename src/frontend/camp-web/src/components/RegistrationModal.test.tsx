@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { submitGuestEventRegistration } from '../lib/api';
 import type { CampRegistration, PublicEventDetails, PublicEventSummary } from '../types';
 import { RegistrationModal } from './RegistrationModal';
@@ -16,6 +16,11 @@ vi.mock('../lib/api', async (importOriginal) => {
 
 const submitGuestEventRegistrationMock = vi.mocked(submitGuestEventRegistration);
 
+beforeEach(() => {
+  submitGuestEventRegistrationMock.mockReset();
+  window.localStorage.clear();
+});
+
 function makeEventDetails(overrides: Partial<PublicEventDetails> = {}): PublicEventDetails {
   return {
     id: 'event-1',
@@ -26,18 +31,18 @@ function makeEventDetails(overrides: Partial<PublicEventDetails> = {}): PublicEv
     title: 'Blagodaty Camp Лето 2026',
     seasonLabel: 'Лето 2026',
     shortDescription: 'Выезд в Горный Алтай',
-    fullDescription: 'Палатки, домики, костры, молитва и общение.',
+    fullDescription: 'Палатки, костры, молитва и общение.',
     location: 'Горный Алтай',
     timezone: 'Asia/Novosibirsk',
     status: 'RegistrationOpen',
-    startsAtUtc: '2026-07-15T00:00:00Z',
-    endsAtUtc: '2026-07-23T00:00:00Z',
+    startsAtUtc: '2026-08-17T00:00:00Z',
+    endsAtUtc: '2026-08-22T00:00:00Z',
     registrationOpensAtUtc: '2026-04-01T00:00:00Z',
     registrationClosesAtUtc: '2026-07-10T00:00:00Z',
     isRegistrationOpen: true,
     isRegistrationClosingSoon: false,
-    capacity: 150,
-    remainingCapacity: 150,
+    capacity: 35,
+    remainingCapacity: 35,
     waitlistEnabled: false,
     priceOptions: [
       {
@@ -45,7 +50,7 @@ function makeEventDetails(overrides: Partial<PublicEventDetails> = {}): PublicEv
         code: 'standard',
         title: 'Стандартное участие',
         description: 'Базовый тариф для участия в лагере.',
-        amount: 32000,
+        amount: 18000,
         currency: 'RUB',
         salesStartsAtUtc: null,
         salesEndsAtUtc: null,
@@ -98,7 +103,7 @@ function makeSavedRegistration(): CampRegistration {
     eventLocation: 'Горный Алтай',
     selectedPriceOptionId: 'price-standard',
     selectedPriceOptionTitle: 'Стандартное участие',
-    selectedPriceOptionAmount: 32000,
+    selectedPriceOptionAmount: 18000,
     selectedPriceOptionCurrency: 'RUB',
     status: 'Submitted',
     contactEmail: 'ivan@example.com',
@@ -112,12 +117,12 @@ function makeSavedRegistration(): CampRegistration {
     hasChildren: true,
     participantsCount: 2,
     participants: [
-      { id: 'participant-1', fullName: 'Иван Иванов', isChild: false, sortOrder: 0 },
-      { id: 'participant-2', fullName: 'Петр Иванов', isChild: true, sortOrder: 1 },
+      { id: 'participant-1', fullName: 'Иван Иванов', birthDate: '1990-01-10', isChild: false, sortOrder: 0 },
+      { id: 'participant-2', fullName: 'Петр Иванов', birthDate: '2009-08-01', isChild: true, sortOrder: 1 },
     ],
     emergencyContactName: '',
     emergencyContactPhone: '',
-    accommodationPreference: 'Cabin',
+    accommodationPreference: 'Tent',
     healthNotes: 'Без ограничений',
     allergyNotes: '',
     specialNeeds: '',
@@ -164,7 +169,7 @@ describe('RegistrationModal', () => {
     expect(screen.queryByLabelText(/^Город$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Церковь$/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^ФИО$/i)).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /Ребёнок/i })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: /16-17 лет/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/^Размещение$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Доверенное лицо$/i)).not.toBeRequired();
     expect(screen.getByLabelText(/^Телефон доверенного лица$/i)).not.toBeRequired();
@@ -207,9 +212,9 @@ describe('RegistrationModal', () => {
 
     await user.click(screen.getByRole('button', { name: /Добавить участника/i }));
     fireEvent.change(screen.getAllByLabelText(/^ФИО$/i)[1], { target: { value: 'Петр Иванов' } });
-    await user.click(screen.getAllByRole('checkbox', { name: /Ребёнок/i })[1]);
+    fireEvent.change(screen.getByLabelText(/^Дата рождения$/i), { target: { value: '2009-08-01' } });
 
-    await user.selectOptions(screen.getByLabelText(/^Размещение$/i), 'Cabin');
+    await user.selectOptions(screen.getByLabelText(/^Размещение$/i), 'Tent');
     await user.click(screen.getByRole('checkbox', { name: /Есть автомобиль/i }));
     fireEvent.change(screen.getByLabelText(/Здоровье и ограничения/i), { target: { value: 'Без ограничений' } });
     fireEvent.change(screen.getByLabelText(/^Комментарий$/i), { target: { value: 'Хочу участвовать' } });
@@ -230,12 +235,12 @@ describe('RegistrationModal', () => {
         hasCar: true,
         hasChildren: true,
         participants: [
-          { fullName: 'Иван Иванов', isChild: false },
-          { fullName: 'Петр Иванов', isChild: true },
+          { fullName: 'Иван Иванов', birthDate: '1990-01-10', isChild: false },
+          { fullName: 'Петр Иванов', birthDate: '2009-08-01', isChild: true },
         ],
         emergencyContactName: '',
         emergencyContactPhone: '',
-        accommodationPreference: 'Cabin',
+        accommodationPreference: 'Tent',
         healthNotes: 'Без ограничений',
         motivation: 'Хочу участвовать',
         consentAccepted: true,
@@ -260,5 +265,20 @@ describe('RegistrationModal', () => {
 
     expect(submitGuestEventRegistrationMock).not.toHaveBeenCalled();
     expect(screen.getByText(/Проверьте телефон доверенного лица/i)).toBeInTheDocument();
+  });
+
+  it('does not submit when the primary participant is under 16 at event start', async () => {
+    const user = userEvent.setup();
+    renderRegistrationModal();
+
+    await user.type(screen.getByLabelText(/^Email$/i), 'ivan@example.com');
+    await user.type(screen.getByLabelText(/^Телефон$/i), '89991234567');
+    fireEvent.change(screen.getByLabelText(/Дата рождения основного участника/i), { target: { value: '2011-07-16' } });
+    await user.type(screen.getByLabelText(/^ФИО$/i), 'Иван Иванов');
+    await user.click(screen.getByRole('checkbox', { name: /Подтверждаю корректность данных/i }));
+    await user.click(screen.getByRole('button', { name: /Отправить заявку/i }));
+
+    expect(submitGuestEventRegistrationMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/с 16 лет/i)).toBeInTheDocument();
   });
 });

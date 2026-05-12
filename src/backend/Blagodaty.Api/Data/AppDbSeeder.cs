@@ -10,6 +10,9 @@ namespace Blagodaty.Api.Data;
 
 public static class AppDbSeeder
 {
+    private const string Camp2026ContentVersionKey = "blagodaty_camp_2026_content_version";
+    private const string Camp2026ContentVersion = "2026-05-12-august-tent-hike";
+
     public static async Task SeedAsync(IServiceProvider services)
     {
         var dbContext = services.GetRequiredService<AppDbContext>();
@@ -28,6 +31,7 @@ public static class AppDbSeeder
 
         await EnsureExternalAuthSettingsAsync(dbContext);
         await EnsureDefaultCampEventAsync(dbContext, campOptions);
+        await EnsureCurrentCamp2026ContentAsync(dbContext, campOptions);
         await AttachLegacyRegistrationsAsync(dbContext);
 
         if (await userManager.Users.AnyAsync())
@@ -171,8 +175,8 @@ public static class AppDbSeeder
                 Location = string.IsNullOrWhiteSpace(campOptions.Location) ? null : campOptions.Location.Trim(),
                 Timezone = "Asia/Novosibirsk",
                 Status = EventEditionStatus.RegistrationOpen,
-                StartsAtUtc = startsAtUtc == default ? new DateTime(year, 7, 15, 8, 0, 0, DateTimeKind.Utc) : startsAtUtc,
-                EndsAtUtc = endsAtUtc == default ? new DateTime(year, 7, 23, 8, 0, 0, DateTimeKind.Utc) : endsAtUtc,
+                StartsAtUtc = startsAtUtc == default ? new DateTime(year, 8, 17, 8, 0, 0, DateTimeKind.Utc) : startsAtUtc,
+                EndsAtUtc = endsAtUtc == default ? new DateTime(year, 8, 22, 8, 0, 0, DateTimeKind.Utc) : endsAtUtc,
                 RegistrationOpensAtUtc = registrationOpensAtUtc,
                 RegistrationClosesAtUtc = registrationClosesAtUtc,
                 Capacity = campOptions.Capacity,
@@ -187,7 +191,7 @@ public static class AppDbSeeder
                 Id = Guid.NewGuid(),
                 Code = "standard",
                 Title = "Стандартное участие",
-                Description = "Базовый тариф для участия в лагере.",
+                Description = "Палаточный поход. Регистрация до 10.07, оплата до 13.07.",
                 Amount = campOptions.SuggestedDonation,
                 Currency = "RUB",
                 IsDefault = true,
@@ -230,17 +234,36 @@ public static class AppDbSeeder
                 SortOrder = 20
             });
 
+            edition.ScheduleItems.Add(new EventScheduleItem
+            {
+                Id = Guid.NewGuid(),
+                Title = "Оплата участия",
+                Kind = EventScheduleItemKind.Deadline,
+                StartsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
+                EndsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
+                Location = "Google Таблица / координатор",
+                Notes = "Оплату нужно внести до 13.07.",
+                SortOrder = -10
+            });
+
             var contentBlocks = new[]
             {
                 (EventContentBlockType.Hero, "О событии", string.IsNullOrWhiteSpace(campOptions.Tagline)
                     ? "Тихий отдых, молитва, братское общение и горный воздух Алтая."
                     : campOptions.Tagline.Trim(), 0),
-                (EventContentBlockType.Highlight, (string?)null, "Походы и выезды в горы Алтая вместе с церковной командой.", 10),
-                (EventContentBlockType.Highlight, (string?)null, "Палатки, домики, костры и теплые вечерние встречи под открытым небом.", 20),
-                (EventContentBlockType.Highlight, (string?)null, "Поклонение, молитва, наставничество и живое братское общение.", 30),
-                (EventContentBlockType.WhatToBring, (string?)null, "Спальник, коврик, фонарик и базовую походную одежду.", 40),
-                (EventContentBlockType.WhatToBring, (string?)null, "Средства личной гигиены, теплые вещи и дождевик.", 50),
-                (EventContentBlockType.WhatToBring, (string?)null, "Библию, блокнот, ручку и открытое сердце к Богу и людям.", 60)
+                (EventContentBlockType.Highlight, (string?)null, "Палаточный поход в Горном Алтае с 17 по 22 августа.", 10),
+                (EventContentBlockType.Highlight, (string?)null, "Возраст участников: с 16 лет. Количество мест ограничено: 35.", 20),
+                (EventContentBlockType.Highlight, (string?)null, "Регистрация открыта до 10.07, оплату нужно внести до 13.07.", 30),
+                (EventContentBlockType.WhatToBring, "Для сна", "Спальник; туристический коврик; маленькая подушка; пижама.", 40),
+                (EventContentBlockType.WhatToBring, "Гигиена", "Средства гигиены (зубная щетка, паста, шампунь, влажные салфетки и т. п.); полотенце для лица; сменное нижнее белье.", 50),
+                (EventContentBlockType.WhatToBring, "Для активного отдыха", "Пляжное полотенце; головной убор; удобная одежда; удобная обувь; солнцезащитный крем.", 60),
+                (EventContentBlockType.WhatToBring, "На случай дождя", "Дождевик; резиновые сапоги; большие черные пакеты, чтобы убрать вещи и защитить их от воды.", 70),
+                (EventContentBlockType.WhatToBring, "На прохладную погоду", "Теплая кофта или толстовка с длинным рукавом; теплые носки; куртка; тонкая шапка.", 80),
+                (EventContentBlockType.WhatToBring, "Прочее", "Средство от насекомых; фонарик обязательно; несколько подарков для игры «Тайный друг».", 90),
+                (EventContentBlockType.WhatToBring, "Канцелярия", "Библия; ручка; блокнот или тетрадка.", 100),
+                (EventContentBlockType.ImportantNotice, "Ответственность за вещи", "За сохранность ценных вещей участники самостоятельно несут ответственность.", 110),
+                (EventContentBlockType.ImportantNotice, "Запрещено привозить", "На территорию запрещено привозить спиртное и табачные изделия.", 120),
+                (EventContentBlockType.ImportantNotice, "Правила поведения", "Запрещено уединение разнополых людей; обязательно строгое соблюдение общего распорядка; запрещено употребление алкогольных, табачных и наркотических веществ; необходимо соблюдать указания служительского состава.", 130)
             };
 
             foreach (var (blockType, title, body, sortOrder) in contentBlocks)
@@ -258,6 +281,191 @@ public static class AppDbSeeder
 
             dbContext.EventEditions.Add(edition);
             await dbContext.SaveChangesAsync();
+        }
+    }
+
+    private static async Task EnsureCurrentCamp2026ContentAsync(AppDbContext dbContext, CampOptions campOptions)
+    {
+        var versionSetting = await dbContext.AppSettings.FirstOrDefaultAsync(item => item.Key == Camp2026ContentVersionKey);
+        if (versionSetting?.Value == Camp2026ContentVersion)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        var startsAtUtc = NormalizeConfiguredUtc(campOptions.StartsAtUtc);
+        var endsAtUtc = NormalizeConfiguredUtc(campOptions.EndsAtUtc);
+        var registrationOpensAtUtc = NormalizeConfiguredUtc(campOptions.RegistrationOpensAtUtc);
+        var registrationClosesAtUtc = NormalizeConfiguredUtc(campOptions.RegistrationClosesAtUtc);
+        var year = startsAtUtc == default ? 2026 : startsAtUtc.Year;
+        var editionSlug = $"blagodaty-camp-{year}";
+        var edition = await dbContext.EventEditions
+            .Include(item => item.EventSeries)
+            .Include(item => item.PriceOptions)
+            .Include(item => item.ScheduleItems)
+            .Include(item => item.ContentBlocks)
+            .FirstOrDefaultAsync(item => item.Slug == editionSlug);
+        if (edition is null)
+        {
+            return;
+        }
+
+        edition.Title = BuildCampEditionTitle(campOptions, year);
+        edition.SeasonLabel = string.IsNullOrWhiteSpace(campOptions.Season) ? $"Сезон {year}" : campOptions.Season.Trim();
+        edition.ShortDescription = string.IsNullOrWhiteSpace(campOptions.Tagline)
+            ? "Палаточный поход в Горном Алтае: природа, общение, молитва и общий распорядок."
+            : campOptions.Tagline.Trim();
+        edition.FullDescription = edition.ShortDescription;
+        edition.Location = string.IsNullOrWhiteSpace(campOptions.Location) ? "Горный Алтай" : campOptions.Location.Trim();
+        edition.Timezone = "Asia/Novosibirsk";
+        edition.Status = EventEditionStatus.RegistrationOpen;
+        edition.StartsAtUtc = startsAtUtc == default ? new DateTime(year, 8, 17, 8, 0, 0, DateTimeKind.Utc) : startsAtUtc;
+        edition.EndsAtUtc = endsAtUtc == default ? new DateTime(year, 8, 22, 8, 0, 0, DateTimeKind.Utc) : endsAtUtc;
+        edition.RegistrationOpensAtUtc = registrationOpensAtUtc;
+        edition.RegistrationClosesAtUtc = registrationClosesAtUtc ?? new DateTime(year, 7, 10, 16, 59, 0, DateTimeKind.Utc);
+        edition.Capacity = campOptions.Capacity ?? 35;
+        edition.WaitlistEnabled = campOptions.WaitlistEnabled;
+        edition.UpdatedAtUtc = now;
+
+        var defaultPrice = edition.PriceOptions
+            .OrderByDescending(item => item.IsDefault)
+            .ThenBy(item => item.SortOrder)
+            .FirstOrDefault();
+        if (defaultPrice is null)
+        {
+            defaultPrice = new EventPriceOption
+            {
+                Id = Guid.NewGuid(),
+                CreatedAtUtc = now
+            };
+            edition.PriceOptions.Add(defaultPrice);
+        }
+
+        foreach (var option in edition.PriceOptions)
+        {
+            option.IsDefault = option.Id == defaultPrice.Id;
+        }
+
+        defaultPrice.Code = "standard";
+        defaultPrice.Title = "Стандартное участие";
+        defaultPrice.Description = "Палаточный поход. Регистрация до 10.07, оплата до 13.07.";
+        defaultPrice.Amount = campOptions.SuggestedDonation == 0 ? 18000 : campOptions.SuggestedDonation;
+        defaultPrice.Currency = "RUB";
+        defaultPrice.IsActive = true;
+        defaultPrice.SortOrder = 0;
+        defaultPrice.UpdatedAtUtc = now;
+
+        dbContext.EventScheduleItems.RemoveRange(edition.ScheduleItems);
+        edition.ScheduleItems.Clear();
+        AddDefaultCampScheduleItems(edition, year);
+
+        dbContext.EventContentBlocks.RemoveRange(edition.ContentBlocks);
+        edition.ContentBlocks.Clear();
+        AddDefaultCampContentBlocks(edition, campOptions);
+
+        if (versionSetting is null)
+        {
+            dbContext.AppSettings.Add(new AppSetting
+            {
+                Id = Guid.NewGuid(),
+                Key = Camp2026ContentVersionKey,
+                Value = Camp2026ContentVersion,
+                Description = "Default camp 2026 content update version",
+                IsSecret = false,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+        else
+        {
+            versionSetting.Value = Camp2026ContentVersion;
+            versionSetting.UpdatedAtUtc = now;
+        }
+
+        await dbContext.SaveChangesAsync();
+    }
+
+    private static void AddDefaultCampScheduleItems(EventEdition edition, int year)
+    {
+        edition.ScheduleItems.Add(new EventScheduleItem
+        {
+            Id = Guid.NewGuid(),
+            Title = "Оплата участия",
+            Kind = EventScheduleItemKind.Deadline,
+            StartsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
+            EndsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
+            Location = "Google Таблица / координатор",
+            Notes = "Оплату нужно внести до 13.07.",
+            SortOrder = -10
+        });
+
+        edition.ScheduleItems.Add(new EventScheduleItem
+        {
+            Id = Guid.NewGuid(),
+            Title = "Заезд и размещение",
+            Kind = EventScheduleItemKind.Arrival,
+            StartsAtUtc = edition.StartsAtUtc,
+            EndsAtUtc = edition.StartsAtUtc.AddHours(6),
+            Location = edition.Location,
+            SortOrder = 0
+        });
+
+        edition.ScheduleItems.Add(new EventScheduleItem
+        {
+            Id = Guid.NewGuid(),
+            Title = "Основная программа похода",
+            Kind = EventScheduleItemKind.MainProgram,
+            StartsAtUtc = edition.StartsAtUtc.AddHours(6),
+            EndsAtUtc = edition.EndsAtUtc.AddHours(-6),
+            Location = edition.Location,
+            SortOrder = 10
+        });
+
+        edition.ScheduleItems.Add(new EventScheduleItem
+        {
+            Id = Guid.NewGuid(),
+            Title = "Отъезд",
+            Kind = EventScheduleItemKind.Departure,
+            StartsAtUtc = edition.EndsAtUtc.AddHours(-6),
+            EndsAtUtc = edition.EndsAtUtc,
+            Location = edition.Location,
+            SortOrder = 20
+        });
+    }
+
+    private static void AddDefaultCampContentBlocks(EventEdition edition, CampOptions campOptions)
+    {
+        var contentBlocks = new[]
+        {
+            (EventContentBlockType.Hero, "О событии", string.IsNullOrWhiteSpace(campOptions.Tagline)
+                ? "Палаточный поход в Горном Алтае: природа, общение, молитва и общий распорядок."
+                : campOptions.Tagline.Trim(), 0),
+            (EventContentBlockType.Highlight, (string?)null, "Палаточный поход в Горном Алтае с 17 по 22 августа.", 10),
+            (EventContentBlockType.Highlight, (string?)null, "Возраст участников: с 16 лет. Количество мест ограничено: 35.", 20),
+            (EventContentBlockType.Highlight, (string?)null, "Регистрация открыта до 10.07, оплату нужно внести до 13.07.", 30),
+            (EventContentBlockType.WhatToBring, "Для сна", "Спальник; туристический коврик; маленькая подушка; пижама.", 40),
+            (EventContentBlockType.WhatToBring, "Гигиена", "Средства гигиены (зубная щетка, паста, шампунь, влажные салфетки и т. п.); полотенце для лица; сменное нижнее белье.", 50),
+            (EventContentBlockType.WhatToBring, "Для активного отдыха", "Пляжное полотенце; головной убор; удобная одежда; удобная обувь; солнцезащитный крем.", 60),
+            (EventContentBlockType.WhatToBring, "На случай дождя", "Дождевик; резиновые сапоги; большие черные пакеты, чтобы убрать вещи и защитить их от воды.", 70),
+            (EventContentBlockType.WhatToBring, "На прохладную погоду", "Теплая кофта или толстовка с длинным рукавом; теплые носки; куртка; тонкая шапка.", 80),
+            (EventContentBlockType.WhatToBring, "Прочее", "Средство от насекомых; фонарик обязательно; несколько подарков для игры «Тайный друг».", 90),
+            (EventContentBlockType.WhatToBring, "Канцелярия", "Библия; ручка; блокнот или тетрадка.", 100),
+            (EventContentBlockType.ImportantNotice, "Ответственность за вещи", "За сохранность ценных вещей участники самостоятельно несут ответственность.", 110),
+            (EventContentBlockType.ImportantNotice, "Запрещено привозить", "На территорию запрещено привозить спиртное и табачные изделия.", 120),
+            (EventContentBlockType.ImportantNotice, "Правила поведения", "Запрещено уединение разнополых людей; обязательно строгое соблюдение общего распорядка; запрещено употребление алкогольных, табачных и наркотических веществ; необходимо соблюдать указания служительского состава.", 130)
+        };
+
+        foreach (var (blockType, title, body, sortOrder) in contentBlocks)
+        {
+            edition.ContentBlocks.Add(new EventContentBlock
+            {
+                Id = Guid.NewGuid(),
+                BlockType = blockType,
+                Title = title,
+                Body = body,
+                SortOrder = sortOrder,
+                IsPublished = true
+            });
         }
     }
 

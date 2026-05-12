@@ -2,11 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicEvent, getPublicEvents, getPublicSiteSettings } from './lib/api';
 import { RegistrationModal } from './components/RegistrationModal';
+import { NearbyActivitiesMap } from './components/NearbyActivitiesMap';
 import type {
   CampRegistration,
   PublicEventContentBlock,
   PublicEventDetails,
   PublicEventMediaItem,
+  PublicSiteContactPerson,
   PublicSiteSocialLink,
 } from './types';
 
@@ -33,38 +35,57 @@ const PLACE_IMAGES: PublicEventMediaItem[] = [
 const PLACE_FACTS = [
   'Экоаил',
   'ул. Мира, 7а, с. Курай',
-  'Рейтинг 4.4 в 2ГИС',
-  '22 оценки',
+  'Рейтинг 4.3 в 2ГИС',
+  '20 оценок',
   '24 фото, 13 отзывов',
-  'Коттедж, беседки, парковка',
-  'До 15 мест',
+  'Палаточный формат',
+  'До 35 мест',
 ];
 
 const PLACE_REVIEWS = [
   {
-    title: 'Вид на горы',
-    text: 'В отзывах чаще всего отмечают панорамные окна и открытый вид на Северо-Чуйский хребет.',
+    title: 'Погода и условия',
+    text: 'В августе в Курае важно быть готовым к солнцу, ветру, дождю и прохладным вечерам, поэтому берем одежду слоями.',
   },
   {
-    title: 'Тихая база',
-    text: 'Гости пишут про спокойную территорию, простое размещение и отдых рядом с природой.',
+    title: 'База и география',
+    text: 'Место находится среди алтайских гор, рядом с открытыми видами и природой. Размещение планируется в палаточном формате.',
   },
   {
-    title: 'Что учесть',
-    text: 'В карточке есть и критичные отзывы: заранее уточняйте заезд, бытовые условия и температуру в домиках.',
+    title: 'Правила поведения',
+    text: 'На походе действует общий распорядок, служительские указания и запрет на алкогольные, табачные и наркотические вещества.',
   },
 ];
 
 const fallbackHighlights = [
-  'Выезд в Горный Алтай с проживанием на природе.',
-  'Палатки, домики, костры, общение и молитва.',
-  'Заявка подаётся сразу на этой странице, аккаунт не нужен.',
+  'Палаточный поход в Горном Алтае с 17 по 22 августа.',
+  'Возраст участников: с 16 лет. Количество мест ограничено: 35.',
+  'Регистрация открыта до 10.07, оплату нужно внести до 13.07.',
 ];
 
 const fallbackThingsToBring = [
-  'Спальник, коврик, фонарик, удобную обувь и тёплые вещи.',
-  'Средства личной гигиены, дождевик и личную аптечку.',
-  'Библию, блокнот, ручку и документы.',
+  'Для сна: спальник, туристический коврик, маленькую подушку, пижаму.',
+  'Гигиена: средства гигиены, полотенце для лица, сменное нижнее белье.',
+  'Для активного отдыха: пляжное полотенце, головной убор, удобную одежду и обувь, солнцезащитный крем.',
+  'На случай дождя: дождевик, резиновые сапоги, большие черные пакеты для вещей.',
+  'На прохладную погоду: теплую кофту или толстовку, теплые носки, куртку, тонкую шапку.',
+  'Прочее: средство от насекомых, фонарик, несколько подарков для игры «Тайный друг».',
+  'Канцелярия: Библию, ручку, блокнот или тетрадку.',
+];
+
+const fallbackImportantNotices = [
+  {
+    title: 'Ответственность за вещи',
+    body: 'За сохранность ценных вещей участники самостоятельно несут ответственность.',
+  },
+  {
+    title: 'Запрещено привозить',
+    body: 'На территорию запрещено привозить спиртное и табачные изделия.',
+  },
+  {
+    title: 'Правила поведения',
+    body: 'Запрещено уединение разнополых людей; обязательно строгое соблюдение общего распорядка; запрещено употребление алкогольных, табачных и наркотических веществ; необходимо соблюдать указания служительского состава.',
+  },
 ];
 
 const fallbackFaq = [
@@ -78,7 +99,7 @@ const fallbackFaq = [
   },
   {
     question: 'Можно ли указать несколько участников?',
-    answer: 'Да. В форме можно добавить участников и отметить детей.',
+    answer: 'Да. В форме можно добавить участников и отметить несовершеннолетних 16-17 лет.',
   },
 ];
 
@@ -102,7 +123,12 @@ function formatDateRange(startsAtUtc?: string | null, endsAtUtc?: string | null)
   });
 
   const starts = formatter.format(new Date(startsAtUtc));
-  return endsAtUtc ? `${starts} - ${formatter.format(new Date(endsAtUtc))}` : starts;
+  if (!endsAtUtc) {
+    return starts;
+  }
+
+  const ends = formatter.format(new Date(endsAtUtc));
+  return starts === ends ? starts : `${starts} - ${ends}`;
 }
 
 function formatCurrency(value?: number | null, currency = 'RUB') {
@@ -121,6 +147,17 @@ function getBlocks(details: PublicEventDetails | undefined, blockType: PublicEve
   return details?.contentBlocks.filter((block) => block.blockType === blockType).map((block) => block.body) ?? [];
 }
 
+function getTitledBlocks(details: PublicEventDetails | undefined, blockType: PublicEventContentBlock['blockType']) {
+  return (
+    details?.contentBlocks
+      .filter((block) => block.blockType === blockType)
+      .map((block) => ({
+        title: block.title || 'Важно',
+        body: block.body,
+      })) ?? []
+  );
+}
+
 function getFaqBlocks(details: PublicEventDetails | undefined) {
   return (
     details?.contentBlocks
@@ -134,6 +171,10 @@ function getFaqBlocks(details: PublicEventDetails | undefined) {
 
 function getSocialLinksForPlacement(links: PublicSiteSocialLink[] | undefined, placement: 'header' | 'footer') {
   return (links ?? []).filter((item) => (placement === 'header' ? item.showInHeader : item.showInFooter));
+}
+
+function getFooterContacts(people: PublicSiteContactPerson[] | undefined) {
+  return (people ?? []).filter((item) => item.showInFooter && item.links.length > 0);
 }
 
 function isDirectVideoFile(url: string) {
@@ -306,8 +347,10 @@ export default function App() {
   const siteSettings = siteSettingsQuery.data;
   const headerSocials = getSocialLinksForPlacement(siteSettings?.socialLinks, 'header');
   const footerSocials = getSocialLinksForPlacement(siteSettings?.socialLinks, 'footer');
+  const footerContacts = getFooterContacts(siteSettings?.contactPeople);
   const highlights = getBlocks(details, 'Highlight');
-  const thingsToBring = getBlocks(details, 'WhatToBring');
+  const thingsToBringBlocks = getTitledBlocks(details, 'WhatToBring');
+  const importantNotices = getTitledBlocks(details, 'ImportantNotice');
   const faqBlocks = getFaqBlocks(details);
   const actualMedia = splitMedia(details?.mediaItems ?? []);
   const imageItems = [
@@ -317,7 +360,10 @@ export default function App() {
   const videoItems = actualMedia.videos;
   const heroImage = selectedEventSummary?.primaryImageUrl || actualMedia.images[0]?.url || PLACE_IMAGES[0].url;
   const activeHighlights = highlights.length ? highlights : fallbackHighlights;
-  const activeThingsToBring = thingsToBring.length ? thingsToBring : fallbackThingsToBring;
+  const activeThingsToBring = thingsToBringBlocks.length
+    ? thingsToBringBlocks.map((item) => `${item.title}: ${item.body}`)
+    : fallbackThingsToBring;
+  const activeImportantNotices = importantNotices.length ? importantNotices : fallbackImportantNotices;
   const activeFaq = faqBlocks.length ? faqBlocks : fallbackFaq;
 
   function selectEvent(slug: string, options?: { historyMode?: 'push' | 'replace'; isRegistrationOpen?: boolean }) {
@@ -393,8 +439,10 @@ export default function App() {
         <nav className="site-nav">
           <a href="#facts">О событии</a>
           <a href="#place">Место</a>
+          <a href="#activities">Активности</a>
           <a href="#reviews">Отзывы</a>
           <a href="#program">Программа</a>
+          <a href="#notices">Важно</a>
           <a href="#faq">FAQ</a>
         </nav>
 
@@ -521,11 +569,13 @@ export default function App() {
           </div>
         </section>
 
+        <NearbyActivitiesMap />
+
         <section className="section-block container place-reviews-section" id="reviews">
           <div className="section-heading">
-            <p className="section-kicker">Отзывы 2ГИС</p>
-            <h2>Что пишут о комплексе</h2>
-            <p>По карточке Экоаила в 2ГИС: рейтинг 4.4, 22 оценки, 13 отзывов и 24 фото.</p>
+            <p className="section-kicker">О походе</p>
+            <h2>Что пишут о походе</h2>
+            <p>Главные бытовые ориентиры перед выездом: погода, география базы, формат размещения и правила общего порядка.</p>
           </div>
 
           <div className="place-review-grid">
@@ -538,9 +588,9 @@ export default function App() {
           </div>
 
           <div className="place-review-footer">
-            <span>Перед поездкой можно открыть свежие отзывы и все фото места в 2ГИС.</span>
+            <span>Перед поездкой можно открыть карточку места и посмотреть фотографии территории в 2ГИС.</span>
             <a className="button button-secondary" href={PLACE_REVIEWS_URL} target="_blank" rel="noreferrer">
-              Открыть отзывы
+              Открыть место
             </a>
           </div>
         </section>
@@ -656,6 +706,22 @@ export default function App() {
           </article>
         </section>
 
+        <section className="section-block container" id="notices">
+          <div className="section-heading">
+            <p className="section-kicker">Важно</p>
+            <h2>Правила и ограничения</h2>
+          </div>
+
+          <div className="faq-grid">
+            {activeImportantNotices.map((item) => (
+              <article className="faq-card" key={item.title}>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section className="section-block container" id="faq">
           <div className="section-heading">
             <p className="section-kicker">FAQ</p>
@@ -686,12 +752,34 @@ export default function App() {
         </section>
       </main>
 
-      {siteSettings?.socialLinksEnabled && (footerSocials.length || siteSettings?.socialLinksTitle || siteSettings?.socialLinksDescription) ? (
+      {(siteSettings?.contactsEnabled && footerContacts.length) ||
+      (siteSettings?.socialLinksEnabled && (footerSocials.length || siteSettings?.socialLinksTitle || siteSettings?.socialLinksDescription)) ? (
         <footer className="site-footer container">
           <div className="site-footer-copy">
-            <p className="section-kicker">{siteSettings?.socialLinksTitle || 'Контакты'}</p>
-            <p>{siteSettings?.socialLinksDescription || 'Следите за новостями и объявлениями общины.'}</p>
+            <p className="section-kicker">{siteSettings?.contactsTitle || siteSettings?.socialLinksTitle || 'Контакты'}</p>
+            <p>{siteSettings?.contactsDescription || siteSettings?.socialLinksDescription || 'Следите за новостями и объявлениями общины.'}</p>
           </div>
+
+          {footerContacts.length ? (
+            <div className="footer-contacts">
+              {footerContacts.map((person) => (
+                <article className="footer-contact" key={person.id}>
+                  <div>
+                    <strong>{person.name}</strong>
+                    <span>{person.role}</span>
+                    {person.description ? <p>{person.description}</p> : null}
+                  </div>
+                  <div className="footer-contact-links">
+                    {person.links.map((link) => (
+                      <a className="social-link" href={link.url} key={link.id} target="_blank" rel="noreferrer">
+                        {link.label}
+                      </a>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : null}
 
           {footerSocials.length ? (
             <div className="footer-socials">

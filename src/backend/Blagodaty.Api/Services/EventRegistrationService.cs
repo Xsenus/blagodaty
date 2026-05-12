@@ -13,25 +13,30 @@ public sealed class EventRegistrationService
 {
     private const string DefaultGuestCity = "Новосибирск";
     private const string DefaultGuestChurchName = "Благодать";
+    private const int MinimumParticipantAge = 16;
+    private const int AdultParticipantAge = 18;
 
     private readonly AppDbContext _dbContext;
     private readonly TimeProvider _timeProvider;
     private readonly EventCatalogService _eventCatalogService;
     private readonly UserNotificationService _userNotificationService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly GoogleSheetsRegistrationSyncService _googleSheetsSyncService;
 
     public EventRegistrationService(
         AppDbContext dbContext,
         TimeProvider timeProvider,
         EventCatalogService eventCatalogService,
         UserNotificationService userNotificationService,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        GoogleSheetsRegistrationSyncService googleSheetsSyncService)
     {
         _dbContext = dbContext;
         _timeProvider = timeProvider;
         _eventCatalogService = eventCatalogService;
         _userNotificationService = userNotificationService;
         _userManager = userManager;
+        _googleSheetsSyncService = googleSheetsSyncService;
     }
 
     public async Task<EventEdition?> GetAccessibleEventEditionBySlugAsync(
@@ -154,6 +159,7 @@ public sealed class EventRegistrationService
         var normalizedEmergencyContactPhone = request.EmergencyContactPhone.Trim();
         var normalizedPrimaryFullName = normalizedParticipants.FirstOrDefault()?.FullName ?? request.FullName.Trim();
         var parsedBirthDate = TryParseBirthDate(request.BirthDate);
+        ApplyParticipantAgeRules(normalizedParticipants, parsedBirthDate, DateOnly.FromDateTime(eventEdition.StartsAtUtc));
 
         registration.EventEditionId = eventEdition.Id;
         registration.SelectedPriceOptionId = selectedPriceOption?.Id;
@@ -229,6 +235,7 @@ public sealed class EventRegistrationService
             registration.Participants.Add(new CampRegistrationParticipant
             {
                 FullName = participant.FullName,
+                BirthDate = participant.BirthDate,
                 IsChild = participant.IsChild,
                 SortOrder = participant.SortOrder
             });
@@ -248,6 +255,11 @@ public sealed class EventRegistrationService
         if (request.Submit && previousStatus != RegistrationStatus.Submitted)
         {
             await _userNotificationService.NotifyRegistrationSubmittedAsync(saved, cancellationToken);
+        }
+
+        if (request.Submit || saved.Status != RegistrationStatus.Draft)
+        {
+            await _googleSheetsSyncService.TrySyncRegistrationEventAsync(saved.EventEditionId, cancellationToken);
         }
 
         return MapRegistration(saved);
@@ -304,6 +316,7 @@ public sealed class EventRegistrationService
         var normalizedEmergencyContactPhone = request.EmergencyContactPhone.Trim();
         var normalizedPrimaryFullName = normalizedParticipants.First().FullName;
         var parsedBirthDate = TryParseBirthDate(request.BirthDate);
+        ApplyParticipantAgeRules(normalizedParticipants, parsedBirthDate, DateOnly.FromDateTime(eventEdition.StartsAtUtc));
         var normalizedPhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber);
 
         ValidateRequestForSubmission(
@@ -376,6 +389,7 @@ public sealed class EventRegistrationService
             registration.Participants.Add(new CampRegistrationParticipant
             {
                 FullName = participant.FullName,
+                BirthDate = participant.BirthDate,
                 IsChild = participant.IsChild,
                 SortOrder = participant.SortOrder
             });
@@ -395,6 +409,7 @@ public sealed class EventRegistrationService
             .FirstAsync(item => item.Id == registration.Id, cancellationToken);
 
         await _userNotificationService.NotifyRegistrationSubmittedAsync(saved, cancellationToken);
+        await _googleSheetsSyncService.TrySyncRegistrationEventAsync(saved.EventEditionId, cancellationToken);
 
         return MapRegistration(saved);
     }
@@ -556,6 +571,7 @@ public sealed class EventRegistrationService
                 {
                     Id = item.Id,
                     FullName = item.FullName,
+                    BirthDate = item.BirthDate?.ToString("yyyy-MM-dd"),
                     IsChild = item.IsChild,
                     SortOrder = item.SortOrder
                 })
@@ -568,6 +584,7 @@ public sealed class EventRegistrationService
             {
                 Id = registration.Id,
                 FullName = registration.FullName,
+                BirthDate = registration.BirthDate == default ? null : registration.BirthDate.ToString("yyyy-MM-dd"),
                 IsChild = registration.HasChildren,
                 SortOrder = 0
             }
@@ -582,6 +599,7 @@ public sealed class EventRegistrationService
             .Select((participant, index) => new NormalizedParticipant
             {
                 FullName = participant.FullName.Trim(),
+                BirthDate = TryParseBirthDate(participant.BirthDate),
                 IsChild = participant.IsChild,
                 SortOrder = index
             })
@@ -604,6 +622,7 @@ public sealed class EventRegistrationService
             new NormalizedParticipant
             {
                 FullName = primaryFullName,
+                BirthDate = TryParseBirthDate(request.BirthDate),
                 IsChild = false,
                 SortOrder = 0
             }
@@ -618,6 +637,7 @@ public sealed class EventRegistrationService
             .Select((participant, index) => new NormalizedParticipant
             {
                 FullName = participant.FullName.Trim(),
+                BirthDate = TryParseBirthDate(participant.BirthDate),
                 IsChild = participant.IsChild,
                 SortOrder = index
             })
@@ -645,6 +665,7 @@ public sealed class EventRegistrationService
             new NormalizedParticipant
             {
                 FullName = primaryFullName,
+                BirthDate = TryParseBirthDate(request.BirthDate),
                 IsChild = false,
                 SortOrder = 0
             }
@@ -702,9 +723,37 @@ public sealed class EventRegistrationService
             errors.Add("Укажите хотя бы одного участника.");
         }
 
+        var eventStartsAt = DateOnly.FromDateTime(eventEdition.StartsAtUtc);
+
         if (parsedBirthDate is null)
         {
             errors.Add("Укажите дату рождения основного участника.");
+        }
+        else if (!IsMinimumAgeReached(parsedBirthDate.Value, eventStartsAt))
+        {
+            errors.Add($"К участию допускаются участники с {MinimumParticipantAge} лет на дату начала похода.");
+        }
+
+        foreach (var participant in normalizedParticipants)
+        {
+            if (participant.BirthDate is null)
+            {
+                errors.Add($"Укажите дату рождения участника: {participant.FullName}.");
+                continue;
+            }
+
+            if (!IsMinimumAgeReached(participant.BirthDate.Value, eventStartsAt))
+            {
+                errors.Add($"Участнику {participant.FullName} должно быть не меньше {MinimumParticipantAge} лет на дату начала похода.");
+            }
+        }
+
+        var hasMinorParticipant = normalizedParticipants.Any(participant =>
+            participant.BirthDate.HasValue && IsMinorParticipant(participant.BirthDate.Value, eventStartsAt));
+        var primaryIsAdult = parsedBirthDate.HasValue && CalculateAge(parsedBirthDate.Value, eventStartsAt) >= AdultParticipantAge;
+        if (hasMinorParticipant && !primaryIsAdult)
+        {
+            errors.Add("Участника 16-17 лет может зарегистрировать только взрослый родитель или сопровождающий. Добавьте взрослого основным участником.");
         }
 
         if (string.IsNullOrWhiteSpace(normalizedPhoneNumber))
@@ -721,6 +770,11 @@ public sealed class EventRegistrationService
         if (!request.ConsentAccepted)
         {
             errors.Add("Подтвердите согласие на обработку персональных данных.");
+        }
+
+        if (request.AccommodationPreference == AccommodationPreference.Cabin)
+        {
+            errors.Add("Размещение в этом походе палаточное; выберите палатку или дополнительные условия.");
         }
 
         if (errors.Count > 0)
@@ -759,10 +813,58 @@ public sealed class EventRegistrationService
         };
     }
 
+    private static void ApplyParticipantAgeRules(
+        IReadOnlyList<NormalizedParticipant> participants,
+        DateOnly? primaryBirthDate,
+        DateOnly eventStartsAt)
+    {
+        if (participants.Count == 0)
+        {
+            return;
+        }
+
+        if (participants[0].BirthDate is null && primaryBirthDate.HasValue)
+        {
+            participants[0].BirthDate = primaryBirthDate;
+        }
+
+        foreach (var participant in participants)
+        {
+            if (participant.BirthDate.HasValue)
+            {
+                participant.IsChild = IsMinorParticipant(participant.BirthDate.Value, eventStartsAt);
+            }
+        }
+    }
+
+    private static bool IsMinimumAgeReached(DateOnly birthDate, DateOnly eventStartsAt)
+    {
+        return CalculateAge(birthDate, eventStartsAt) >= MinimumParticipantAge;
+    }
+
+    private static bool IsMinorParticipant(DateOnly birthDate, DateOnly eventStartsAt)
+    {
+        var age = CalculateAge(birthDate, eventStartsAt);
+        return age >= MinimumParticipantAge && age < AdultParticipantAge;
+    }
+
+    private static int CalculateAge(DateOnly birthDate, DateOnly eventStartsAt)
+    {
+        var age = eventStartsAt.Year - birthDate.Year;
+        if (eventStartsAt.Month < birthDate.Month ||
+            (eventStartsAt.Month == birthDate.Month && eventStartsAt.Day < birthDate.Day))
+        {
+            age--;
+        }
+
+        return age;
+    }
+
     private sealed class NormalizedParticipant
     {
         public required string FullName { get; init; }
-        public required bool IsChild { get; init; }
+        public DateOnly? BirthDate { get; set; }
+        public required bool IsChild { get; set; }
         public required int SortOrder { get; init; }
     }
 }

@@ -23,19 +23,22 @@ public sealed class AdminController : ControllerBase
     private readonly EventCatalogService _eventCatalogService;
     private readonly UserNotificationService _userNotificationService;
     private readonly TimeProvider _timeProvider;
+    private readonly GoogleSheetsRegistrationSyncService _googleSheetsSyncService;
 
     public AdminController(
         AppDbContext dbContext,
         UserManager<ApplicationUser> userManager,
         EventCatalogService eventCatalogService,
         UserNotificationService userNotificationService,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        GoogleSheetsRegistrationSyncService googleSheetsSyncService)
     {
         _dbContext = dbContext;
         _userManager = userManager;
         _eventCatalogService = eventCatalogService;
         _userNotificationService = userNotificationService;
         _timeProvider = timeProvider;
+        _googleSheetsSyncService = googleSheetsSyncService;
     }
 
     [HttpGet("overview")]
@@ -329,6 +332,10 @@ public sealed class AdminController : ControllerBase
                 registration,
                 previousStatus,
                 HttpContext.RequestAborted);
+
+            await _googleSheetsSyncService.TrySyncRegistrationEventAsync(
+                registration.EventEditionId,
+                HttpContext.RequestAborted);
         }
 
         var user = await _dbContext.Users
@@ -558,6 +565,7 @@ public sealed class AdminController : ControllerBase
                 .Select(participant => new AdminRegistrationParticipantDto
                 {
                     FullName = participant.FullName,
+                    BirthDate = participant.BirthDate,
                     IsChild = participant.IsChild,
                     SortOrder = participant.SortOrder
                 })

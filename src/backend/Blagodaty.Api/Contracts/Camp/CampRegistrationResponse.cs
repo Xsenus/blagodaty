@@ -44,6 +44,7 @@ public sealed class CampRegistrationParticipantDto
 {
     public required Guid Id { get; init; }
     public required string FullName { get; init; }
+    public string? BirthDate { get; init; }
     public required bool IsChild { get; init; }
     public required int SortOrder { get; init; }
 }

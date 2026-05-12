@@ -74,6 +74,7 @@ public sealed class AdminUserDto
 public sealed class AdminRegistrationParticipantDto
 {
     public required string FullName { get; init; }
+    public DateOnly? BirthDate { get; init; }
     public required bool IsChild { get; init; }
     public required int SortOrder { get; init; }
 }

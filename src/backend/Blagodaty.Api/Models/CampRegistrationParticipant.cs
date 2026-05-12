@@ -6,6 +6,7 @@ public sealed class CampRegistrationParticipant
     public Guid CampRegistrationId { get; set; }
     public CampRegistration CampRegistration { get; set; } = null!;
     public string FullName { get; set; } = string.Empty;
+    public DateOnly? BirthDate { get; set; }
     public bool IsChild { get; set; }
     public int SortOrder { get; set; }
 }

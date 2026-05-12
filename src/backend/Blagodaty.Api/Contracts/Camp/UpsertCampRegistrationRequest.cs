@@ -36,7 +36,7 @@ public sealed class UpsertCampRegistrationRequest
     [MaxLength(32)]
     public string EmergencyContactPhone { get; set; } = string.Empty;
 
-    public AccommodationPreference AccommodationPreference { get; set; } = AccommodationPreference.Either;
+    public AccommodationPreference AccommodationPreference { get; set; } = AccommodationPreference.Tent;
 
     [MaxLength(2000)]
     public string? HealthNotes { get; set; }
@@ -59,6 +59,8 @@ public sealed class UpsertCampRegistrationParticipantRequest
 {
     [MaxLength(180)]
     public string FullName { get; set; } = string.Empty;
+
+    public string? BirthDate { get; set; }
 
     public bool IsChild { get; set; }
 }

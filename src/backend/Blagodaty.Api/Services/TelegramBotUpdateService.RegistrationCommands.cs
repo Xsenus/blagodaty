@@ -154,7 +154,7 @@ public sealed partial class TelegramBotUpdateService
             var details = new[] { NormalizeValue(participant.City), NormalizeValue(participant.ChurchName) }
                 .Where(item => !string.IsNullOrWhiteSpace(item));
             var suffix = details.Any() ? $" ({string.Join(", ", details)})" : string.Empty;
-            var childSuffix = participant.IsChild ? " [ребёнок]" : string.Empty;
+            var childSuffix = participant.IsChild ? " [16-17 лет]" : string.Empty;
             lines.Add($"• {participant.FullName}{childSuffix}{suffix}");
         }
 

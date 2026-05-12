@@ -16,6 +16,7 @@ import type {
 
 type EditableParticipant = {
   fullName: string;
+  birthDate?: string;
   isChild: boolean;
 };
 
@@ -23,8 +24,10 @@ type RegistrationScrollTarget = 'event' | 'phone' | 'form' | 'summary';
 
 const EMPTY_PARTICIPANT: EditableParticipant = {
   fullName: '',
+  birthDate: '',
   isChild: false,
 };
+const MINIMUM_PARTICIPANT_AGE = 16;
 
 function createEmptyForm(): SaveRegistrationRequest {
   return {
@@ -40,7 +43,7 @@ function createEmptyForm(): SaveRegistrationRequest {
     participants: [{ ...EMPTY_PARTICIPANT }],
     emergencyContactName: '',
     emergencyContactPhone: '',
-    accommodationPreference: 'Either',
+    accommodationPreference: 'Tent',
     healthNotes: '',
     allergyNotes: '',
     specialNeeds: '',
@@ -144,6 +147,50 @@ function isValidEmail(value: string) {
 
 function isValidPhone(value: string) {
   return /^\+\d{10,15}$/.test(normalizePhone(value));
+}
+
+function normalizeAccommodationPreference(value?: AccommodationPreference | null): AccommodationPreference {
+  return value === 'Either' || value === 'Tent' ? value : 'Tent';
+}
+
+function parseDateInput(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function getAgeAtDate(birthDateValue: string, targetDateValue?: string | null) {
+  const birthDate = parseDateInput(birthDateValue);
+  const targetDate = targetDateValue ? new Date(targetDateValue) : new Date();
+  if (!birthDate || Number.isNaN(targetDate.getTime())) {
+    return null;
+  }
+
+  let age = targetDate.getFullYear() - birthDate.year;
+  const targetMonth = targetDate.getMonth() + 1;
+  const targetDay = targetDate.getDate();
+  if (targetMonth < birthDate.month || (targetMonth === birthDate.month && targetDay < birthDate.day)) {
+    age -= 1;
+  }
+
+  return age;
+}
+
+function isMinimumAgeReached(birthDateValue: string, eventStartsAtUtc?: string | null) {
+  const age = getAgeAtDate(birthDateValue, eventStartsAtUtc);
+  return age !== null && age >= MINIMUM_PARTICIPANT_AGE;
+}
+
+function isMinorParticipant(birthDateValue: string | undefined, eventStartsAtUtc?: string | null) {
+  if (!birthDateValue) {
+    return false;
+  }
+
+  const age = getAgeAtDate(birthDateValue, eventStartsAtUtc);
+  return age !== null && age >= MINIMUM_PARTICIPANT_AGE && age < 18;
 }
 
 function formatStatus(status?: CampRegistration['status'] | null) {
@@ -258,11 +305,20 @@ function getIdentitySource(account: CurrentAccount | null, email: string) {
   return match ? formatProviderLabel(match) : '';
 }
 
-function ensureParticipants(participants: EditableParticipant[], fallbackFullName = '') {
-  const sanitized = participants.map((participant) => ({
-    fullName: participant.fullName,
-    isChild: participant.isChild,
-  }));
+function ensureParticipants(
+  participants: EditableParticipant[],
+  fallbackFullName = '',
+  primaryBirthDate = '',
+  eventStartsAtUtc?: string | null,
+) {
+  const sanitized = participants.map((participant, index) => {
+    const birthDate = (index === 0 ? primaryBirthDate || participant.birthDate : participant.birthDate) ?? '';
+    return {
+      fullName: participant.fullName,
+      birthDate,
+      isChild: birthDate ? isMinorParticipant(birthDate, eventStartsAtUtc) : participant.isChild,
+    };
+  });
 
   if (sanitized.length > 0) {
     return sanitized;
@@ -271,13 +327,18 @@ function ensureParticipants(participants: EditableParticipant[], fallbackFullNam
   return [
     {
       fullName: fallbackFullName,
+      birthDate: primaryBirthDate,
       isChild: false,
     },
   ];
 }
 
-function syncParticipants(current: SaveRegistrationRequest, participants: EditableParticipant[]) {
-  const nextParticipants = ensureParticipants(participants, current.fullName);
+function syncParticipants(
+  current: SaveRegistrationRequest,
+  participants: EditableParticipant[],
+  eventStartsAtUtc?: string | null,
+) {
+  const nextParticipants = ensureParticipants(participants, current.fullName, current.birthDate, eventStartsAtUtc);
   return {
     ...current,
     participants: nextParticipants,
@@ -292,11 +353,13 @@ function registrationToForm(currentRegistration: CampRegistration): SaveRegistra
         .sort((left, right) => left.sortOrder - right.sortOrder)
         .map((participant) => ({
           fullName: participant.fullName,
+          birthDate: participant.birthDate ?? '',
           isChild: participant.isChild,
         }))
     : [
         {
           fullName: currentRegistration.fullName,
+          birthDate: currentRegistration.birthDate,
           isChild: currentRegistration.hasChildren,
         },
       ];
@@ -314,7 +377,7 @@ function registrationToForm(currentRegistration: CampRegistration): SaveRegistra
     participants,
     emergencyContactName: currentRegistration.emergencyContactName,
     emergencyContactPhone: currentRegistration.emergencyContactPhone,
-    accommodationPreference: currentRegistration.accommodationPreference,
+    accommodationPreference: normalizeAccommodationPreference(currentRegistration.accommodationPreference),
     healthNotes: currentRegistration.healthNotes ?? '',
     allergyNotes: currentRegistration.allergyNotes ?? '',
     specialNeeds: currentRegistration.specialNeeds ?? '',
@@ -359,6 +422,33 @@ function collectRegistrationValidationErrors(
 
   if (!form.birthDate) {
     errors.push('Укажите дату рождения основного участника.');
+  } else if (!isMinimumAgeReached(form.birthDate, selectedEvent.startsAtUtc)) {
+    errors.push(`К участию допускаются участники с ${MINIMUM_PARTICIPANT_AGE} лет на дату начала похода.`);
+  }
+
+  const normalizedParticipants = ensureParticipants(
+    form.participants,
+    form.fullName,
+    form.birthDate,
+    selectedEvent.startsAtUtc,
+  );
+  normalizedParticipants.slice(1).forEach((participant) => {
+    if (!participant.birthDate) {
+      errors.push(`Укажите дату рождения участника: ${participant.fullName}.`);
+      return;
+    }
+
+    if (!isMinimumAgeReached(participant.birthDate, selectedEvent.startsAtUtc)) {
+      errors.push(`Участнику ${participant.fullName} должно быть не меньше ${MINIMUM_PARTICIPANT_AGE} лет на дату начала похода.`);
+    }
+  });
+
+  const hasMinorParticipant = normalizedParticipants.some((participant) =>
+    isMinorParticipant(participant.birthDate, selectedEvent.startsAtUtc),
+  );
+  const primaryAge = form.birthDate ? getAgeAtDate(form.birthDate, selectedEvent.startsAtUtc) : null;
+  if (hasMinorParticipant && (primaryAge === null || primaryAge < 18)) {
+    errors.push('Участника 16-17 лет может зарегистрировать только взрослый родитель или сопровождающий.');
   }
 
   if (!form.city.trim()) {
@@ -453,7 +543,7 @@ function buildPrefillForm(
     ?? null;
   const preferredName = getPreferredName(account);
   const participants = preferredName
-    ? [{ fullName: preferredName, isChild: false }]
+    ? [{ fullName: preferredName, birthDate: '', isChild: false }]
     : current.participants.length
       ? current.participants
       : [{ ...EMPTY_PARTICIPANT }];
@@ -470,10 +560,14 @@ function buildPrefillForm(
   };
 }
 
-function buildDraftPayload(form: SaveRegistrationRequest): SaveRegistrationRequest {
-  const participants = ensureParticipants(form.participants, form.fullName)
+function buildDraftPayload(
+  form: SaveRegistrationRequest,
+  selectedEvent?: PublicEventDetails | null,
+): SaveRegistrationRequest {
+  const participants = ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent?.startsAtUtc)
     .map((participant) => ({
       fullName: participant.fullName.trim(),
+      birthDate: participant.birthDate ?? '',
       isChild: participant.isChild,
     }))
     .filter((participant) => participant.fullName);
@@ -586,8 +680,9 @@ export function CampRegistrationFlowPage() {
   ]);
 
   const completedParticipants = useMemo(
-    () => form.participants.filter((participant) => participant.fullName.trim()),
-    [form.participants],
+    () => ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent?.startsAtUtc)
+      .filter((participant) => participant.fullName.trim()),
+    [form.birthDate, form.fullName, form.participants, selectedEvent?.startsAtUtc],
   );
   const participantsCount = Math.max(completedParticipants.length, 1);
   const childrenCount = completedParticipants.filter((participant) => participant.isChild).length;
@@ -654,7 +749,7 @@ export function CampRegistrationFlowPage() {
       return undefined;
     }
 
-    const payload = buildDraftPayload(form);
+    const payload = buildDraftPayload(form, selectedEvent);
     const nextSnapshot = JSON.stringify(payload);
     if (nextSnapshot === lastDraftSnapshotRef.current) {
       return undefined;
@@ -740,7 +835,7 @@ export function CampRegistrationFlowPage() {
       setSelectedEvent(eventDetails);
       setRegistration(currentRegistration);
       setForm(nextForm);
-      lastDraftSnapshotRef.current = JSON.stringify(buildDraftPayload(nextForm));
+      lastDraftSnapshotRef.current = JSON.stringify(buildDraftPayload(nextForm, eventDetails));
       setDraftSyncState(currentRegistration ? 'saved' : 'idle');
       setDraftSyncError(null);
       setDraftSyncAtUtc(currentRegistration?.updatedAtUtc ?? null);
@@ -761,12 +856,12 @@ export function CampRegistrationFlowPage() {
   function updateParticipants(
     updater: (participants: EditableParticipant[]) => EditableParticipant[],
   ) {
-    setForm((current) => syncParticipants(current, updater(current.participants)));
+    setForm((current) => syncParticipants(current, updater(current.participants), selectedEvent?.startsAtUtc));
   }
 
   function setPrimaryParticipantName(fullName: string) {
     updateParticipants((participants) => {
-      const nextParticipants = ensureParticipants(participants, '');
+      const nextParticipants = ensureParticipants(participants, '', form.birthDate, selectedEvent?.startsAtUtc);
       const [firstParticipant, ...rest] = nextParticipants;
       return [{ ...firstParticipant, fullName }, ...rest];
     });
@@ -800,9 +895,10 @@ export function CampRegistrationFlowPage() {
     const payload: SaveRegistrationRequest = {
       ...form,
       fullName: form.participants[0]?.fullName.trim() || form.fullName.trim(),
-      participants: ensureParticipants(form.participants, form.fullName)
+      participants: ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent.startsAtUtc)
         .map((participant) => ({
           fullName: participant.fullName.trim(),
+          birthDate: participant.birthDate ?? '',
           isChild: participant.isChild,
         })),
       hasChildren: effectiveHasChildren,
@@ -818,7 +914,7 @@ export function CampRegistrationFlowPage() {
       setRegistration(saved);
       const nextForm = registrationToForm(saved);
       setForm(nextForm);
-      lastDraftSnapshotRef.current = JSON.stringify(buildDraftPayload(nextForm));
+      lastDraftSnapshotRef.current = JSON.stringify(buildDraftPayload(nextForm, selectedEvent));
       setDraftSyncState('saved');
       setDraftSyncError(null);
       setDraftSyncAtUtc(saved.updatedAtUtc);
@@ -1080,7 +1176,7 @@ export function CampRegistrationFlowPage() {
 
                 <div className="participant-summary-row">
                   <span className="role-pill">Участников: {participantsCount}</span>
-                  <span className="role-pill">Детей: {childrenCount}</span>
+                  <span className="role-pill">16-17 лет: {childrenCount}</span>
                 </div>
 
                 <div className="participant-list">
@@ -1123,21 +1219,37 @@ export function CampRegistrationFlowPage() {
                           />
                         </label>
 
+                        {index > 0 ? (
+                          <label>
+                            <span>Дата рождения</span>
+                            <input
+                              type="date"
+                              value={participant.birthDate ?? ''}
+                              onChange={(event) => {
+                                const birthDate = event.target.value;
+                                updateParticipants((items) =>
+                                  items.map((item, currentIndex) =>
+                                    currentIndex === index
+                                      ? { ...item, birthDate }
+                                      : item,
+                                  ),
+                                );
+                              }}
+                              required
+                            />
+                          </label>
+                        ) : null}
+
                         <label className="checkbox-row compact-checkbox-row">
                           <input
                             type="checkbox"
-                            checked={participant.isChild}
-                            onChange={(event) =>
-                              updateParticipants((items) =>
-                                items.map((item, currentIndex) =>
-                                  currentIndex === index
-                                    ? { ...item, isChild: event.target.checked }
-                                    : item,
-                                ),
-                              )
-                            }
+                            checked={isMinorParticipant(
+                              index === 0 ? form.birthDate : participant.birthDate,
+                              selectedEvent?.startsAtUtc,
+                            )}
+                            disabled
                           />
-                          <span>Ребёнок</span>
+                          <span>16-17 лет</span>
                         </label>
                       </div>
                     </article>
@@ -1188,9 +1300,8 @@ export function CampRegistrationFlowPage() {
                         }))
                       }
                     >
-                      <option value="Either">Подойдёт любой формат</option>
                       <option value="Tent">Палатка</option>
-                      <option value="Cabin">Домик</option>
+                      <option value="Either">Нужны доп. условия</option>
                     </select>
                   </label>
 
@@ -1229,7 +1340,7 @@ export function CampRegistrationFlowPage() {
                       checked={effectiveHasChildren}
                       onChange={(event) => setForm((current) => ({ ...current, hasChildren: event.target.checked }))}
                     />
-                    <span>Есть дети или это нужно учесть в размещении</span>
+                    <span>Есть несовершеннолетний участник или это нужно учесть в размещении</span>
                   </label>
                 </div>
               </section>

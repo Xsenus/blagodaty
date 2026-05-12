@@ -94,6 +94,28 @@ export type PublicSiteSettings = {
   socialLinksTitle?: string | null;
   socialLinksDescription?: string | null;
   socialLinks: PublicSiteSocialLink[];
+  contactsEnabled: boolean;
+  contactsTitle?: string | null;
+  contactsDescription?: string | null;
+  contactPeople: PublicSiteContactPerson[];
+};
+
+export type PublicSiteContactPerson = {
+  id: string;
+  name: string;
+  role: string;
+  description?: string | null;
+  showInFooter: boolean;
+  sortOrder: number;
+  links: PublicSiteContactLink[];
+};
+
+export type PublicSiteContactLink = {
+  id: string;
+  preset: string;
+  label: string;
+  url: string;
+  sortOrder: number;
 };
 
 export type PublicEventDetails = {
@@ -223,6 +245,7 @@ export type SessionState = {
 export type CampRegistrationParticipant = {
   id: string;
   fullName: string;
+  birthDate?: string | null;
   isChild: boolean;
   sortOrder: number;
 };
@@ -276,6 +299,7 @@ export type SaveRegistrationRequest = {
   hasChildren: boolean;
   participants: Array<{
     fullName: string;
+    birthDate?: string;
     isChild: boolean;
   }>;
   emergencyContactName: string;

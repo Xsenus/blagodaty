@@ -58,6 +58,15 @@ public sealed class SiteSettingsService
                 .Where(item => !string.IsNullOrWhiteSpace(item.Url))
                 .OrderBy(item => item.SortOrder)
                 .ThenBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            ContactsEnabled = request.ContactsEnabled,
+            ContactsTitle = AppSettingsService.NormalizeValue(request.ContactsTitle) ?? "Контакты",
+            ContactsDescription = AppSettingsService.NormalizeValue(request.ContactsDescription),
+            ContactPeople = request.ContactPeople
+                .Select((item, index) => NormalizeContactPerson(item, index))
+                .Where(item => item.Links.Count > 0)
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray()
         };
 
@@ -102,12 +111,18 @@ public sealed class SiteSettingsService
             SocialLinksEnabled = false,
             SocialLinksTitle = "Мы на связи",
             SocialLinksDescription = "Добавьте официальные ссылки общины, чтобы участники могли быстро перейти в нужный канал.",
-            SocialLinks = []
+            SocialLinks = [],
+            ContactsEnabled = true,
+            ContactsTitle = "Контакты",
+            ContactsDescription = "По организационным вопросам и оплате участия.",
+            ContactPeople = CreateDefaultContactPeople()
         };
     }
 
     private static SiteSocialLinksConfigModel NormalizeConfig(SiteSocialLinksConfigModel source)
     {
+        var contactsMissing = source.ContactPeople is null;
+
         return new SiteSocialLinksConfigModel
         {
             SocialLinksEnabled = source.SocialLinksEnabled,
@@ -118,6 +133,15 @@ public sealed class SiteSettingsService
                 .Where(item => !string.IsNullOrWhiteSpace(item.Url))
                 .OrderBy(item => item.SortOrder)
                 .ThenBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            ContactsEnabled = source.ContactsEnabled ?? contactsMissing,
+            ContactsTitle = AppSettingsService.NormalizeValue(source.ContactsTitle) ?? "Контакты",
+            ContactsDescription = AppSettingsService.NormalizeValue(source.ContactsDescription),
+            ContactPeople = (contactsMissing ? CreateDefaultContactPeople() : source.ContactPeople!)
+                .Select((item, index) => NormalizeContactPerson(item, index))
+                .Where(item => item.Links.Count > 0)
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray()
         };
     }
@@ -158,6 +182,139 @@ public sealed class SiteSettingsService
         };
     }
 
+    private static SiteContactPersonModel NormalizeContactPerson(UpdateAdminSiteContactPersonRequest source, int index)
+    {
+        return NormalizeContactPerson(new SiteContactPersonModel
+        {
+            Id = source.Id,
+            Name = source.Name,
+            Role = source.Role ?? string.Empty,
+            Description = source.Description,
+            Enabled = source.Enabled,
+            ShowInFooter = source.ShowInFooter,
+            SortOrder = source.SortOrder == default ? index : source.SortOrder,
+            Links = source.Links
+                .Select((item, linkIndex) => NormalizeContactLink(item, linkIndex))
+                .Where(item => !string.IsNullOrWhiteSpace(item.Url))
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+        }, index);
+    }
+
+    private static SiteContactPersonModel NormalizeContactPerson(SiteContactPersonModel source, int index)
+    {
+        return new SiteContactPersonModel
+        {
+            Id = AppSettingsService.NormalizeValue(source.Id) ?? Guid.NewGuid().ToString("N"),
+            Name = AppSettingsService.NormalizeValue(source.Name) ?? "Контакт",
+            Role = AppSettingsService.NormalizeValue(source.Role) ?? "Ответственный",
+            Description = AppSettingsService.NormalizeValue(source.Description),
+            Enabled = source.Enabled,
+            ShowInFooter = source.ShowInFooter,
+            SortOrder = source.SortOrder == default ? index : source.SortOrder,
+            Links = source.Links
+                .Select((item, linkIndex) => NormalizeContactLink(item, linkIndex))
+                .Where(item => !string.IsNullOrWhiteSpace(item.Url))
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
+                .ToArray()
+        };
+    }
+
+    private static SiteContactLinkModel NormalizeContactLink(UpdateAdminSiteContactLinkRequest source, int index)
+    {
+        return NormalizeContactLink(new SiteContactLinkModel
+        {
+            Id = source.Id,
+            Preset = source.Preset,
+            Label = source.Label,
+            Url = source.Url,
+            SortOrder = source.SortOrder == default ? index : source.SortOrder
+        }, index);
+    }
+
+    private static SiteContactLinkModel NormalizeContactLink(SiteContactLinkModel source, int index)
+    {
+        var preset = AppSettingsService.NormalizeValue(source.Preset)?.ToLowerInvariant() ?? "custom";
+        if (!KnownPresets.Contains(preset))
+        {
+            preset = "custom";
+        }
+
+        return new SiteContactLinkModel
+        {
+            Id = AppSettingsService.NormalizeValue(source.Id) ?? Guid.NewGuid().ToString("N"),
+            Preset = preset,
+            Label = AppSettingsService.NormalizeValue(source.Label) ?? GetDefaultLabel(preset),
+            Url = AppSettingsService.NormalizeValue(source.Url) ?? string.Empty,
+            SortOrder = source.SortOrder == default ? index : source.SortOrder
+        };
+    }
+
+    private static IReadOnlyCollection<SiteContactPersonModel> CreateDefaultContactPeople()
+    {
+        return
+        [
+            new SiteContactPersonModel
+            {
+                Id = "organizer-mikhail",
+                Name = "Михаил",
+                Role = "Организационные вопросы",
+                Enabled = true,
+                ShowInFooter = true,
+                SortOrder = 0,
+                Links =
+                [
+                    new SiteContactLinkModel
+                    {
+                        Id = "mikhail-telegram",
+                        Preset = "telegram",
+                        Label = "Telegram",
+                        Url = "https://t.me/Michail_Max",
+                        SortOrder = 0
+                    },
+                    new SiteContactLinkModel
+                    {
+                        Id = "mikhail-phone",
+                        Preset = "phone",
+                        Label = "Телефон",
+                        Url = "tel:+79043022939",
+                        SortOrder = 1
+                    }
+                ]
+            },
+            new SiteContactPersonModel
+            {
+                Id = "payments-ilya",
+                Name = "Илья",
+                Role = "Оплата участия",
+                Enabled = true,
+                ShowInFooter = true,
+                SortOrder = 1,
+                Links =
+                [
+                    new SiteContactLinkModel
+                    {
+                        Id = "ilya-telegram",
+                        Preset = "telegram",
+                        Label = "Telegram",
+                        Url = "https://t.me/Xsenus",
+                        SortOrder = 0
+                    },
+                    new SiteContactLinkModel
+                    {
+                        Id = "ilya-phone",
+                        Preset = "phone",
+                        Label = "Телефон",
+                        Url = "tel:+79130149349",
+                        SortOrder = 1
+                    }
+                ]
+            }
+        ];
+    }
+
     private static string GetDefaultLabel(string preset)
     {
         return preset.ToLowerInvariant() switch
@@ -195,6 +352,35 @@ public sealed class SiteSettingsService
                     ShowInFooter = item.ShowInFooter,
                     SortOrder = item.SortOrder
                 })
+                .ToArray(),
+            ContactsEnabled = config.ContactsEnabled == true,
+            ContactsTitle = config.ContactsTitle,
+            ContactsDescription = config.ContactsDescription,
+            ContactPeople = (config.ContactPeople ?? Array.Empty<SiteContactPersonModel>())
+                .OrderBy(item => item.SortOrder)
+                .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+                .Select(item => new AdminSiteContactPersonDto
+                {
+                    Id = item.Id,
+                    Name = item.Name,
+                    Role = item.Role,
+                    Description = item.Description,
+                    Enabled = item.Enabled,
+                    ShowInFooter = item.ShowInFooter,
+                    SortOrder = item.SortOrder,
+                    Links = item.Links
+                        .OrderBy(link => link.SortOrder)
+                        .ThenBy(link => link.Label, StringComparer.OrdinalIgnoreCase)
+                        .Select(link => new AdminSiteContactLinkDto
+                        {
+                            Id = link.Id,
+                            Preset = link.Preset,
+                            Label = link.Label,
+                            Url = link.Url,
+                            SortOrder = link.SortOrder
+                        })
+                        .ToArray()
+                })
                 .ToArray()
         };
     }
@@ -217,12 +403,44 @@ public sealed class SiteSettingsService
             })
             .ToArray();
 
+        var enabledContacts = (config.ContactPeople ?? Array.Empty<SiteContactPersonModel>())
+            .Where(item => item.Enabled && item.ShowInFooter && item.Links.Count > 0)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(item => new PublicSiteContactPersonDto
+            {
+                Id = item.Id,
+                Name = item.Name,
+                Role = item.Role,
+                Description = item.Description,
+                ShowInFooter = item.ShowInFooter,
+                SortOrder = item.SortOrder,
+                Links = item.Links
+                    .Where(link => !string.IsNullOrWhiteSpace(link.Url))
+                    .OrderBy(link => link.SortOrder)
+                    .ThenBy(link => link.Label, StringComparer.OrdinalIgnoreCase)
+                    .Select(link => new PublicSiteContactLinkDto
+                    {
+                        Id = link.Id,
+                        Preset = link.Preset,
+                        Label = link.Label,
+                        Url = link.Url,
+                        SortOrder = link.SortOrder
+                    })
+                    .ToArray()
+            })
+            .ToArray();
+
         return new PublicSiteSettingsResponse
         {
             SocialLinksEnabled = config.SocialLinksEnabled,
             SocialLinksTitle = config.SocialLinksTitle,
             SocialLinksDescription = config.SocialLinksDescription,
-            SocialLinks = config.SocialLinksEnabled ? enabledLinks : Array.Empty<PublicSiteSocialLinkDto>()
+            SocialLinks = config.SocialLinksEnabled ? enabledLinks : Array.Empty<PublicSiteSocialLinkDto>(),
+            ContactsEnabled = config.ContactsEnabled == true,
+            ContactsTitle = config.ContactsTitle,
+            ContactsDescription = config.ContactsDescription,
+            ContactPeople = config.ContactsEnabled == true ? enabledContacts : Array.Empty<PublicSiteContactPersonDto>()
         };
     }
 
@@ -232,6 +450,10 @@ public sealed class SiteSettingsService
         public string? SocialLinksTitle { get; init; }
         public string? SocialLinksDescription { get; init; }
         public IReadOnlyCollection<SiteSocialLinkModel> SocialLinks { get; init; } = Array.Empty<SiteSocialLinkModel>();
+        public bool? ContactsEnabled { get; init; }
+        public string? ContactsTitle { get; init; }
+        public string? ContactsDescription { get; init; }
+        public IReadOnlyCollection<SiteContactPersonModel>? ContactPeople { get; init; }
     }
 
     private sealed class SiteSocialLinkModel
@@ -243,6 +465,27 @@ public sealed class SiteSettingsService
         public bool Enabled { get; init; } = true;
         public bool ShowInHeader { get; init; } = true;
         public bool ShowInFooter { get; init; } = true;
+        public int SortOrder { get; init; }
+    }
+
+    private sealed class SiteContactPersonModel
+    {
+        public string Id { get; init; } = string.Empty;
+        public string Name { get; init; } = string.Empty;
+        public string Role { get; init; } = string.Empty;
+        public string? Description { get; init; }
+        public bool Enabled { get; init; } = true;
+        public bool ShowInFooter { get; init; } = true;
+        public int SortOrder { get; init; }
+        public IReadOnlyCollection<SiteContactLinkModel> Links { get; init; } = Array.Empty<SiteContactLinkModel>();
+    }
+
+    private sealed class SiteContactLinkModel
+    {
+        public string Id { get; init; } = string.Empty;
+        public string Preset { get; init; } = "custom";
+        public string Label { get; init; } = string.Empty;
+        public string Url { get; init; } = string.Empty;
         public int SortOrder { get; init; }
     }
 }

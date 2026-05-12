@@ -30,6 +30,7 @@ builder.Services.AddScoped<SiteSettingsService>();
 builder.Services.AddScoped<EventCatalogService>();
 builder.Services.AddScoped<EventRegistrationService>();
 builder.Services.AddScoped<EventRegistrationExportService>();
+builder.Services.AddHttpClient<GoogleSheetsRegistrationSyncService>();
 builder.Services.AddScoped<UserNotificationService>();
 builder.Services.AddScoped<TelegramGroupNotificationService>();
 builder.Services.AddScoped<TelegramBotUpdateService>();

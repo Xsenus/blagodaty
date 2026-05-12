@@ -214,6 +214,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         {
             entity.HasIndex(x => new { x.CampRegistrationId, x.SortOrder });
             entity.Property(x => x.FullName).HasMaxLength(180);
+            entity.Property(x => x.BirthDate).HasColumnType("date");
         });
 
         builder.Entity<AppSetting>(entity =>
