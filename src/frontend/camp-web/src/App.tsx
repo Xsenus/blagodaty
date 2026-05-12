@@ -17,6 +17,8 @@ const kuraiSteppeHorsesImage = new URL('./assets/camp/kurai-steppe-horses.jpg', 
 const kuraiSteppeGrasslandImage = new URL('./assets/camp/kurai-steppe-grassland.jpg', import.meta.url).href;
 const altaiSnowMountainsImage = new URL('./assets/camp/altai-snow-mountains.jpg', import.meta.url).href;
 const altaiYakSteppeImage = new URL('./assets/camp/altai-yak-steppe.jpg', import.meta.url).href;
+const altaiRiverChuyaImage = new URL('./assets/camp/altai-river-chuya.jpg', import.meta.url).href;
+const geyserLakeAltaiImage = new URL('./assets/camp/geyser-lake-altai.jpg', import.meta.url).href;
 const PLACE_IMAGES: PublicEventMediaItem[] = [
   {
     id: 'kurai-mountain-altai',
@@ -54,6 +56,25 @@ const PLACE_IMAGES: PublicEventMediaItem[] = [
     caption: 'Окрестности Алтая. Фото: Pixabay',
   },
 ];
+
+const ACTIVITY_GALLERY_IMAGES: PublicEventMediaItem[] = [
+  {
+    id: 'altai-river-chuya',
+    type: 'Image',
+    url: altaiRiverChuyaImage,
+    title: 'Чуя и горные повороты',
+    caption: 'Окрестности Чуйского тракта. Фото: DariaBelykh / Pixabay',
+  },
+  {
+    id: 'geyser-lake-altai',
+    type: 'Image',
+    url: geyserLakeAltaiImage,
+    title: 'Гейзерное озеро',
+    caption: 'Улаганский район, Республика Алтай. Фото: Ludvig14 / Wikimedia Commons, CC BY-SA 4.0',
+  },
+];
+
+const GALLERY_IMAGE_LIMIT = 6;
 
 const PLACE_REVIEWS = [
   {
@@ -237,6 +258,27 @@ function splitMedia(items: PublicEventMediaItem[]) {
   };
 }
 
+function shuffleItems<T>(items: T[]) {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+
+  return next;
+}
+
+function buildGalleryImages(eventImages: PublicEventMediaItem[]) {
+  const sourceImages = [
+    ...PLACE_IMAGES,
+    ...ACTIVITY_GALLERY_IMAGES,
+    ...eventImages.filter((item) => ![...PLACE_IMAGES, ...ACTIVITY_GALLERY_IMAGES].some((baseImage) => baseImage.url === item.url)),
+  ];
+  const uniqueImages = sourceImages.filter((item, index, items) => items.findIndex((candidate) => candidate.url === item.url) === index);
+
+  return shuffleItems(uniqueImages).slice(0, Math.min(GALLERY_IMAGE_LIMIT, uniqueImages.length));
+}
+
 function isLegacyExternalPlaceImage(url?: string | null) {
   return Boolean(url && (url.includes('photo.2gis.com') || url.includes('share.api.2gis.ru')));
 }
@@ -306,6 +348,7 @@ function writeCampUrlState(nextState: CampUrlState, options?: { historyMode?: 'p
 export default function App() {
   const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(() => readCampUrlState().eventSlug);
   const [isModalOpen, setIsModalOpen] = useState(() => readCampUrlState().isRegistrationOpen);
+  const [selectedGalleryIndex, setSelectedGalleryIndex] = useState<number | null>(null);
 
   const eventsQuery = useQuery({
     queryKey: ['public-events'],
@@ -366,11 +409,9 @@ export default function App() {
   const importantNotices = getTitledBlocks(details, 'ImportantNotice');
   const actualMedia = splitMedia(details?.mediaItems ?? []);
   const eventImages = actualMedia.images.filter((item) => !isLegacyExternalPlaceImage(item.url));
-  const imageItems = [
-    ...PLACE_IMAGES,
-    ...eventImages.filter((item) => !PLACE_IMAGES.some((placeImage) => placeImage.url === item.url)),
-  ];
+  const imageItems = useMemo(() => buildGalleryImages(eventImages), [details?.id, details?.mediaItems]);
   const videoItems = actualMedia.videos;
+  const selectedGalleryImage = selectedGalleryIndex === null ? null : imageItems[selectedGalleryIndex] ?? null;
   const customHeroImage = isLegacyExternalPlaceImage(selectedEventSummary?.primaryImageUrl) ? null : selectedEventSummary?.primaryImageUrl;
   const heroImage = eventImages[0]?.url || customHeroImage || PLACE_IMAGES[0].url;
   const factDateParts = formatDateRangeParts(
@@ -441,6 +482,40 @@ export default function App() {
     void eventsQuery.refetch();
     void selectedEventQuery.refetch();
   }
+
+  useEffect(() => {
+    if (!selectedGalleryImage) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setSelectedGalleryIndex(null);
+      }
+
+      if (event.key === 'ArrowRight') {
+        setSelectedGalleryIndex((current) => (current === null ? current : (current + 1) % imageItems.length));
+      }
+
+      if (event.key === 'ArrowLeft') {
+        setSelectedGalleryIndex((current) => (current === null ? current : (current - 1 + imageItems.length) % imageItems.length));
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [imageItems.length, selectedGalleryImage]);
+
+  useEffect(() => {
+    if (selectedGalleryIndex !== null && selectedGalleryIndex >= imageItems.length) {
+      setSelectedGalleryIndex(null);
+    }
+  }, [imageItems.length, selectedGalleryIndex]);
 
   return (
     <div className="camp-page">
@@ -644,21 +719,62 @@ export default function App() {
 
         <section className="section-block container" id="media">
           <div className="section-heading">
-            <p className="section-kicker">Фото</p>
             <h2>Территория и окрестности</h2>
           </div>
 
           <div className="media-grid">
-            {imageItems.map((item) => (
-              <a className="media-card media-card-image" href={item.url} key={item.id} target="_blank" rel="noreferrer">
+            {imageItems.map((item, index) => (
+              <button
+                className="media-card media-card-image"
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedGalleryIndex(index)}
+              >
                 <img src={item.url} alt={item.title || selectedEventSummary?.title || 'Фото места'} loading="lazy" />
                 <div className="media-card-copy">
                   <strong>{item.title || 'Фото'}</strong>
                   {item.caption ? <span>{item.caption}</span> : null}
                 </div>
-              </a>
+              </button>
             ))}
           </div>
+
+          {selectedGalleryImage ? (
+            <div className="photo-viewer" role="dialog" aria-modal="true" aria-label={selectedGalleryImage.title || 'Просмотр фото'}>
+              <button
+                className="photo-viewer-backdrop"
+                type="button"
+                onClick={() => setSelectedGalleryIndex(null)}
+                aria-label="Закрыть просмотр"
+              />
+              <div className="photo-viewer-panel">
+                <button className="photo-viewer-close" type="button" onClick={() => setSelectedGalleryIndex(null)} aria-label="Закрыть">
+                  ×
+                </button>
+                <button
+                  className="photo-viewer-nav photo-viewer-prev"
+                  type="button"
+                  onClick={() => setSelectedGalleryIndex((current) => (current === null ? current : (current - 1 + imageItems.length) % imageItems.length))}
+                  aria-label="Предыдущее фото"
+                >
+                  ‹
+                </button>
+                <img src={selectedGalleryImage.url} alt={selectedGalleryImage.title || 'Фото места'} />
+                <button
+                  className="photo-viewer-nav photo-viewer-next"
+                  type="button"
+                  onClick={() => setSelectedGalleryIndex((current) => (current === null ? current : (current + 1) % imageItems.length))}
+                  aria-label="Следующее фото"
+                >
+                  ›
+                </button>
+                <div className="photo-viewer-caption">
+                  <strong>{selectedGalleryImage.title || 'Фото'}</strong>
+                  {selectedGalleryImage.caption ? <span>{selectedGalleryImage.caption}</span> : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="place-review-footer media-source-footer">
             <span>Подборка локальных фотографий помогает заранее почувствовать район Курая и горное окружение.</span>
