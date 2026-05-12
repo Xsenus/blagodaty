@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-type NearbyActivityCategory = 'base' | 'viewpoint' | 'trekking' | 'water' | 'ride' | 'nature';
+type NearbyActivityCategory = 'base' | 'viewpoint' | 'trekking' | 'water' | 'ride' | 'nature' | 'roadtrip' | 'history';
 
 type NearbyActivity = {
   id: string;
@@ -31,6 +31,8 @@ const categoryLabels: Record<NearbyActivityCategory, string> = {
   water: 'Вода',
   ride: 'Техника',
   nature: 'Природа',
+  roadtrip: 'Автомаршрут',
+  history: 'История',
 };
 
 const categoryColors: Record<NearbyActivityCategory, string> = {
@@ -40,6 +42,8 @@ const categoryColors: Record<NearbyActivityCategory, string> = {
   water: '#347e99',
   ride: '#8c6b2f',
   nature: '#4c7d45',
+  roadtrip: '#9d5d7a',
+  history: '#7c5a3b',
 };
 
 const nearbyActivities: NearbyActivity[] = [
@@ -69,6 +73,20 @@ const nearbyActivities: NearbyActivity[] = [
     sourceUrl: 'https://podari-altai.ru/chuyskie-meandry/',
   },
   {
+    id: 'kurai-ripples',
+    title: 'Гигантская рябь течения',
+    category: 'nature',
+    coordinates: {
+      lat: 50.168575,
+      lng: 87.912236,
+    },
+    summary: 'Редкий ледниковый рельеф Курайской степи: волны на земле, оставшиеся после древних прорывных паводков.',
+    price: 'Самостоятельно бесплатно; гид по договоренности',
+    duration: '1-2 часа',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://welcometoaltai.ru/attractions/gigantskaja_rjab_techenija/',
+  },
+  {
     id: 'aktru',
     title: 'Актру и ледники',
     category: 'trekking',
@@ -81,6 +99,20 @@ const nearbyActivities: NearbyActivity[] = [
     duration: 'Целый день или больше',
     sourceLabel: 'Альплагерь Актру',
     sourceUrl: 'https://alpaktru.ru/about/',
+  },
+  {
+    id: 'shavlinskie-lakes',
+    title: 'Шавлинские озера',
+    category: 'trekking',
+    coordinates: {
+      lat: 50.102375,
+      lng: 87.428368,
+    },
+    summary: 'Красивый многодневный пеший маршрут от Чибита к озерам Северо-Чуйского хребта. Нужны опыт, снаряжение и запас дней.',
+    price: 'Пешком бесплатно; тур или кони по договоренности',
+    duration: '3-5 дней',
+    sourceLabel: 'маршрут',
+    sourceUrl: 'https://travel.altay.ru/mesta/shavlinskie-ozera',
   },
   {
     id: 'geysir-lake',
@@ -97,6 +129,34 @@ const nearbyActivities: NearbyActivity[] = [
     sourceUrl: 'https://snovatrip.ru/geyser-lake-altai/',
   },
   {
+    id: 'red-gate',
+    title: 'Красные ворота',
+    category: 'roadtrip',
+    coordinates: {
+      lat: 50.364432,
+      lng: 87.633396,
+    },
+    summary: 'Красные скалы прямо на Улаганском тракте. Удобный фотостоп по дороге к озерам, Улагану и Кату-Ярыку.',
+    price: 'Фотостоп бесплатно',
+    duration: '20-40 минут',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://snovatrip.ru/red-gate-altai/',
+  },
+  {
+    id: 'cheybekkel',
+    title: 'Чейбеккель, Мертвое озеро',
+    category: 'nature',
+    coordinates: {
+      lat: 50.398431,
+      lng: 87.604776,
+    },
+    summary: 'Вытянутое высокогорное озеро у Улаганского тракта, обычно смотрят вместе с Красными воротами.',
+    price: 'Осмотр бесплатно; экскурсии по договоренности',
+    duration: '30-60 минут',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://snovatrip.ru/lake-cheybekkyol/',
+  },
+  {
     id: 'aktash-repeater',
     title: 'Акташский ретранслятор',
     category: 'viewpoint',
@@ -109,6 +169,34 @@ const nearbyActivities: NearbyActivity[] = [
     duration: '2-3 часа',
     sourceLabel: 'координаты и цена',
     sourceUrl: 'https://v-pohode.ru/gornyj-altaj/aktashskij-retranslyator.html',
+  },
+  {
+    id: 'pazyryk',
+    title: 'Пазырыкские курганы',
+    category: 'history',
+    coordinates: {
+      lat: 50.747556,
+      lng: 88.072372,
+    },
+    summary: 'Археологическое урочище с курганами пазырыкской культуры по дороге к Кату-Ярыку.',
+    price: 'Осмотр с дороги бесплатно; экскурсия по договоренности',
+    duration: '30-60 минут',
+    sourceLabel: 'описание',
+    sourceUrl: 'https://vtourisme.com/altaj/bogatstva-altaya/1010-pazyrykskie-kurgany',
+  },
+  {
+    id: 'katu-yaryk',
+    title: 'Перевал Кату-Ярык',
+    category: 'viewpoint',
+    coordinates: {
+      lat: 50.912407,
+      lng: 88.215571,
+    },
+    summary: 'Смотровая на серпантин и долину Чулышмана. Дорога длинная, лучше планировать отдельный день.',
+    price: 'Смотровая бесплатно; трансфер по договоренности',
+    duration: 'День на поездку',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://welcometoaltai.ru/attractions/katu-jaryk/',
   },
   {
     id: 'altai-mars',
@@ -154,6 +242,14 @@ const nearbyActivities: NearbyActivity[] = [
   },
 ];
 
+const activityLegendItems = (Object.keys(categoryLabels) as NearbyActivityCategory[])
+  .map((category) => ({
+    category,
+    label: categoryLabels[category],
+    count: nearbyActivities.filter((activity) => activity.category === category).length,
+  }))
+  .filter((item) => item.count > 0);
+
 function toRadians(value: number) {
   return (value * Math.PI) / 180;
 }
@@ -179,15 +275,29 @@ function formatDistance(activity: NearbyActivity) {
   return distance < 10 ? `${distance.toFixed(1)} км` : `${Math.round(distance)} км`;
 }
 
+function getActivityIcon(activity: NearbyActivity, index: number, isActive: boolean) {
+  const color = categoryColors[activity.category];
+
+  return L.divIcon({
+    className: `activity-map-marker-shell${isActive ? ' active' : ''}`,
+    html: `<span class="activity-map-marker" style="--activity-color:${color}">${index + 1}</span>`,
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -18],
+  });
+}
+
 export function NearbyActivitiesMap() {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<Record<string, L.CircleMarker>>({});
+  const markersRef = useRef<Record<string, L.Marker>>({});
+  const hasHandledInitialMarkerRef = useRef(false);
   const [activeActivityId, setActiveActivityId] = useState('ekoail');
   const activeActivity = useMemo(
     () => nearbyActivities.find((activity) => activity.id === activeActivityId) ?? nearbyActivities[0],
     [activeActivityId],
   );
+  const activeActivityIndex = nearbyActivities.findIndex((activity) => activity.id === activeActivity.id);
 
   useEffect(() => {
     if (!mapElementRef.current || mapRef.current) {
@@ -198,31 +308,32 @@ export function NearbyActivitiesMap() {
       center: [CAMP_COORDINATES.lat, CAMP_COORDINATES.lng],
       zoom: 9,
       scrollWheelZoom: false,
+      zoomControl: false,
     });
+    map.attributionControl.setPrefix(false);
+    L.control.zoom({ position: 'topleft' }).addTo(map);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap',
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">&copy; OpenStreetMap</a>',
       maxZoom: 18,
     }).addTo(map);
 
     const bounds = L.latLngBounds([]);
-    nearbyActivities.forEach((activity) => {
-      const color = categoryColors[activity.category];
-      const marker = L.circleMarker([activity.coordinates.lat, activity.coordinates.lng], {
-        radius: activity.id === 'ekoail' ? 9 : 7,
-        color,
-        fillColor: color,
-        fillOpacity: 0.88,
-        weight: 3,
+    nearbyActivities.forEach((activity, index) => {
+      const marker = L.marker([activity.coordinates.lat, activity.coordinates.lng], {
+        icon: getActivityIcon(activity, index, activity.id === activeActivityId),
+        riseOnHover: true,
       }).addTo(map);
-      marker.bindPopup(`<strong>${activity.title}</strong><br>${activity.price}`);
+      marker.bindPopup(
+        `<strong>${index + 1}. ${activity.title}</strong><br>${categoryLabels[activity.category]} • ${formatDistance(activity)} от кэмпа<br>${activity.price}`,
+      );
       marker.on('click', () => setActiveActivityId(activity.id));
       markersRef.current[activity.id] = marker;
       bounds.extend([activity.coordinates.lat, activity.coordinates.lng]);
     });
 
     map.fitBounds(bounds, {
-      padding: [34, 34],
+      padding: [42, 42],
     });
     mapRef.current = map;
 
@@ -230,17 +341,27 @@ export function NearbyActivitiesMap() {
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
+      hasHandledInitialMarkerRef.current = false;
     };
   }, []);
 
   useEffect(() => {
+    nearbyActivities.forEach((activity, index) => {
+      markersRef.current[activity.id]?.setIcon(getActivityIcon(activity, index, activity.id === activeActivityId));
+    });
+
     const marker = markersRef.current[activeActivityId];
     if (!marker || !mapRef.current) {
       return;
     }
 
     marker.openPopup();
-    mapRef.current.flyTo(marker.getLatLng(), activeActivityId === 'ekoail' ? 11 : 10, {
+    if (!hasHandledInitialMarkerRef.current) {
+      hasHandledInitialMarkerRef.current = true;
+      return;
+    }
+
+    mapRef.current.flyTo(marker.getLatLng(), activeActivityId === 'ekoail' ? 11 : 9, {
       duration: 0.55,
     });
   }, [activeActivityId]);
@@ -253,26 +374,46 @@ export function NearbyActivitiesMap() {
         <p>Ориентиры собраны вокруг точки Экоаила в Курае. Цены лучше проверять перед поездкой: сезон, группа и транспорт сильно влияют на итог.</p>
       </div>
 
+      <div className="activities-toolbar" aria-label="Типы точек на карте">
+        <span>{nearbyActivities.length} точек</span>
+        <div className="activities-legend">
+          {activityLegendItems.map((item) => (
+            <span className={`activity-legend-item activity-${item.category}`} key={item.category}>
+              <i aria-hidden="true" />
+              {item.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="activities-layout">
         <div className="activities-map-panel">
           <div className="activities-map" ref={mapElementRef} aria-label="Карта активностей рядом с кэмпом" />
           <div className="activities-map-note">
-            <strong>{activeActivity.title}</strong>
-            <span>{categoryLabels[activeActivity.category]} • {formatDistance(activeActivity)} от кэмпа</span>
+            <span className={`activity-note-number activity-${activeActivity.category}`}>{activeActivityIndex + 1}</span>
+            <span>
+              <strong>{activeActivity.title}</strong>
+              <em>{categoryLabels[activeActivity.category]} • {formatDistance(activeActivity)} от кэмпа</em>
+            </span>
           </div>
         </div>
 
         <div className="activities-list" aria-label="Список активностей рядом с кэмпом">
-          {nearbyActivities.map((activity) => (
-            <article className={`activity-card${activity.id === activeActivityId ? ' active' : ''}`} key={activity.id}>
+          {nearbyActivities.map((activity, index) => (
+            <article className={`activity-card activity-${activity.category}${activity.id === activeActivityId ? ' active' : ''}`} key={activity.id}>
               <button
                 className="activity-card-trigger"
                 type="button"
                 aria-pressed={activity.id === activeActivityId}
                 onClick={() => setActiveActivityId(activity.id)}
               >
-                <span className="activity-card-kicker">{categoryLabels[activity.category]} • {formatDistance(activity)}</span>
-                <strong>{activity.title}</strong>
+                <span className="activity-card-head">
+                  <span className="activity-card-number">{index + 1}</span>
+                  <span className="activity-card-title">
+                    <span className="activity-card-kicker">{categoryLabels[activity.category]} • {formatDistance(activity)}</span>
+                    <strong>{activity.title}</strong>
+                  </span>
+                </span>
                 <span className="activity-card-summary">{activity.summary}</span>
                 <span className="activity-meta-row">
                   <span>{activity.price}</span>
