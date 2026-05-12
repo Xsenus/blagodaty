@@ -11,7 +11,10 @@ namespace Blagodaty.Api.Data;
 public static class AppDbSeeder
 {
     private const string Camp2026ContentVersionKey = "blagodaty_camp_2026_content_version";
-    private const string Camp2026ContentVersion = "2026-05-12-august-tent-hike";
+    private const string Camp2026ContentVersion = "2026-05-12-august-tent-hike-v2";
+    private const decimal Camp2026PriceAmount = 18_000m;
+    private const int Camp2026Capacity = 35;
+    private const string Camp2026Tagline = "Палаточный поход в Горном Алтае: природа, общение, молитва и общий распорядок.";
 
     public static async Task SeedAsync(IServiceProvider services)
     {
@@ -295,11 +298,8 @@ public static class AppDbSeeder
         }
 
         var now = DateTime.UtcNow;
-        var startsAtUtc = NormalizeConfiguredUtc(campOptions.StartsAtUtc);
-        var endsAtUtc = NormalizeConfiguredUtc(campOptions.EndsAtUtc);
         var registrationOpensAtUtc = NormalizeConfiguredUtc(campOptions.RegistrationOpensAtUtc);
-        var registrationClosesAtUtc = NormalizeConfiguredUtc(campOptions.RegistrationClosesAtUtc);
-        var year = startsAtUtc == default ? 2026 : startsAtUtc.Year;
+        const int year = 2026;
         var editionSlug = $"blagodaty-camp-{year}";
         var edition = await dbContext.EventEditions
             .Include(item => item.EventSeries)
@@ -311,18 +311,16 @@ public static class AppDbSeeder
 
         edition.Title = BuildCampEditionTitle(campOptions, year);
         edition.SeasonLabel = string.IsNullOrWhiteSpace(campOptions.Season) ? $"Сезон {year}" : campOptions.Season.Trim();
-        edition.ShortDescription = string.IsNullOrWhiteSpace(campOptions.Tagline)
-            ? "Палаточный поход в Горном Алтае: природа, общение, молитва и общий распорядок."
-            : campOptions.Tagline.Trim();
+        edition.ShortDescription = Camp2026Tagline;
         edition.FullDescription = edition.ShortDescription;
         edition.Location = string.IsNullOrWhiteSpace(campOptions.Location) ? "Горный Алтай" : campOptions.Location.Trim();
         edition.Timezone = "Asia/Novosibirsk";
         edition.Status = EventEditionStatus.RegistrationOpen;
-        edition.StartsAtUtc = startsAtUtc == default ? new DateTime(year, 8, 17, 8, 0, 0, DateTimeKind.Utc) : startsAtUtc;
-        edition.EndsAtUtc = endsAtUtc == default ? new DateTime(year, 8, 22, 8, 0, 0, DateTimeKind.Utc) : endsAtUtc;
+        edition.StartsAtUtc = new DateTime(year, 8, 17, 8, 0, 0, DateTimeKind.Utc);
+        edition.EndsAtUtc = new DateTime(year, 8, 22, 8, 0, 0, DateTimeKind.Utc);
         edition.RegistrationOpensAtUtc = registrationOpensAtUtc;
-        edition.RegistrationClosesAtUtc = registrationClosesAtUtc ?? new DateTime(year, 7, 10, 16, 59, 0, DateTimeKind.Utc);
-        edition.Capacity = campOptions.Capacity ?? 35;
+        edition.RegistrationClosesAtUtc = new DateTime(year, 7, 10, 16, 59, 0, DateTimeKind.Utc);
+        edition.Capacity = Camp2026Capacity;
         edition.WaitlistEnabled = campOptions.WaitlistEnabled;
         edition.UpdatedAtUtc = now;
 
@@ -353,7 +351,7 @@ public static class AppDbSeeder
         defaultPrice.Code = "standard";
         defaultPrice.Title = "Стандартное участие";
         defaultPrice.Description = "Палаточный поход. Регистрация до 10.07, оплата до 13.07.";
-        defaultPrice.Amount = campOptions.SuggestedDonation == 0 ? 18000 : campOptions.SuggestedDonation;
+        defaultPrice.Amount = Camp2026PriceAmount;
         defaultPrice.Currency = "RUB";
         defaultPrice.IsActive = true;
         defaultPrice.SortOrder = 0;
@@ -453,9 +451,7 @@ public static class AppDbSeeder
     {
         var contentBlocks = new[]
         {
-            (EventContentBlockType.Hero, "О событии", string.IsNullOrWhiteSpace(campOptions.Tagline)
-                ? "Палаточный поход в Горном Алтае: природа, общение, молитва и общий распорядок."
-                : campOptions.Tagline.Trim(), 0),
+            (EventContentBlockType.Hero, "О событии", Camp2026Tagline, 0),
             (EventContentBlockType.Highlight, (string?)null, "Палаточный поход в Горном Алтае с 17 по 22 августа.", 10),
             (EventContentBlockType.Highlight, (string?)null, "Возраст участников: с 16 лет. Количество мест ограничено: 35.", 20),
             (EventContentBlockType.Highlight, (string?)null, "Регистрация открыта до 10.07, оплату нужно внести до 13.07.", 30),
