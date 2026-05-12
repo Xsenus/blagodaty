@@ -14,30 +14,53 @@ import type {
 
 const PLACE_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/87.929919%2C50.228723';
 const PLACE_REVIEWS_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/tab/reviews';
-const PLACE_PHOTOS_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/tab/photos';
+const kuraiMountainAltaiImage = new URL('./assets/camp/kurai-mountain-altai.jpg', import.meta.url).href;
+const kuraiSteppeHorsesImage = new URL('./assets/camp/kurai-steppe-horses.jpg', import.meta.url).href;
+const kuraiSteppeGrasslandImage = new URL('./assets/camp/kurai-steppe-grassland.jpg', import.meta.url).href;
+const altaiSnowMountainsImage = new URL('./assets/camp/altai-snow-mountains.jpg', import.meta.url).href;
+const altaiYakSteppeImage = new URL('./assets/camp/altai-yak-steppe.jpg', import.meta.url).href;
 const PLACE_IMAGES: PublicEventMediaItem[] = [
   {
-    id: 'ekoail-mountains',
+    id: 'kurai-mountain-altai',
     type: 'Image',
-    url: 'https://i6.photo.2gis.com/main/branch/27/70000001077460445/common',
-    title: 'Горный вид рядом с Экоаил',
-    caption: 'Курай, Республика Алтай',
+    url: kuraiMountainAltaiImage,
+    title: 'Курайская степь и горы',
+    caption: 'Курай, Республика Алтай. Фото: sivakovdenis / Pixabay',
   },
   {
-    id: 'ekoail-map',
+    id: 'kurai-steppe-horses',
     type: 'Image',
-    url: 'https://share.api.2gis.ru/getimage?city=gornoaltaysk&zoom=17&center=87.929919%2C50.228723&title=%D0%AD%D0%BA%D0%BE%D0%B0%D0%B8%D0%BB&desc=%D0%A3%D0%BB%D0%B8%D1%86%D0%B0%20%D0%9C%D0%B8%D1%80%D0%B0%2C%C2%A07%D0%B0%3Cbr%20%2F%3E%D1%81.%C2%A0%D0%9A%D1%83%D1%80%D0%B0%D0%B9',
-    title: 'Экоаил на карте',
-    caption: '87.929919, 50.228723',
+    url: kuraiSteppeHorsesImage,
+    title: 'Курайская степь',
+    caption: 'Алтайские пастбища у гор. Фото: DariaBelykh / Pixabay',
+  },
+  {
+    id: 'kurai-steppe-grassland',
+    type: 'Image',
+    url: kuraiSteppeGrasslandImage,
+    title: 'Тропа через степь',
+    caption: 'Простор Курайской степи. Фото: DariaBelykh / Pixabay',
+  },
+  {
+    id: 'altai-snow-mountains',
+    type: 'Image',
+    url: altaiSnowMountainsImage,
+    title: 'Снежные вершины Алтая',
+    caption: 'Горный Алтай. Фото: Pixabay',
+  },
+  {
+    id: 'altai-yak-steppe',
+    type: 'Image',
+    url: altaiYakSteppeImage,
+    title: 'Высокогорная степь',
+    caption: 'Окрестности Алтая. Фото: Pixabay',
   },
 ];
 
 const PLACE_FACTS = [
   'Экоаил',
-  'ул. Мира, 7а, с. Курай',
-  'Рейтинг 4.3 в 2ГИС',
-  '20 оценок',
-  '24 фото, 13 отзывов',
+  'ул. Мира, 7а',
+  'село Курай',
   'Палаточный формат',
   'До 35 мест',
 ];
@@ -129,6 +152,26 @@ function formatDateRange(startsAtUtc?: string | null, endsAtUtc?: string | null)
 
   const ends = formatter.format(new Date(endsAtUtc));
   return starts === ends ? starts : `${starts} - ${ends}`;
+}
+
+function formatDateRangeParts(startsAtUtc?: string | null, endsAtUtc?: string | null) {
+  if (!startsAtUtc) {
+    return ['Даты уточняются'];
+  }
+
+  const formatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  const starts = formatter.format(new Date(startsAtUtc));
+  if (!endsAtUtc) {
+    return [starts];
+  }
+
+  const ends = formatter.format(new Date(endsAtUtc));
+  return starts === ends ? [starts] : [starts, ends];
 }
 
 function formatCurrency(value?: number | null, currency = 'RUB') {
@@ -225,6 +268,10 @@ function splitMedia(items: PublicEventMediaItem[]) {
     images: items.filter((item) => item.type === 'Image'),
     videos: items.filter((item) => item.type === 'Video'),
   };
+}
+
+function isLegacyExternalPlaceImage(url?: string | null) {
+  return Boolean(url && (url.includes('photo.2gis.com') || url.includes('share.api.2gis.ru')));
 }
 
 function readCampUrlState(): CampUrlState {
@@ -353,12 +400,18 @@ export default function App() {
   const importantNotices = getTitledBlocks(details, 'ImportantNotice');
   const faqBlocks = getFaqBlocks(details);
   const actualMedia = splitMedia(details?.mediaItems ?? []);
+  const eventImages = actualMedia.images.filter((item) => !isLegacyExternalPlaceImage(item.url));
   const imageItems = [
     ...PLACE_IMAGES,
-    ...actualMedia.images.filter((item) => !PLACE_IMAGES.some((placeImage) => placeImage.url === item.url)),
+    ...eventImages.filter((item) => !PLACE_IMAGES.some((placeImage) => placeImage.url === item.url)),
   ];
   const videoItems = actualMedia.videos;
-  const heroImage = selectedEventSummary?.primaryImageUrl || actualMedia.images[0]?.url || PLACE_IMAGES[0].url;
+  const customHeroImage = isLegacyExternalPlaceImage(selectedEventSummary?.primaryImageUrl) ? null : selectedEventSummary?.primaryImageUrl;
+  const heroImage = eventImages[0]?.url || customHeroImage || PLACE_IMAGES[0].url;
+  const factDateParts = formatDateRangeParts(
+    details?.startsAtUtc || selectedEventSummary?.startsAtUtc,
+    details?.endsAtUtc || selectedEventSummary?.endsAtUtc,
+  );
   const activeHighlights = highlights.length ? highlights : fallbackHighlights;
   const activeThingsToBring = thingsToBringBlocks.length
     ? thingsToBringBlocks.map((item) => `${item.title}: ${item.body}`)
@@ -494,11 +547,18 @@ export default function App() {
         <section className="facts-strip container" id="facts">
           <article>
             <span>Даты</span>
-            <strong>{formatDateRange(details?.startsAtUtc || selectedEventSummary?.startsAtUtc, details?.endsAtUtc || selectedEventSummary?.endsAtUtc)}</strong>
+            <strong className="facts-date-lines">
+              {factDateParts.map((date) => (
+                <span key={date}>{date}</span>
+              ))}
+            </strong>
           </article>
           <article>
             <span>Место</span>
-            <strong>Экоаил, с. Курай</strong>
+            <strong className="facts-place-lines">
+              <span>Экоаил</span>
+              <span>село Курай</span>
+            </strong>
           </article>
           <article>
             <span>Стоимость</span>
@@ -548,7 +608,10 @@ export default function App() {
         <section className="place-section container" id="place">
           <div className="place-copy">
             <p className="section-kicker">Место</p>
-            <h2>Экоаил, село Курай</h2>
+            <h2>
+              Экоаил
+              <span>село Курай</span>
+            </h2>
             <p>Улица Мира, 7а, Кош-Агачский район, Республика Алтай.</p>
 
             <div className="place-facts">
@@ -564,7 +627,13 @@ export default function App() {
 
           <div className="place-photos">
             {PLACE_IMAGES.map((item, index) => (
-              <img className={index === 0 ? 'place-photo-main' : 'place-photo-map'} src={item.url} alt={item.title || 'Экоаил'} key={item.id} loading="lazy" />
+              <img
+                className={index === 0 ? 'place-photo-main' : 'place-photo-side'}
+                src={item.url}
+                alt={item.title || 'Экоаил'}
+                key={item.id}
+                loading={index === 0 ? 'eager' : 'lazy'}
+              />
             ))}
           </div>
         </section>
@@ -614,9 +683,9 @@ export default function App() {
           </div>
 
           <div className="place-review-footer media-source-footer">
-            <span>В карточке места опубликованы 24 фото комплекса и окрестностей.</span>
-            <a className="button button-secondary" href={PLACE_PHOTOS_URL} target="_blank" rel="noreferrer">
-              Все фото в 2ГИС
+            <span>Подборка локальных фотографий помогает заранее почувствовать район Курая и горное окружение.</span>
+            <a className="button button-secondary" href={PLACE_URL} target="_blank" rel="noreferrer">
+              Смотреть место в 2ГИС
             </a>
           </div>
 
