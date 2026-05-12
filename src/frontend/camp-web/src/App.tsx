@@ -4,7 +4,6 @@ import { getPublicEvent, getPublicEvents, getPublicSiteSettings } from './lib/ap
 import { RegistrationModal } from './components/RegistrationModal';
 import { NearbyActivitiesMap } from './components/NearbyActivitiesMap';
 import type {
-  CampRegistration,
   PublicEventContentBlock,
   PublicEventDetails,
   PublicEventMediaItem,
@@ -300,7 +299,6 @@ function writeCampUrlState(nextState: CampUrlState, options?: { historyMode?: 'p
 export default function App() {
   const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(() => readCampUrlState().eventSlug);
   const [isModalOpen, setIsModalOpen] = useState(() => readCampUrlState().isRegistrationOpen);
-  const [lastSubmittedRegistration, setLastSubmittedRegistration] = useState<CampRegistration | null>(null);
 
   const eventsQuery = useQuery({
     queryKey: ['public-events'],
@@ -431,8 +429,7 @@ export default function App() {
     );
   }
 
-  function handleSubmitted(registration: CampRegistration) {
-    setLastSubmittedRegistration(registration);
+  function handleSubmitted() {
     void eventsQuery.refetch();
     void selectedEventQuery.refetch();
   }
@@ -723,13 +720,6 @@ export default function App() {
         </section>
 
         <section className="cta-banner container">
-          <div>
-            <p className="section-kicker">Заявка</p>
-            <h2>Регистрация без кабинета</h2>
-            <p>Форма откроется сразу на этом сайте.</p>
-            {lastSubmittedRegistration ? <p>Последняя отправленная заявка: {lastSubmittedRegistration.fullName}</p> : null}
-          </div>
-
           <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
             Зарегистрироваться
           </button>

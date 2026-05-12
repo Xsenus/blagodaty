@@ -728,16 +728,9 @@ img {
 .cta-banner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 26px;
-  padding: 32px;
+  justify-content: center;
+  padding: 28px 32px;
   border-radius: 30px;
-}
-
-.cta-banner p {
-  color: var(--text-soft);
-  margin: 12px 0 0;
-  max-width: 42rem;
 }
 
 .site-footer {
