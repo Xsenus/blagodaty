@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -18,6 +18,12 @@ type NearbyActivity = {
   sourceLabel: string;
   sourceUrl: string;
 };
+
+const kuraiMountainAltaiImage = new URL('../assets/camp/kurai-mountain-altai.jpg', import.meta.url).href;
+const kuraiSteppeHorsesImage = new URL('../assets/camp/kurai-steppe-horses.jpg', import.meta.url).href;
+const kuraiSteppeGrasslandImage = new URL('../assets/camp/kurai-steppe-grassland.jpg', import.meta.url).href;
+const altaiSnowMountainsImage = new URL('../assets/camp/altai-snow-mountains.jpg', import.meta.url).href;
+const altaiYakSteppeImage = new URL('../assets/camp/altai-yak-steppe.jpg', import.meta.url).href;
 
 const CAMP_COORDINATES = {
   lat: 50.228723,
@@ -44,6 +50,17 @@ const categoryColors: Record<NearbyActivityCategory, string> = {
   nature: '#4c7d45',
   roadtrip: '#9d5d7a',
   history: '#7c5a3b',
+};
+
+const categoryImages: Record<NearbyActivityCategory, string[]> = {
+  base: [kuraiSteppeHorsesImage, kuraiMountainAltaiImage],
+  viewpoint: [kuraiMountainAltaiImage, altaiSnowMountainsImage],
+  trekking: [altaiSnowMountainsImage, kuraiMountainAltaiImage],
+  water: [kuraiSteppeGrasslandImage, altaiSnowMountainsImage],
+  ride: [kuraiSteppeGrasslandImage, kuraiSteppeHorsesImage],
+  nature: [kuraiSteppeGrasslandImage, altaiYakSteppeImage],
+  roadtrip: [kuraiSteppeHorsesImage, kuraiSteppeGrasslandImage],
+  history: [kuraiMountainAltaiImage, kuraiSteppeGrasslandImage],
 };
 
 const nearbyActivities: NearbyActivity[] = [
@@ -115,6 +132,34 @@ const nearbyActivities: NearbyActivity[] = [
     sourceUrl: 'https://travel.altay.ru/mesta/shavlinskie-ozera',
   },
   {
+    id: 'mazhoy-cascade',
+    title: 'Мажойский каскад',
+    category: 'water',
+    coordinates: {
+      lat: 50.238333,
+      lng: 87.593889,
+    },
+    summary: 'Каньонный участок Чуи с мощными порогами. Для просмотра подходит как точка на маршруте, для сплава нужен опытный гид.',
+    price: 'Осмотр бесплатно; сплав только с инструктором',
+    duration: '1-2 часа на осмотр',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://sib-guide.ru/map/ds/676',
+  },
+  {
+    id: 'chuya-hpp',
+    title: 'Недостроенная Чуйская ГЭС',
+    category: 'history',
+    coordinates: {
+      lat: 50.252836,
+      lng: 87.662985,
+    },
+    summary: 'Заброшенный гидроэнергетический объект у Чуи рядом с Акташем. Хорошо совмещается с Мажойским каскадом.',
+    price: 'Осмотр бесплатно',
+    duration: '30-60 минут',
+    sourceLabel: 'описание',
+    sourceUrl: 'https://www.vtourisme.com/altaj/istoriya/729-chujskaya-ges',
+  },
+  {
     id: 'geysir-lake',
     title: 'Гейзерное озеро',
     category: 'nature',
@@ -129,6 +174,34 @@ const nearbyActivities: NearbyActivity[] = [
     sourceUrl: 'https://snovatrip.ru/geyser-lake-altai/',
   },
   {
+    id: 'mountain-spirits-lake',
+    title: 'Озеро Горных Духов',
+    category: 'trekking',
+    coordinates: {
+      lat: 50.32462,
+      lng: 87.78202,
+    },
+    summary: 'Высокогорное озеро у Акташского ретранслятора. Нужна заброска, теплая одежда и готовность к резкой смене погоды.',
+    price: 'Заброска по договоренности',
+    duration: 'Полдня или день',
+    sourceLabel: 'описание',
+    sourceUrl: 'https://seven.travel/showplaces/ozero-gornykh-dukhov/',
+  },
+  {
+    id: 'kuektanar-lakes',
+    title: 'Куектанарские озера',
+    category: 'trekking',
+    coordinates: {
+      lat: 50.188247,
+      lng: 88.355364,
+    },
+    summary: 'Цепочка высокогорных озер в западной части Курайского хребта. Хороший пеший маршрут для подготовленной группы.',
+    price: 'Пешком бесплатно; заброска по договоренности',
+    duration: 'День или с ночевкой',
+    sourceLabel: 'описание',
+    sourceUrl: 'https://altai.travel/tourism/places/kuektanarskie_ozera',
+  },
+  {
     id: 'red-gate',
     title: 'Красные ворота',
     category: 'roadtrip',
@@ -141,6 +214,20 @@ const nearbyActivities: NearbyActivity[] = [
     duration: '20-40 минут',
     sourceLabel: 'координаты',
     sourceUrl: 'https://snovatrip.ru/red-gate-altai/',
+  },
+  {
+    id: 'shirlak-waterfall',
+    title: 'Водопад Ширлак',
+    category: 'water',
+    coordinates: {
+      lat: 50.345355,
+      lng: 87.219958,
+    },
+    summary: 'Доступный водопад у Чуйского тракта, известный как Девичьи слезы. От парковки до тропы идти всего несколько минут.',
+    price: 'Осмотр бесплатно',
+    duration: '30-60 минут',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://okolo.city/places/vodopad-shirlak',
   },
   {
     id: 'cheybekkel',
@@ -199,6 +286,20 @@ const nearbyActivities: NearbyActivity[] = [
     sourceUrl: 'https://welcometoaltai.ru/attractions/katu-jaryk/',
   },
   {
+    id: 'tarkhatinsky-megaliths',
+    title: 'Тархатинский мегалитический комплекс',
+    category: 'history',
+    coordinates: {
+      lat: 49.798056,
+      lng: 88.495833,
+    },
+    summary: 'Каменный круг в Чуйской степи, который часто называют Алтайским Стоунхенджем. Дальний выезд, лучше на внедорожнике.',
+    price: 'Осмотр бесплатно; гид по договоренности',
+    duration: 'Полдня или день',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://travel.drom.ru/%D0%9C%D0%B5%D1%81%D1%82%D0%B0/%D0%A0%D0%BE%D1%81%D1%81%D0%B8%D1%8F/%D0%A0%D0%B5%D1%81%D0%BF%D1%83%D0%B1%D0%BB%D0%B8%D0%BA%D0%B0_%D0%90%D0%BB%D1%82%D0%B0%D0%B9/%D0%9A%D0%BE%D1%88-%D0%90%D0%B3%D0%B0%D1%87/%D0%94%D1%80%D1%83%D0%B3%D0%BE%D0%B5/%D1%82%D0%B0%D1%80%D1%85%D0%B0%D1%82%D0%B8%D0%BD%D1%81%D0%BA%D0%B8%D0%B9_%D0%BC%D0%B5%D0%B3%D0%B0%D0%BB%D0%B8%D1%82%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B9_%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81_208499.html',
+  },
+  {
     id: 'altai-mars',
     title: 'Алтайский Марс, Кызыл-Чин',
     category: 'nature',
@@ -211,6 +312,34 @@ const nearbyActivities: NearbyActivity[] = [
     duration: 'Полдня или день',
     sourceLabel: 'координаты и цены',
     sourceUrl: 'https://media.halvacard.ru/travel/mars-na-altae',
+  },
+  {
+    id: 'kalbak-tash',
+    title: 'Петроглифы Калбак-Таш',
+    category: 'history',
+    coordinates: {
+      lat: 50.401735,
+      lng: 86.818955,
+    },
+    summary: 'Один из самых известных археологических комплексов Алтая с древними рисунками на скалах у Чуйского тракта.',
+    price: 'Групповые экскурсии встречаются от 350 ₽',
+    duration: '1-2 часа',
+    sourceLabel: 'координаты и цены',
+    sourceUrl: 'https://2gis.ru/gornoaltaysk/firm/70000001051496658/tab/prices',
+  },
+  {
+    id: 'chuya-katun-confluence',
+    title: 'Слияние Чуи и Катуни',
+    category: 'viewpoint',
+    coordinates: {
+      lat: 50.394636,
+      lng: 86.674362,
+    },
+    summary: 'Смотровая на место, где воды Чуи и Катуни идут рядом разными цветами. Дальний, но очень сильный видовой маршрут.',
+    price: 'Смотровая бесплатно',
+    duration: '30-60 минут',
+    sourceLabel: 'координаты',
+    sourceUrl: 'https://2gis.ru/gornoaltaysk/geo/70030076940480141',
   },
   {
     id: 'aktash-kvadro',
@@ -287,17 +416,50 @@ function getActivityIcon(activity: NearbyActivity, index: number, isActive: bool
   });
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function getActivityImages(activity: NearbyActivity) {
+  return categoryImages[activity.category];
+}
+
+function buildActivityPopup(activity: NearbyActivity, index: number) {
+  const images = getActivityImages(activity);
+  const imageMarkup = images
+    .map(
+      (url, imageIndex) =>
+        `<img src="${url}" alt="${escapeHtml(activity.title)}: фото ${imageIndex + 1}" loading="lazy" />`,
+    )
+    .join('');
+
+  return `
+    <article class="activity-popup">
+      <div class="activity-popup-gallery">${imageMarkup}</div>
+      <div class="activity-popup-body">
+        <span class="activity-popup-kicker">${escapeHtml(categoryLabels[activity.category])} • ${escapeHtml(formatDistance(activity))} от кэмпа</span>
+        <strong>${index + 1}. ${escapeHtml(activity.title)}</strong>
+        <p>${escapeHtml(activity.summary)}</p>
+        <div class="activity-popup-meta">
+          <span>${escapeHtml(activity.price)}</span>
+          <span>${escapeHtml(activity.duration)}</span>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 export function NearbyActivitiesMap() {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<Record<string, L.Marker>>({});
   const hasHandledInitialMarkerRef = useRef(false);
   const [activeActivityId, setActiveActivityId] = useState('ekoail');
-  const activeActivity = useMemo(
-    () => nearbyActivities.find((activity) => activity.id === activeActivityId) ?? nearbyActivities[0],
-    [activeActivityId],
-  );
-  const activeActivityIndex = nearbyActivities.findIndex((activity) => activity.id === activeActivity.id);
 
   useEffect(() => {
     if (!mapElementRef.current || mapRef.current) {
@@ -307,7 +469,7 @@ export function NearbyActivitiesMap() {
     const map = L.map(mapElementRef.current, {
       center: [CAMP_COORDINATES.lat, CAMP_COORDINATES.lng],
       zoom: 9,
-      scrollWheelZoom: false,
+      scrollWheelZoom: true,
       zoomControl: false,
     });
     map.attributionControl.setPrefix(false);
@@ -324,9 +486,11 @@ export function NearbyActivitiesMap() {
         icon: getActivityIcon(activity, index, activity.id === activeActivityId),
         riseOnHover: true,
       }).addTo(map);
-      marker.bindPopup(
-        `<strong>${index + 1}. ${activity.title}</strong><br>${categoryLabels[activity.category]} • ${formatDistance(activity)} от кэмпа<br>${activity.price}`,
-      );
+      marker.bindPopup(buildActivityPopup(activity, index), {
+        className: 'activity-popup-shell',
+        maxWidth: 320,
+        minWidth: 280,
+      });
       marker.on('click', () => setActiveActivityId(activity.id));
       markersRef.current[activity.id] = marker;
       bounds.extend([activity.coordinates.lat, activity.coordinates.lng]);
@@ -369,9 +533,7 @@ export function NearbyActivitiesMap() {
   return (
     <section className="activities-section container" id="activities">
       <div className="section-heading">
-        <p className="section-kicker">Рядом с кэмпом</p>
         <h2>Карта активностей</h2>
-        <p>Ориентиры собраны вокруг точки Экоаила в Курае. Цены лучше проверять перед поездкой: сезон, группа и транспорт сильно влияют на итог.</p>
       </div>
 
       <div className="activities-toolbar" aria-label="Типы точек на карте">
@@ -389,13 +551,6 @@ export function NearbyActivitiesMap() {
       <div className="activities-layout">
         <div className="activities-map-panel">
           <div className="activities-map" ref={mapElementRef} aria-label="Карта активностей рядом с кэмпом" />
-          <div className="activities-map-note">
-            <span className={`activity-note-number activity-${activeActivity.category}`}>{activeActivityIndex + 1}</span>
-            <span>
-              <strong>{activeActivity.title}</strong>
-              <em>{categoryLabels[activeActivity.category]} • {formatDistance(activeActivity)} от кэмпа</em>
-            </span>
-          </div>
         </div>
 
         <div className="activities-list" aria-label="Список активностей рядом с кэмпом">
