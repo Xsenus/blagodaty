@@ -13,7 +13,6 @@ import type {
 } from './types';
 
 const PLACE_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/87.929919%2C50.228723';
-const PLACE_REVIEWS_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/tab/reviews';
 const kuraiMountainAltaiImage = new URL('./assets/camp/kurai-mountain-altai.jpg', import.meta.url).href;
 const kuraiSteppeHorsesImage = new URL('./assets/camp/kurai-steppe-horses.jpg', import.meta.url).href;
 const kuraiSteppeGrasslandImage = new URL('./assets/camp/kurai-steppe-grassland.jpg', import.meta.url).href;
@@ -66,10 +65,6 @@ const PLACE_REVIEWS = [
     title: 'База и география',
     text: 'Место находится среди алтайских гор, рядом с открытыми видами и природой. Размещение планируется в палаточном формате.',
   },
-  {
-    title: 'Правила поведения',
-    text: 'На походе действует общий распорядок, служительские указания и запрет на алкогольные, табачные и наркотические вещества.',
-  },
 ];
 
 const fallbackHighlights = [
@@ -100,21 +95,6 @@ const fallbackImportantNotices = [
   {
     title: 'Правила поведения',
     body: 'Запрещено уединение разнополых людей; обязательно строгое соблюдение общего распорядка; запрещено употребление алкогольных, табачных и наркотических веществ; необходимо соблюдать указания служительского состава.',
-  },
-];
-
-const fallbackFaq = [
-  {
-    question: 'Нужно ли создавать кабинет?',
-    answer: 'Нет. Нажмите «Зарегистрироваться», заполните анкету и отправьте заявку.',
-  },
-  {
-    question: 'Где находится место?',
-    answer: 'Экоаил, улица Мира, 7а, село Курай, Республика Алтай.',
-  },
-  {
-    question: 'Можно ли указать несколько участников?',
-    answer: 'Да. В форме можно добавить участников и отметить несовершеннолетних 16-17 лет.',
   },
 ];
 
@@ -189,17 +169,6 @@ function getTitledBlocks(details: PublicEventDetails | undefined, blockType: Pub
       .map((block) => ({
         title: block.title || 'Важно',
         body: block.body,
-      })) ?? []
-  );
-}
-
-function getFaqBlocks(details: PublicEventDetails | undefined) {
-  return (
-    details?.contentBlocks
-      .filter((block) => block.blockType === 'Faq')
-      .map((block) => ({
-        question: block.title || 'Вопрос',
-        answer: block.body,
       })) ?? []
   );
 }
@@ -390,7 +359,6 @@ export default function App() {
   const highlights = getBlocks(details, 'Highlight');
   const thingsToBringBlocks = getTitledBlocks(details, 'WhatToBring');
   const importantNotices = getTitledBlocks(details, 'ImportantNotice');
-  const faqBlocks = getFaqBlocks(details);
   const actualMedia = splitMedia(details?.mediaItems ?? []);
   const eventImages = actualMedia.images.filter((item) => !isLegacyExternalPlaceImage(item.url));
   const imageItems = [
@@ -409,7 +377,6 @@ export default function App() {
     ? thingsToBringBlocks.map((item) => `${item.title}: ${item.body}`)
     : fallbackThingsToBring;
   const activeImportantNotices = importantNotices.length ? importantNotices : fallbackImportantNotices;
-  const activeFaq = faqBlocks.length ? faqBlocks : fallbackFaq;
 
   function selectEvent(slug: string, options?: { historyMode?: 'push' | 'replace'; isRegistrationOpen?: boolean }) {
     const nextModalOpen = options?.isRegistrationOpen ?? isModalOpen;
@@ -485,10 +452,8 @@ export default function App() {
           <a href="#facts">О событии</a>
           <a href="#place">Место</a>
           <a href="#activities">Активности</a>
-          <a href="#reviews">Отзывы</a>
+          <a href="#reviews">Информация</a>
           <a href="#program">Программа</a>
-          <a href="#notices">Важно</a>
-          <a href="#faq">FAQ</a>
         </nav>
 
         <div className="header-actions">
@@ -633,8 +598,7 @@ export default function App() {
         <section className="section-block container place-reviews-section" id="reviews">
           <div className="section-heading">
             <p className="section-kicker">О походе</p>
-            <h2>Что пишут о походе</h2>
-            <p>Главные бытовые ориентиры перед выездом: погода, география базы, формат размещения и правила общего порядка.</p>
+            <h2>Информация о походе</h2>
           </div>
 
           <div className="place-review-grid">
@@ -646,11 +610,28 @@ export default function App() {
             ))}
           </div>
 
-          <div className="place-review-footer">
-            <span>Перед поездкой можно открыть карточку места и посмотреть фотографии территории в 2ГИС.</span>
-            <a className="button button-secondary" href={PLACE_REVIEWS_URL} target="_blank" rel="noreferrer">
-              Открыть место
-            </a>
+          <div className="info-section-stack">
+            <div className="info-subsection">
+              <h3>Правила и ограничения</h3>
+              <div className="faq-grid">
+                {activeImportantNotices.map((item) => (
+                  <article className="faq-card" key={item.title}>
+                    <h3>{item.title}</h3>
+                    <p>{item.body}</p>
+                  </article>
+                ))}
+              </div>
+            </div>
+
+            <article className="content-card info-bring-card">
+              <p className="section-kicker">С собой</p>
+              <h3>Что взять с собой</h3>
+              <ul className="content-list">
+                {activeThingsToBring.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </article>
           </div>
         </section>
 
@@ -717,7 +698,7 @@ export default function App() {
           ) : null}
         </section>
 
-        <section className="content-grid container" id="program">
+        <section className="content-grid container program-grid" id="program">
           <article className="content-card">
             <p className="section-kicker">Главное</p>
             <h2>{selectedEventSummary?.title || 'Blagodaty Camp'}</h2>
@@ -739,62 +720,6 @@ export default function App() {
               </div>
             ) : null}
           </article>
-
-          <article className="content-card">
-            <p className="section-kicker">С собой</p>
-            <h2>Что взять</h2>
-            <ul className="content-list">
-              {activeThingsToBring.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-
-            {details?.priceOptions.length ? (
-              <div className="pricing-stack">
-                {details.priceOptions.filter((option) => option.isActive).map((option) => (
-                  <article className="pricing-row" key={option.id}>
-                    <div>
-                      <strong>{option.title}</strong>
-                      <p>{option.description || 'Тариф участия'}</p>
-                    </div>
-                    <span>{formatCurrency(option.amount, option.currency)}</span>
-                  </article>
-                ))}
-              </div>
-            ) : null}
-          </article>
-        </section>
-
-        <section className="section-block container" id="notices">
-          <div className="section-heading">
-            <p className="section-kicker">Важно</p>
-            <h2>Правила и ограничения</h2>
-          </div>
-
-          <div className="faq-grid">
-            {activeImportantNotices.map((item) => (
-              <article className="faq-card" key={item.title}>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="section-block container" id="faq">
-          <div className="section-heading">
-            <p className="section-kicker">FAQ</p>
-            <h2>Коротко по делу</h2>
-          </div>
-
-          <div className="faq-grid">
-            {activeFaq.map((item) => (
-              <article className="faq-card" key={item.question}>
-                <h3>{item.question}</h3>
-                <p>{item.answer}</p>
-              </article>
-            ))}
-          </div>
         </section>
 
         <section className="cta-banner container">

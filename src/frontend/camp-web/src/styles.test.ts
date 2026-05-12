@@ -29,7 +29,7 @@ describe('public place layout styles', () => {
   it('centers fact cards and provides a review grid', () => {
     expect(styles).toMatch(/\.facts-strip article\s*{[^}]*align-content:\s*center;[^}]*justify-items:\s*center;[^}]*text-align:\s*center;/s);
     expect(styles).toMatch(/\.facts-strip strong\s*{[^}]*text-align:\s*center;/s);
-    expect(styles).toMatch(/\.place-review-grid\s*{[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\);/s);
-    expect(styles).toMatch(/\.place-review-footer\s*{[^}]*justify-content:\s*space-between;/s);
+    expect(styles).toMatch(/\.place-review-grid\s*{[^}]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\);/s);
+    expect(styles).toMatch(/\.info-section-stack,\s*\.info-subsection,\s*\.info-bring-card\s*{[^}]*display:\s*grid;[^}]*gap:\s*16px;/s);
   });
 });
