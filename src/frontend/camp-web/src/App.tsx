@@ -58,11 +58,11 @@ const PLACE_IMAGES: PublicEventMediaItem[] = [
 const PLACE_REVIEWS = [
   {
     title: 'Погода и условия',
-    text: 'В августе в Курае важно быть готовым к солнцу, ветру, дождю и прохладным вечерам, поэтому берем одежду слоями.',
+    text: 'Август в Курае - это яркое солнце днем, сухой горный воздух и прохладные вечера у гор. Берем одежду слоями, чтобы спокойно встречать рассветы, гулять по степи и не зависеть от перемены ветра.',
   },
   {
     title: 'База и география',
-    text: 'Место находится среди алтайских гор, рядом с открытыми видами и природой. Размещение планируется в палаточном формате.',
+    text: 'Экоаил стоит в Курайской степи, где горизонт открывается на Северо-Чуйский хребет. Это настоящий палаточный формат: простое размещение, костровая атмосфера, много воздуха и горы прямо вокруг.',
   },
 ];
 
@@ -73,27 +73,28 @@ const fallbackHighlights = [
 ];
 
 const fallbackThingsToBring = [
-  'Для сна: спальник, туристический коврик, маленькую подушку, пижаму.',
-  'Гигиена: средства гигиены, полотенце для лица, сменное нижнее белье.',
-  'Для активного отдыха: пляжное полотенце, головной убор, удобную одежду и обувь, солнцезащитный крем.',
-  'На случай дождя: дождевик, резиновые сапоги, большие черные пакеты для вещей.',
-  'На прохладную погоду: теплую кофту или толстовку, теплые носки, куртку, тонкую шапку.',
-  'Прочее: средство от насекомых, фонарик, несколько подарков для игры «Тайный друг».',
-  'Канцелярия: Библию, ручку, блокнот или тетрадку.',
+  'Сон и тепло: спальник по погоде, туристический коврик, маленькая подушка и удобная пижама.',
+  'Одежда слоями: футболки, удобные штаны, теплая кофта, куртка, теплые носки и тонкая шапка для вечера.',
+  'Обувь: надежные кроссовки или треккинговая пара для прогулок и резиновые сапоги на случай дождя.',
+  'Гигиена: зубная щетка, паста, шампунь, влажные салфетки, полотенце для лица и сменное белье.',
+  'Солнце и вода: головной убор, солнцезащитный крем и пляжное полотенце для теплых дневных выходов.',
+  'Дождь: дождевик и большие плотные пакеты, чтобы быстро защитить вещи от влаги.',
+  'Вечер и лагерь: фонарик обязательно, средство от насекомых и несколько подарков для игры «Тайный друг».',
+  'Для встреч: Библия, ручка, блокнот или тетрадь для заметок и общих разборов.',
 ];
 
 const fallbackImportantNotices = [
   {
     title: 'Ответственность за вещи',
-    body: 'За сохранность ценных вещей участники самостоятельно несут ответственность.',
+    body: 'Ценные вещи лучше оставить дома или держать при себе: походный формат живой и общий, поэтому каждый отвечает за свои документы, деньги и технику.',
   },
   {
     title: 'Запрещено привозить',
-    body: 'На территорию запрещено привозить спиртное и табачные изделия.',
+    body: 'На территорию не привозим и не употребляем алкоголь, табак и наркотические вещества. Сохраняем пространство лагеря трезвым, чистым и безопасным для всех.',
   },
   {
     title: 'Правила поведения',
-    body: 'Запрещено уединение разнополых людей; обязательно строгое соблюдение общего распорядка; запрещено употребление алкогольных, табачных и наркотических веществ; необходимо соблюдать указания служительского состава.',
+    body: 'Живем по общему расписанию, бережно относимся к людям и территории, не уединяемся разнополыми парами и следуем указаниям служительской команды.',
   },
 ];
 
@@ -170,6 +171,12 @@ function getTitledBlocks(details: PublicEventDetails | undefined, blockType: Pub
         body: block.body,
       })) ?? []
   );
+}
+
+function splitIntoColumns<T>(items: T[], columnsCount: number) {
+  const columnSize = Math.ceil(items.length / columnsCount);
+  return Array.from({ length: columnsCount }, (_, index) => items.slice(index * columnSize, (index + 1) * columnSize))
+    .filter((column) => column.length > 0);
 }
 
 function getSocialLinksForPlacement(links: PublicSiteSocialLink[] | undefined, placement: 'header' | 'footer') {
@@ -374,6 +381,7 @@ export default function App() {
   const activeThingsToBring = thingsToBringBlocks.length
     ? thingsToBringBlocks.map((item) => `${item.title}: ${item.body}`)
     : fallbackThingsToBring;
+  const thingsToBringColumns = splitIntoColumns(activeThingsToBring, 2);
   const activeImportantNotices = importantNotices.length ? importantNotices : fallbackImportantNotices;
 
   function selectEvent(slug: string, options?: { historyMode?: 'push' | 'replace'; isRegistrationOpen?: boolean }) {
@@ -594,7 +602,6 @@ export default function App() {
 
         <section className="section-block container place-reviews-section" id="reviews">
           <div className="section-heading">
-            <p className="section-kicker">О походе</p>
             <h2>Информация о походе</h2>
           </div>
 
@@ -621,13 +628,16 @@ export default function App() {
             </div>
 
             <article className="content-card info-bring-card">
-              <p className="section-kicker">С собой</p>
               <h3>Что взять с собой</h3>
-              <ul className="content-list">
-                {activeThingsToBring.map((item) => (
-                  <li key={item}>{item}</li>
+              <div className="info-bring-columns">
+                {thingsToBringColumns.map((column, index) => (
+                  <ul className="content-list" key={`bring-column-${index + 1}`}>
+                    {column.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
                 ))}
-              </ul>
+              </div>
             </article>
           </div>
         </section>

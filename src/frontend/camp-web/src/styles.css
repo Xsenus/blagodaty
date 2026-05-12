@@ -1866,19 +1866,20 @@ body {
   gap: 14px;
 }
 
-.info-bring-card .section-kicker {
-  margin: 0;
+.info-bring-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px;
 }
 
-.info-bring-card .content-list {
+.info-bring-columns .content-list {
+  display: grid;
+  gap: 10px;
   margin-top: 0;
-  column-count: 2;
-  column-gap: 32px;
 }
 
-.info-bring-card .content-list li {
-  break-inside: avoid;
-  margin-bottom: 8px;
+.info-bring-columns .content-list li {
+  margin-bottom: 0;
 }
 
 .activities-section {
@@ -2449,8 +2450,8 @@ input[type="radio"] {
     display: grid;
   }
 
-  .info-bring-card .content-list {
-    column-count: 1;
+  .info-bring-columns {
+    grid-template-columns: 1fr;
   }
 
   .activities-map {
