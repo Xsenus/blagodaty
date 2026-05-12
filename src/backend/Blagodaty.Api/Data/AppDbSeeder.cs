@@ -286,6 +286,8 @@ public static class AppDbSeeder
 
     private static async Task EnsureCurrentCamp2026ContentAsync(AppDbContext dbContext, CampOptions campOptions)
     {
+        dbContext.ChangeTracker.Clear();
+
         var versionSetting = await dbContext.AppSettings.FirstOrDefaultAsync(item => item.Key == Camp2026ContentVersionKey);
         if (versionSetting?.Value == Camp2026ContentVersion)
         {
