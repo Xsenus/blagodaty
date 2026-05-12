@@ -301,9 +301,6 @@ public static class AppDbSeeder
         var editionSlug = $"blagodaty-camp-{year}";
         var edition = await dbContext.EventEditions
             .Include(item => item.EventSeries)
-            .Include(item => item.PriceOptions)
-            .Include(item => item.ScheduleItems)
-            .Include(item => item.ContentBlocks)
             .FirstOrDefaultAsync(item => item.Slug == editionSlug);
         if (edition is null)
         {
@@ -327,7 +324,10 @@ public static class AppDbSeeder
         edition.WaitlistEnabled = campOptions.WaitlistEnabled;
         edition.UpdatedAtUtc = now;
 
-        var defaultPrice = edition.PriceOptions
+        var priceOptions = await dbContext.EventPriceOptions
+            .Where(item => item.EventEditionId == edition.Id)
+            .ToListAsync();
+        var defaultPrice = priceOptions
             .OrderByDescending(item => item.IsDefault)
             .ThenBy(item => item.SortOrder)
             .FirstOrDefault();
@@ -336,12 +336,14 @@ public static class AppDbSeeder
             defaultPrice = new EventPriceOption
             {
                 Id = Guid.NewGuid(),
+                EventEditionId = edition.Id,
                 CreatedAtUtc = now
             };
-            edition.PriceOptions.Add(defaultPrice);
+            priceOptions.Add(defaultPrice);
+            dbContext.EventPriceOptions.Add(defaultPrice);
         }
 
-        foreach (var option in edition.PriceOptions)
+        foreach (var option in priceOptions)
         {
             option.IsDefault = option.Id == defaultPrice.Id;
         }
@@ -355,12 +357,14 @@ public static class AppDbSeeder
         defaultPrice.SortOrder = 0;
         defaultPrice.UpdatedAtUtc = now;
 
-        dbContext.EventScheduleItems.RemoveRange(edition.ScheduleItems);
-        edition.ScheduleItems.Clear();
+        await dbContext.EventScheduleItems
+            .Where(item => item.EventEditionId == edition.Id)
+            .ExecuteDeleteAsync();
         AddDefaultCampScheduleItems(edition, year);
 
-        dbContext.EventContentBlocks.RemoveRange(edition.ContentBlocks);
-        edition.ContentBlocks.Clear();
+        await dbContext.EventContentBlocks
+            .Where(item => item.EventEditionId == edition.Id)
+            .ExecuteDeleteAsync();
         AddDefaultCampContentBlocks(edition, campOptions);
 
         if (versionSetting is null)
