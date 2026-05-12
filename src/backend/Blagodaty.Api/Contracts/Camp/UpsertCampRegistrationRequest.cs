@@ -60,6 +60,9 @@ public sealed class UpsertCampRegistrationParticipantRequest
     [MaxLength(180)]
     public string FullName { get; set; } = string.Empty;
 
+    [MaxLength(32)]
+    public string PhoneNumber { get; set; } = string.Empty;
+
     public string? BirthDate { get; set; }
 
     public bool IsChild { get; set; }

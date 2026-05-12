@@ -114,11 +114,11 @@ function makeSavedRegistration(): CampRegistration {
     phoneNumber: '+79991234567',
     phoneNumberConfirmed: false,
     hasCar: true,
-    hasChildren: true,
+    hasChildren: false,
     participantsCount: 2,
     participants: [
-      { id: 'participant-1', fullName: 'Иван Иванов', birthDate: '1990-01-10', isChild: false, sortOrder: 0 },
-      { id: 'participant-2', fullName: 'Петр Иванов', birthDate: '2009-08-01', isChild: true, sortOrder: 1 },
+      { id: 'participant-1', fullName: 'Иван Иванов', phoneNumber: '+79991234567', birthDate: '1990-01-10', isChild: false, sortOrder: 0 },
+      { id: 'participant-2', fullName: 'Петр Иванов', phoneNumber: '+79997654321', birthDate: null, isChild: false, sortOrder: 1 },
     ],
     emergencyContactName: '',
     emergencyContactPhone: '',
@@ -169,10 +169,11 @@ describe('RegistrationModal', () => {
     expect(screen.queryByLabelText(/^Город$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Церковь$/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^ФИО$/i)).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: /16-17 лет/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Размещение$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^Доверенное лицо$/i)).not.toBeRequired();
+    expect(screen.queryByRole('checkbox', { name: /16-17 лет/i })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Размещение$/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^ФИО доверенного лица$/i)).not.toBeRequired();
     expect(screen.getByLabelText(/^Телефон доверенного лица$/i)).not.toBeRequired();
+    expect(screen.getByRole('radio', { name: /^Нет$/i })).toBeChecked();
     expect(screen.getByRole('button', { name: /Отправить заявку/i })).toBeEnabled();
 
     expect(screen.queryByText(/Без аккаунта и входа в личный кабинет/i)).not.toBeInTheDocument();
@@ -212,12 +213,11 @@ describe('RegistrationModal', () => {
 
     await user.click(screen.getByRole('button', { name: /Добавить участника/i }));
     fireEvent.change(screen.getAllByLabelText(/^ФИО$/i)[1], { target: { value: 'Петр Иванов' } });
-    fireEvent.change(screen.getByLabelText(/^Дата рождения$/i), { target: { value: '2009-08-01' } });
+    fireEvent.change(screen.getAllByLabelText(/^Телефон$/i)[1], { target: { value: '89997654321' } });
 
-    await user.selectOptions(screen.getByLabelText(/^Размещение$/i), 'Tent');
-    await user.click(screen.getByRole('checkbox', { name: /Есть автомобиль/i }));
-    fireEvent.change(screen.getByLabelText(/Здоровье и ограничения/i), { target: { value: 'Без ограничений' } });
-    fireEvent.change(screen.getByLabelText(/^Комментарий$/i), { target: { value: 'Хочу участвовать' } });
+    await user.click(screen.getByRole('radio', { name: /^Есть$/i }));
+    fireEvent.change(screen.getByRole('textbox', { name: /^Здоровье и ограничения$/i }), { target: { value: 'Без ограничений' } });
+    fireEvent.change(screen.getByRole('textbox', { name: /^Пожелания$/i }), { target: { value: 'Хочу участвовать' } });
     await user.click(screen.getByRole('checkbox', { name: /Подтверждаю корректность данных/i }));
     await user.click(screen.getByRole('button', { name: /Отправить заявку/i }));
 
@@ -233,15 +233,16 @@ describe('RegistrationModal', () => {
         churchName: 'Благодать',
         phoneNumber: '+79991234567',
         hasCar: true,
-        hasChildren: true,
+        hasChildren: false,
         participants: [
-          { fullName: 'Иван Иванов', birthDate: '1990-01-10', isChild: false },
-          { fullName: 'Петр Иванов', birthDate: '2009-08-01', isChild: true },
+          { fullName: 'Иван Иванов', phoneNumber: '+79991234567', birthDate: '1990-01-10', isChild: false },
+          { fullName: 'Петр Иванов', phoneNumber: '+79997654321', birthDate: '', isChild: false },
         ],
         emergencyContactName: '',
         emergencyContactPhone: '',
         accommodationPreference: 'Tent',
         healthNotes: 'Без ограничений',
+        specialNeeds: '',
         motivation: 'Хочу участвовать',
         consentAccepted: true,
         submit: true,

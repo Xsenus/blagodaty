@@ -16,6 +16,7 @@ import type {
 
 type EditableParticipant = {
   fullName: string;
+  phoneNumber?: string;
   birthDate?: string;
   isChild: boolean;
 };
@@ -24,6 +25,7 @@ type RegistrationScrollTarget = 'event' | 'phone' | 'form' | 'summary';
 
 const EMPTY_PARTICIPANT: EditableParticipant = {
   fullName: '',
+  phoneNumber: '',
   birthDate: '',
   isChild: false,
 };
@@ -315,6 +317,7 @@ function ensureParticipants(
     const birthDate = (index === 0 ? primaryBirthDate || participant.birthDate : participant.birthDate) ?? '';
     return {
       fullName: participant.fullName,
+      phoneNumber: participant.phoneNumber?.trim() ?? '',
       birthDate,
       isChild: birthDate ? isMinorParticipant(birthDate, eventStartsAtUtc) : participant.isChild,
     };
@@ -327,6 +330,7 @@ function ensureParticipants(
   return [
     {
       fullName: fallbackFullName,
+      phoneNumber: '',
       birthDate: primaryBirthDate,
       isChild: false,
     },
@@ -353,12 +357,14 @@ function registrationToForm(currentRegistration: CampRegistration): SaveRegistra
         .sort((left, right) => left.sortOrder - right.sortOrder)
         .map((participant) => ({
           fullName: participant.fullName,
+          phoneNumber: participant.phoneNumber ?? '',
           birthDate: participant.birthDate ?? '',
           isChild: participant.isChild,
         }))
     : [
         {
           fullName: currentRegistration.fullName,
+          phoneNumber: currentRegistration.phoneNumber,
           birthDate: currentRegistration.birthDate,
           isChild: currentRegistration.hasChildren,
         },
@@ -433,6 +439,12 @@ function collectRegistrationValidationErrors(
     selectedEvent.startsAtUtc,
   );
   normalizedParticipants.slice(1).forEach((participant) => {
+    if (!participant.phoneNumber?.trim()) {
+      errors.push(`Укажите телефон участника: ${participant.fullName}.`);
+    } else if (!isValidPhone(participant.phoneNumber)) {
+      errors.push(`Проверьте телефон участника: ${participant.fullName}.`);
+    }
+
     if (!participant.birthDate) {
       errors.push(`Укажите дату рождения участника: ${participant.fullName}.`);
       return;
@@ -543,7 +555,7 @@ function buildPrefillForm(
     ?? null;
   const preferredName = getPreferredName(account);
   const participants = preferredName
-    ? [{ fullName: preferredName, birthDate: '', isChild: false }]
+    ? [{ fullName: preferredName, phoneNumber: account?.user.phoneNumber ?? '', birthDate: '', isChild: false }]
     : current.participants.length
       ? current.participants
       : [{ ...EMPTY_PARTICIPANT }];
@@ -567,6 +579,7 @@ function buildDraftPayload(
   const participants = ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent?.startsAtUtc)
     .map((participant) => ({
       fullName: participant.fullName.trim(),
+      phoneNumber: participant.phoneNumber?.trim() ?? '',
       birthDate: participant.birthDate ?? '',
       isChild: participant.isChild,
     }))
@@ -896,8 +909,9 @@ export function CampRegistrationFlowPage() {
       ...form,
       fullName: form.participants[0]?.fullName.trim() || form.fullName.trim(),
       participants: ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent.startsAtUtc)
-        .map((participant) => ({
+        .map((participant, index) => ({
           fullName: participant.fullName.trim(),
+          phoneNumber: index === 0 ? form.phoneNumber.trim() : participant.phoneNumber?.trim() ?? '',
           birthDate: participant.birthDate ?? '',
           isChild: participant.isChild,
         })),
@@ -1218,6 +1232,28 @@ export function CampRegistrationFlowPage() {
                             required={index === 0}
                           />
                         </label>
+
+                        {index > 0 ? (
+                          <label>
+                            <span>Телефон</span>
+                            <input
+                              inputMode="tel"
+                              placeholder="+7"
+                              value={participant.phoneNumber ?? ''}
+                              onChange={(event) => {
+                                const phoneNumber = event.target.value;
+                                updateParticipants((items) =>
+                                  items.map((item, currentIndex) =>
+                                    currentIndex === index
+                                      ? { ...item, phoneNumber }
+                                      : item,
+                                  ),
+                                );
+                              }}
+                              required
+                            />
+                          </label>
+                        ) : null}
 
                         {index > 0 ? (
                           <label>

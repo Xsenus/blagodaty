@@ -172,9 +172,10 @@ public sealed class GoogleSheetsRegistrationSyncService
             .ThenBy(item => item.FullName)
             .ToListAsync(cancellationToken);
 
-        var values = BuildRows(eventItem, registrations);
         var accessToken = await GetAccessTokenAsync(settings.ServiceAccountJson!, cancellationToken);
         var sheetName = string.IsNullOrWhiteSpace(settings.SheetName) ? "Registrations" : settings.SheetName.Trim();
+        var paymentRows = await ReadExistingPaymentRowsAsync(settings.SpreadsheetId!, sheetName, accessToken, cancellationToken);
+        var values = BuildRows(eventItem, registrations, paymentRows);
         await ClearSheetAsync(settings.SpreadsheetId!, sheetName, accessToken, cancellationToken);
         await UpdateSheetAsync(settings.SpreadsheetId!, sheetName, accessToken, values, cancellationToken);
 
@@ -187,7 +188,10 @@ public sealed class GoogleSheetsRegistrationSyncService
         return Math.Max(values.Count - 1, 0);
     }
 
-    private static List<IReadOnlyList<object>> BuildRows(EventEdition eventItem, IReadOnlyList<CampRegistration> registrations)
+    private static List<IReadOnlyList<object>> BuildRows(
+        EventEdition eventItem,
+        IReadOnlyList<CampRegistration> registrations,
+        IReadOnlyDictionary<string, PaymentColumns> paymentRows)
     {
         var rows = new List<IReadOnlyList<object>>
         {
@@ -204,19 +208,27 @@ public sealed class GoogleSheetsRegistrationSyncService
             new object[]
             {
                 "№",
+                "ID заявки",
                 "Статус",
                 "Контактное лицо",
                 "Участник",
                 "Дата рождения",
                 "16-17 лет",
-                "Телефон",
+                "Телефон участника",
+                "Телефон заявки",
                 "Email",
                 "Город",
                 "Церковь",
                 "Тариф",
+                "Стоимость",
                 "Размещение",
-                "Здоровье / аллергии / особые нужды",
-                "Комментарий",
+                "Здоровье / аллергии",
+                "Пожелания",
+                "Оплатил",
+                "Сумма внесена",
+                "Дата оплаты",
+                "Остаток",
+                "Комментарий оплаты",
                 "Обновлено UTC"
             }
         };
@@ -229,6 +241,7 @@ public sealed class GoogleSheetsRegistrationSyncService
                 : [new CampRegistrationParticipant
                     {
                         FullName = registration.FullName,
+                        PhoneNumber = registration.PhoneNumber,
                         BirthDate = registration.BirthDate == default ? null : registration.BirthDate,
                         IsChild = registration.HasChildren,
                         SortOrder = 0
@@ -236,14 +249,22 @@ public sealed class GoogleSheetsRegistrationSyncService
 
             foreach (var participant in participants)
             {
+                var participantPhoneNumber = GetParticipantPhoneNumber(participant, registration);
+                var paymentKey = BuildPaymentKey(registration.Id, participant.FullName);
+                paymentRows.TryGetValue(paymentKey, out var payment);
+                var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
+                var balance = CalculateBalance(registration.SelectedPriceOption?.Amount, amountPaid, payment?.Balance);
+
                 rows.Add(new object[]
                 {
                     rowNumber++,
+                    registration.Id.ToString(),
                     FormatRegistrationStatus(registration.Status),
                     registration.FullName,
                     participant.FullName,
                     participant.BirthDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty,
                     participant.IsChild ? "Да" : "Нет",
+                    participantPhoneNumber,
                     registration.PhoneNumber,
                     !string.IsNullOrWhiteSpace(registration.ContactEmail)
                         ? registration.ContactEmail
@@ -251,15 +272,92 @@ public sealed class GoogleSheetsRegistrationSyncService
                     registration.City,
                     registration.ChurchName,
                     registration.SelectedPriceOption?.Title ?? string.Empty,
+                    registration.SelectedPriceOption?.Amount ?? 0m,
                     FormatAccommodation(registration.AccommodationPreference),
                     BuildMedicalNotes(registration),
                     registration.Motivation ?? string.Empty,
+                    payment?.Payer ?? string.Empty,
+                    payment?.AmountPaid ?? string.Empty,
+                    payment?.PaidAt ?? string.Empty,
+                    balance,
+                    payment?.Comment ?? string.Empty,
                     registration.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
                 });
             }
         }
 
         return rows;
+    }
+
+    private async Task<IReadOnlyDictionary<string, PaymentColumns>> ReadExistingPaymentRowsAsync(
+        string spreadsheetId,
+        string sheetName,
+        string accessToken,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"https://sheets.googleapis.com/v4/spreadsheets/{Uri.EscapeDataString(spreadsheetId)}/values/{Uri.EscapeDataString(ToSheetRange(sheetName, "A:AZ"))}");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureGoogleSuccessAsync(response, cancellationToken);
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var document = JsonDocument.Parse(body);
+        if (!document.RootElement.TryGetProperty("values", out var valuesElement) ||
+            valuesElement.ValueKind != JsonValueKind.Array)
+        {
+            return new Dictionary<string, PaymentColumns>();
+        }
+
+        var rows = valuesElement
+            .EnumerateArray()
+            .Where(row => row.ValueKind == JsonValueKind.Array)
+            .Select(row => row.EnumerateArray().Select(CellToString).ToArray())
+            .ToArray();
+        if (rows.Length < 4)
+        {
+            return new Dictionary<string, PaymentColumns>();
+        }
+
+        var headers = rows[2]
+            .Select((title, index) => new { Title = title.Trim(), Index = index })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Title))
+            .ToDictionary(item => item.Title, item => item.Index, StringComparer.OrdinalIgnoreCase);
+
+        if (!headers.TryGetValue("ID заявки", out var registrationIdIndex) ||
+            !headers.TryGetValue("Участник", out var participantIndex))
+        {
+            return new Dictionary<string, PaymentColumns>();
+        }
+
+        var payerIndex = headers.TryGetValue("Оплатил", out var foundPayerIndex) ? foundPayerIndex : -1;
+        var amountPaidIndex = headers.TryGetValue("Сумма внесена", out var foundAmountPaidIndex) ? foundAmountPaidIndex : -1;
+        var paidAtIndex = headers.TryGetValue("Дата оплаты", out var foundPaidAtIndex) ? foundPaidAtIndex : -1;
+        var balanceIndex = headers.TryGetValue("Остаток", out var foundBalanceIndex) ? foundBalanceIndex : -1;
+        var commentIndex = headers.TryGetValue("Комментарий оплаты", out var foundCommentIndex) ? foundCommentIndex : -1;
+
+        var result = new Dictionary<string, PaymentColumns>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows.Skip(3))
+        {
+            var registrationId = GetCell(row, registrationIdIndex);
+            var participantName = GetCell(row, participantIndex);
+            if (string.IsNullOrWhiteSpace(registrationId) || string.IsNullOrWhiteSpace(participantName))
+            {
+                continue;
+            }
+
+            var key = BuildPaymentKey(registrationId, participantName);
+            result[key] = new PaymentColumns(
+                GetCell(row, payerIndex),
+                GetCell(row, amountPaidIndex),
+                GetCell(row, paidAtIndex),
+                GetCell(row, balanceIndex),
+                GetCell(row, commentIndex));
+        }
+
+        return result;
     }
 
     private async Task ClearSheetAsync(
@@ -270,7 +368,7 @@ public sealed class GoogleSheetsRegistrationSyncService
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
-            $"https://sheets.googleapis.com/v4/spreadsheets/{Uri.EscapeDataString(spreadsheetId)}/values/{Uri.EscapeDataString(ToSheetRange(sheetName, "A:Z"))}:clear");
+            $"https://sheets.googleapis.com/v4/spreadsheets/{Uri.EscapeDataString(spreadsheetId)}/values/{Uri.EscapeDataString(ToSheetRange(sheetName, "A:AZ"))}:clear");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = new StringContent("{}", Encoding.UTF8, "application/json");
 
@@ -443,6 +541,76 @@ public sealed class GoogleSheetsRegistrationSyncService
                !string.IsNullOrWhiteSpace(settings.ServiceAccountJson);
     }
 
+    private static string CellToString(JsonElement element)
+    {
+        return element.ValueKind == JsonValueKind.String
+            ? element.GetString() ?? string.Empty
+            : element.ToString();
+    }
+
+    private static string GetCell(IReadOnlyList<string> row, int index)
+    {
+        return index >= 0 && index < row.Count ? row[index] : string.Empty;
+    }
+
+    private static string BuildPaymentKey(Guid registrationId, string participantName)
+    {
+        return BuildPaymentKey(registrationId.ToString(), participantName);
+    }
+
+    private static string BuildPaymentKey(string registrationId, string participantName)
+    {
+        var normalizedRegistrationId = Guid.TryParse(registrationId, out var parsedId)
+            ? parsedId.ToString("N")
+            : registrationId.Trim().ToUpperInvariant();
+        return $"{normalizedRegistrationId}|{participantName.Trim().ToUpperInvariant()}";
+    }
+
+    private static string GetParticipantPhoneNumber(CampRegistrationParticipant participant, CampRegistration registration)
+    {
+        return string.IsNullOrWhiteSpace(participant.PhoneNumber)
+            ? registration.PhoneNumber
+            : participant.PhoneNumber;
+    }
+
+    private static decimal? TryParsePaymentAmount(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value
+            .Replace("₽", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("руб.", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace("руб", string.Empty, StringComparison.OrdinalIgnoreCase)
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("\u00A0", string.Empty, StringComparison.Ordinal)
+            .Replace(',', '.')
+            .Trim();
+
+        return decimal.TryParse(normalized, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
+            ? amount
+            : null;
+    }
+
+    private static object CalculateBalance(decimal? totalAmount, decimal? paidAmount, string? preservedBalance)
+    {
+        if (totalAmount is null)
+        {
+            return preservedBalance ?? string.Empty;
+        }
+
+        if (paidAmount.HasValue)
+        {
+            return Math.Max(totalAmount.Value - paidAmount.Value, 0m);
+        }
+
+        return string.IsNullOrWhiteSpace(preservedBalance)
+            ? totalAmount.Value
+            : preservedBalance;
+    }
+
     private static string ToSheetRange(string sheetName, string range)
     {
         return $"'{sheetName.Replace("'", "''")}'!{range}";
@@ -505,4 +673,11 @@ public sealed class GoogleSheetsRegistrationSyncService
         public DateTime? LastSyncedAtUtc { get; init; }
         public string? LastError { get; init; }
     }
+
+    private sealed record PaymentColumns(
+        string Payer,
+        string AmountPaid,
+        string PaidAt,
+        string Balance,
+        string Comment);
 }

@@ -235,6 +235,7 @@ public sealed class EventRegistrationService
             registration.Participants.Add(new CampRegistrationParticipant
             {
                 FullName = participant.FullName,
+                PhoneNumber = participant.PhoneNumber,
                 BirthDate = participant.BirthDate,
                 IsChild = participant.IsChild,
                 SortOrder = participant.SortOrder
@@ -389,6 +390,7 @@ public sealed class EventRegistrationService
             registration.Participants.Add(new CampRegistrationParticipant
             {
                 FullName = participant.FullName,
+                PhoneNumber = participant.PhoneNumber,
                 BirthDate = participant.BirthDate,
                 IsChild = participant.IsChild,
                 SortOrder = participant.SortOrder
@@ -571,6 +573,7 @@ public sealed class EventRegistrationService
                 {
                     Id = item.Id,
                     FullName = item.FullName,
+                    PhoneNumber = item.PhoneNumber,
                     BirthDate = item.BirthDate?.ToString("yyyy-MM-dd"),
                     IsChild = item.IsChild,
                     SortOrder = item.SortOrder
@@ -584,6 +587,7 @@ public sealed class EventRegistrationService
             {
                 Id = registration.Id,
                 FullName = registration.FullName,
+                PhoneNumber = registration.PhoneNumber,
                 BirthDate = registration.BirthDate == default ? null : registration.BirthDate.ToString("yyyy-MM-dd"),
                 IsChild = registration.HasChildren,
                 SortOrder = 0
@@ -599,6 +603,7 @@ public sealed class EventRegistrationService
             .Select((participant, index) => new NormalizedParticipant
             {
                 FullName = participant.FullName.Trim(),
+                PhoneNumber = NormalizeParticipantPhoneNumber(participant.PhoneNumber, index == 0 ? request.PhoneNumber : null),
                 BirthDate = TryParseBirthDate(participant.BirthDate),
                 IsChild = participant.IsChild,
                 SortOrder = index
@@ -622,6 +627,7 @@ public sealed class EventRegistrationService
             new NormalizedParticipant
             {
                 FullName = primaryFullName,
+                PhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber) ?? (request.PhoneNumber ?? string.Empty).Trim(),
                 BirthDate = TryParseBirthDate(request.BirthDate),
                 IsChild = false,
                 SortOrder = 0
@@ -637,6 +643,7 @@ public sealed class EventRegistrationService
             .Select((participant, index) => new NormalizedParticipant
             {
                 FullName = participant.FullName.Trim(),
+                PhoneNumber = NormalizeParticipantPhoneNumber(participant.PhoneNumber, index == 0 ? request.PhoneNumber : null),
                 BirthDate = TryParseBirthDate(participant.BirthDate),
                 IsChild = participant.IsChild,
                 SortOrder = index
@@ -665,6 +672,7 @@ public sealed class EventRegistrationService
             new NormalizedParticipant
             {
                 FullName = primaryFullName,
+                PhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber) ?? (request.PhoneNumber ?? string.Empty).Trim(),
                 BirthDate = TryParseBirthDate(request.BirthDate),
                 IsChild = false,
                 SortOrder = 0
@@ -680,6 +688,12 @@ public sealed class EventRegistrationService
         }
 
         return DateOnly.TryParse(value.Trim(), out var birthDate) ? birthDate : null;
+    }
+
+    private static string NormalizeParticipantPhoneNumber(string? phoneNumber, string? fallbackPhoneNumber)
+    {
+        var source = string.IsNullOrWhiteSpace(phoneNumber) ? fallbackPhoneNumber : phoneNumber;
+        return PhoneNumberHelper.Normalize(source) ?? (source ?? string.Empty).Trim();
     }
 
     private static void ValidateRequestForSubmission(
@@ -736,13 +750,13 @@ public sealed class EventRegistrationService
 
         foreach (var participant in normalizedParticipants)
         {
-            if (participant.BirthDate is null)
+            if (participant.SortOrder == 0 && participant.BirthDate is null)
             {
                 errors.Add($"Укажите дату рождения участника: {participant.FullName}.");
                 continue;
             }
 
-            if (!IsMinimumAgeReached(participant.BirthDate.Value, eventStartsAt))
+            if (participant.BirthDate.HasValue && !IsMinimumAgeReached(participant.BirthDate.Value, eventStartsAt))
             {
                 errors.Add($"Участнику {participant.FullName} должно быть не меньше {MinimumParticipantAge} лет на дату начала похода.");
             }
@@ -756,9 +770,26 @@ public sealed class EventRegistrationService
             errors.Add("Участника 16-17 лет может зарегистрировать только взрослый родитель или сопровождающий. Добавьте взрослого основным участником.");
         }
 
+        if (normalizedParticipants.Count > 1 && !primaryIsAdult)
+        {
+            errors.Add("Добавить участника может только взрослый основной участник.");
+        }
+
         if (string.IsNullOrWhiteSpace(normalizedPhoneNumber))
         {
             errors.Add("Укажите корректный телефон участника.");
+        }
+
+        foreach (var participant in normalizedParticipants.Where(item => item.SortOrder > 0))
+        {
+            if (string.IsNullOrWhiteSpace(participant.PhoneNumber))
+            {
+                errors.Add($"Укажите телефон участника: {participant.FullName}.");
+            }
+            else if (string.IsNullOrWhiteSpace(PhoneNumberHelper.Normalize(participant.PhoneNumber)))
+            {
+                errors.Add($"Проверьте телефон участника: {participant.FullName}.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(normalizedEmergencyContactPhone) &&
@@ -863,6 +894,7 @@ public sealed class EventRegistrationService
     private sealed class NormalizedParticipant
     {
         public required string FullName { get; init; }
+        public required string PhoneNumber { get; init; }
         public DateOnly? BirthDate { get; set; }
         public required bool IsChild { get; set; }
         public required int SortOrder { get; init; }

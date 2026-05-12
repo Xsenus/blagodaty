@@ -20,18 +20,23 @@ type RegistrationModalProps = {
 
 type EditableParticipant = {
   fullName: string;
+  phoneNumber?: string;
   birthDate?: string;
   isChild: boolean;
 };
 
 const EMPTY_PARTICIPANT: EditableParticipant = {
   fullName: '',
+  phoneNumber: '',
   birthDate: '',
   isChild: false,
 };
 const DEFAULT_CITY = 'Новосибирск';
 const DEFAULT_CHURCH_NAME = 'Благодать';
 const MINIMUM_PARTICIPANT_AGE = 16;
+const ADULT_PARTICIPANT_AGE = 18;
+const PLACE_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/87.929919%2C50.228723';
+const CAMP_LOCATION_FULL = 'Экоаил, ул. Мира, 7а, село Курай, Кош-Агачский район, Республика Алтай';
 
 function createEmptyForm(): SaveRegistrationRequest {
   return {
@@ -109,6 +114,7 @@ function readDraftForm(storageKey: string | null): SaveRegistrationRequest | nul
     const participants = Array.isArray(parsed.participants)
       ? parsed.participants.map((participant) => ({
           fullName: typeof participant?.fullName === 'string' ? participant.fullName : '',
+          phoneNumber: typeof participant?.phoneNumber === 'string' ? participant.phoneNumber : '',
           birthDate: typeof participant?.birthDate === 'string' ? participant.birthDate : '',
           isChild: Boolean(participant?.isChild),
         }))
@@ -170,6 +176,22 @@ function formatDateRangeCompact(startsAtUtc?: string | null, endsAtUtc?: string 
   const formatter = new Intl.DateTimeFormat('ru-RU', {
     day: '2-digit',
     month: 'short',
+  });
+
+  return endsAtUtc
+    ? `${formatter.format(new Date(startsAtUtc))} - ${formatter.format(new Date(endsAtUtc))}`
+    : formatter.format(new Date(startsAtUtc));
+}
+
+function formatDateRangeLong(startsAtUtc?: string | null, endsAtUtc?: string | null) {
+  if (!startsAtUtc) {
+    return 'Даты уточняются';
+  }
+
+  const formatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
   });
 
   return endsAtUtc
@@ -265,6 +287,7 @@ function ensureParticipants(
       const birthDate = (index === 0 ? primaryBirthDate || participant.birthDate : participant.birthDate) ?? '';
       return {
         fullName: participant.fullName.trim(),
+        phoneNumber: participant.phoneNumber?.trim() ?? '',
         birthDate,
         isChild: birthDate ? isMinorParticipant(birthDate, eventStartsAtUtc) : participant.isChild,
       };
@@ -279,6 +302,7 @@ function ensureParticipants(
     ? [
         {
           fullName: fallbackFullName.trim(),
+          phoneNumber: '',
           birthDate: primaryBirthDate,
           isChild: false,
         },
@@ -287,7 +311,11 @@ function ensureParticipants(
 }
 
 function buildSubmitPayload(form: SaveRegistrationRequest, selectedEvent: PublicEventDetails): SaveRegistrationRequest {
-  const participants = ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent.startsAtUtc);
+  const participants = ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent.startsAtUtc)
+    .map((participant, index) => ({
+      ...participant,
+      phoneNumber: index === 0 ? normalizePhone(form.phoneNumber) : normalizePhone(participant.phoneNumber),
+    }));
 
   return {
     ...form,
@@ -302,9 +330,10 @@ function buildSubmitPayload(form: SaveRegistrationRequest, selectedEvent: Public
     participants,
     emergencyContactName: form.emergencyContactName.trim(),
     emergencyContactPhone: normalizePhone(form.emergencyContactPhone),
+    accommodationPreference: 'Tent',
     healthNotes: form.healthNotes?.trim() ?? '',
     allergyNotes: form.allergyNotes?.trim() ?? '',
-    specialNeeds: form.specialNeeds?.trim() ?? '',
+    specialNeeds: '',
     motivation: form.motivation?.trim() ?? '',
     submit: true,
   };
@@ -351,12 +380,7 @@ function collectRegistrationValidationErrors(form: SaveRegistrationRequest, sele
     selectedEvent.startsAtUtc,
   );
   normalizedParticipants.slice(1).forEach((participant) => {
-    if (!participant.birthDate) {
-      errors.push(`Укажите дату рождения участника: ${participant.fullName}.`);
-      return;
-    }
-
-    if (!isMinimumAgeReached(participant.birthDate, selectedEvent.startsAtUtc)) {
+    if (participant.birthDate && !isMinimumAgeReached(participant.birthDate, selectedEvent.startsAtUtc)) {
       errors.push(`Участнику ${participant.fullName} должно быть не меньше ${MINIMUM_PARTICIPANT_AGE} лет на дату начала похода.`);
     }
   });
@@ -365,7 +389,11 @@ function collectRegistrationValidationErrors(form: SaveRegistrationRequest, sele
     isMinorParticipant(participant.birthDate, selectedEvent.startsAtUtc),
   );
   const primaryAge = form.birthDate ? getAgeAtDate(form.birthDate, selectedEvent.startsAtUtc) : null;
-  if (hasMinorParticipant && (primaryAge === null || primaryAge < 18)) {
+  if (normalizedParticipants.length > 1 && (primaryAge === null || primaryAge < ADULT_PARTICIPANT_AGE)) {
+    errors.push('Добавить участника может только взрослый основной участник.');
+  }
+
+  if (hasMinorParticipant && (primaryAge === null || primaryAge < ADULT_PARTICIPANT_AGE)) {
     errors.push('Участника 16-17 лет может зарегистрировать только взрослый родитель или сопровождающий.');
   }
 
@@ -374,6 +402,27 @@ function collectRegistrationValidationErrors(form: SaveRegistrationRequest, sele
   } else if (!isValidPhone(form.phoneNumber)) {
     errors.push('Проверьте телефон участника.');
   }
+
+  form.participants.slice(1).forEach((participant, index) => {
+    const participantNumber = index + 2;
+    const name = participant.fullName.trim();
+    const phone = participant.phoneNumber?.trim() ?? '';
+
+    if (!name && !phone) {
+      errors.push(`Заполните или удалите участника ${participantNumber}.`);
+      return;
+    }
+
+    if (!name) {
+      errors.push(`Укажите ФИО участника ${participantNumber}.`);
+    }
+
+    if (!phone) {
+      errors.push(`Укажите телефон участника ${name || participantNumber}.`);
+    } else if (!isValidPhone(phone)) {
+      errors.push(`Проверьте телефон участника ${name || participantNumber}.`);
+    }
+  });
 
   if (form.emergencyContactPhone.trim() && !isValidPhone(form.emergencyContactPhone)) {
     errors.push('Проверьте телефон доверенного лица.');
@@ -419,7 +468,8 @@ export function RegistrationModal({
     [form.birthDate, form.fullName, form.participants, selectedEvent?.startsAtUtc],
   );
   const participantsCount = completedParticipants.length || 1;
-  const childrenCount = completedParticipants.filter((participant) => participant.isChild).length;
+  const primaryAge = form.birthDate ? getAgeAtDate(form.birthDate, selectedEvent?.startsAtUtc) : null;
+  const canAddParticipant = primaryAge !== null && primaryAge >= ADULT_PARTICIPANT_AGE;
   const validationErrors = validationMode ? collectRegistrationValidationErrors(form, selectedEvent) : [];
 
   useEffect(() => {
@@ -489,7 +539,6 @@ export function RegistrationModal({
         participants: normalizedParticipants,
         fullName: normalizedParticipants[0]?.fullName ?? '',
         hasChildren:
-          current.hasChildren ||
           ensureParticipants(
             normalizedParticipants,
             current.fullName,
@@ -539,8 +588,8 @@ export function RegistrationModal({
               <span className="summary-chip">{selectedEvent.seasonLabel || selectedEvent.seriesTitle}</span>
               <strong>{selectedEvent.title}</strong>
               <div className="modal-summary-list">
-                <span>{formatDateRangeCompact(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc)}</span>
-                <span>{selectedEvent.location || 'Локация уточняется'}</span>
+                <span>{formatDateRangeLong(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc)}</span>
+                <span>{CAMP_LOCATION_FULL}</span>
                 <span>{selectedEvent.remainingCapacity ?? selectedEvent.capacity ?? 'Без лимита'} мест</span>
               </div>
             </article>
@@ -623,11 +672,13 @@ export function RegistrationModal({
                     <div className="modal-metrics-grid">
                       <article>
                         <span>Даты</span>
-                        <strong>{formatDateRangeCompact(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc)}</strong>
+                        <strong>{formatDateRangeLong(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc)}</strong>
                       </article>
                       <article>
                         <span>Локация</span>
-                        <strong>{selectedEvent.location || 'Уточняется'}</strong>
+                        <a className="metric-link" href={PLACE_URL} target="_blank" rel="noreferrer">
+                          {CAMP_LOCATION_FULL}
+                        </a>
                       </article>
                       <article>
                         <span>Мест осталось</span>
@@ -647,16 +698,20 @@ export function RegistrationModal({
 
                           return (
                             <label className={`price-option-card${isSelected ? ' active' : ''}`} key={option.id}>
-                              <input
-                                type="radio"
-                                name="priceOption"
-                                value={option.id}
-                                checked={isSelected}
-                                onChange={() => setForm((current) => ({ ...current, selectedPriceOptionId: option.id }))}
-                              />
-                              <span>{option.title}</span>
-                              <strong>{formatMoney(option.amount, option.currency)}</strong>
-                              <em>{option.description || (isAvailable ? 'Доступен для выбора' : 'Сейчас недоступен')}</em>
+                              <span className="price-option-check">
+                                <input
+                                  type="radio"
+                                  name="priceOption"
+                                  value={option.id}
+                                  checked={isSelected}
+                                  onChange={() => setForm((current) => ({ ...current, selectedPriceOptionId: option.id }))}
+                                />
+                              </span>
+                              <span className="price-option-copy">
+                                <span>{option.title}</span>
+                                <strong>{formatMoney(option.amount, option.currency)}</strong>
+                                <em>{option.description || (isAvailable ? 'Доступен для выбора' : 'Сейчас недоступен')}</em>
+                              </span>
                             </label>
                           );
                         })}
@@ -675,17 +730,23 @@ export function RegistrationModal({
                     ) : null}
                   </section>
 
-                  <section className="modal-section-grid">
-                    <div className="modal-subpanel">
+                  <section className="modal-section-grid registration-contacts-grid">
+                    <div className="modal-subpanel registration-contacts-panel">
                       <h4>Контакты</h4>
 
-                      <div className="modal-form-grid">
+                      <div className="modal-form-grid contacts-grid">
                         <label>
-                          <span>Email</span>
+                          <span>ФИО</span>
                           <input
-                            type="email"
-                            value={form.contactEmail}
-                            onChange={(event) => setForm((current) => ({ ...current, contactEmail: event.target.value }))}
+                            value={form.participants[0]?.fullName ?? ''}
+                            onChange={(event) => {
+                              const fullName = event.target.value;
+                              updateParticipants((items) =>
+                                (items.length ? items : [{ ...EMPTY_PARTICIPANT }]).map((item, index) =>
+                                  index === 0 ? { ...item, fullName } : item,
+                                ),
+                              );
+                            }}
                             required
                           />
                         </label>
@@ -702,133 +763,117 @@ export function RegistrationModal({
                         </label>
 
                         <label>
-                          <span>Дата рождения основного участника</span>
+                          <span>Email</span>
                           <input
-                            type="date"
-                            value={form.birthDate}
-                            onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+                            type="email"
+                            value={form.contactEmail}
+                            onChange={(event) => setForm((current) => ({ ...current, contactEmail: event.target.value }))}
                             required
                           />
                         </label>
 
-                      </div>
-                    </div>
-
-                    <div className="modal-subpanel">
-                      <h4>Состав заявки</h4>
-
-                      <div className="participant-summary-row">
-                        <span className="summary-chip">Участников: {participantsCount}</span>
-                        <span className="summary-chip">16-17 лет: {childrenCount}</span>
-                      </div>
-
-                      <div className="participant-list">
-                        {form.participants.map((participant, index) => (
-                          <article className="participant-card" key={`participant-${index}`}>
-                            <div className="participant-card-header">
-                              <strong>{index === 0 ? 'Основной участник' : `Участник ${index + 1}`}</strong>
-                              {form.participants.length > 1 ? (
-                                <button
-                                  className="text-button"
-                                  type="button"
-                                  onClick={() => updateParticipants((items) => items.filter((_, currentIndex) => currentIndex !== index))}
-                                >
-                                  Удалить
-                                </button>
-                              ) : null}
-                            </div>
-
-                            <div className="modal-form-grid participant-grid">
-                              <label>
-                                <span>ФИО</span>
-                                <input
-                                  value={participant.fullName}
-                                  onChange={(event) => {
-                                    const fullName = event.target.value;
-                                    updateParticipants((items) =>
-                                      items.map((item, currentIndex) =>
-                                        currentIndex === index
-                                          ? {
-                                              ...item,
-                                              fullName,
-                                            }
-                                          : item,
-                                      ),
-                                    );
-                                  }}
-                                  required={index === 0}
-                                />
-                              </label>
-
-                              {index > 0 ? (
-                                <label>
-                                  <span>Дата рождения</span>
-                                  <input
-                                    type="date"
-                                    value={participant.birthDate ?? ''}
-                                    onChange={(event) => {
-                                      const birthDate = event.target.value;
-                                      updateParticipants((items) =>
-                                        items.map((item, currentIndex) =>
-                                          currentIndex === index
-                                            ? {
-                                                ...item,
-                                                birthDate,
-                                              }
-                                            : item,
-                                        ),
-                                      );
-                                    }}
-                                    required
-                                  />
-                                </label>
-                              ) : null}
-
-                              <label className="checkbox-row compact-checkbox-row">
-                                <input
-                                  type="checkbox"
-                                  checked={isMinorParticipant(
-                                    index === 0 ? form.birthDate : participant.birthDate,
+                        <label>
+                          <span>Дата рождения основного участника</span>
+                          <input
+                            type="date"
+                            value={form.birthDate}
+                            onChange={(event) =>
+                              setForm((current) => ({
+                                ...current,
+                                birthDate: event.target.value,
+                                hasChildren:
+                                  isMinorParticipant(event.target.value, selectedEvent?.startsAtUtc) ||
+                                  ensureParticipants(
+                                    current.participants,
+                                    current.fullName,
+                                    event.target.value,
                                     selectedEvent?.startsAtUtc,
-                                  )}
-                                  disabled
-                                />
-                                <span>16-17 лет</span>
-                              </label>
-                            </div>
-                          </article>
-                        ))}
+                                  ).some((participant) => participant.isChild),
+                              }))
+                            }
+                            required
+                          />
+                        </label>
                       </div>
 
-                      <button className="button button-secondary compact-button" type="button" onClick={() => updateParticipants((items) => [...items, { ...EMPTY_PARTICIPANT }])}>
-                        Добавить участника
-                      </button>
+                      {form.participants.length > 1 ? (
+                        <div className="participant-list extra-participant-list">
+                          {form.participants.slice(1).map((participant, index) => {
+                            const participantIndex = index + 1;
+
+                            return (
+                              <article className="participant-card" key={`participant-${participantIndex}`}>
+                                <div className="participant-card-header">
+                                  <strong>Участник {participantIndex + 1}</strong>
+                                  <button
+                                    className="text-button"
+                                    type="button"
+                                    onClick={() => updateParticipants((items) => items.filter((_, currentIndex) => currentIndex !== participantIndex))}
+                                  >
+                                    Удалить
+                                  </button>
+                                </div>
+
+                                <div className="modal-form-grid extra-participant-grid">
+                                  <label>
+                                    <span>ФИО</span>
+                                    <input
+                                      value={participant.fullName}
+                                      onChange={(event) => {
+                                        const fullName = event.target.value;
+                                        updateParticipants((items) =>
+                                          items.map((item, currentIndex) =>
+                                            currentIndex === participantIndex ? { ...item, fullName } : item,
+                                          ),
+                                        );
+                                      }}
+                                      required
+                                    />
+                                  </label>
+
+                                  <label>
+                                    <span>Телефон</span>
+                                    <input
+                                      value={participant.phoneNumber ?? ''}
+                                      inputMode="tel"
+                                      placeholder="+7"
+                                      onChange={(event) => {
+                                        const phoneNumber = event.target.value;
+                                        updateParticipants((items) =>
+                                          items.map((item, currentIndex) =>
+                                            currentIndex === participantIndex ? { ...item, phoneNumber } : item,
+                                          ),
+                                        );
+                                      }}
+                                      required
+                                    />
+                                  </label>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+
+                      {canAddParticipant ? (
+                        <button
+                          className="button button-secondary compact-button"
+                          type="button"
+                          onClick={() => updateParticipants((items) => [...items, { ...EMPTY_PARTICIPANT }])}
+                        >
+                          Добавить участника
+                        </button>
+                      ) : null}
                     </div>
                   </section>
 
                   <section className="modal-section-grid">
                     <div className="modal-subpanel">
-                      <h4>Размещение и экстренная связь</h4>
+                      <h4>Экстренная связь</h4>
 
-                      <div className="modal-form-grid">
+                      <div className="modal-form-grid emergency-grid">
                         <label>
-                          <span>Размещение</span>
-                          <select
-                            value={form.accommodationPreference}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                accommodationPreference: event.target.value as AccommodationPreference,
-                              }))
-                            }
-                          >
-                            <option value="Tent">Палатка</option>
-                            <option value="Either">Нужны доп. условия</option>
-                          </select>
-                        </label>
-
-                        <label>
-                          <span>Доверенное лицо</span>
+                          <span>ФИО доверенного лица</span>
                           <input
                             value={form.emergencyContactName}
                             onChange={(event) => setForm((current) => ({ ...current, emergencyContactName: event.target.value }))}
@@ -845,35 +890,48 @@ export function RegistrationModal({
                           />
                         </label>
                       </div>
-
-                      <div className="checkbox-grid">
-                        <label className="checkbox-row">
-                          <input
-                            type="checkbox"
-                            checked={form.hasCar}
-                            onChange={(event) => setForm((current) => ({ ...current, hasCar: event.target.checked }))}
-                          />
-                          <span>Есть автомобиль</span>
-                        </label>
-
-                        <label className="checkbox-row">
-                          <input
-                            type="checkbox"
-                            checked={form.hasChildren}
-                            onChange={(event) => setForm((current) => ({ ...current, hasChildren: event.target.checked }))}
-                          />
-                          <span>Еду с несовершеннолетним участником</span>
-                        </label>
-                      </div>
                     </div>
 
                     <div className="modal-subpanel">
                       <h4>Дополнительно</h4>
 
-                      <div className="modal-form-grid">
+                      <fieldset className="car-choice-group">
+                        <legend>Наличие автомобиля</legend>
+                        <label className={`radio-card${form.hasCar ? ' active' : ''}`}>
+                          <input
+                            type="radio"
+                            name="hasCar"
+                            checked={form.hasCar}
+                            onChange={() => setForm((current) => ({ ...current, hasCar: true }))}
+                          />
+                          <span>Есть</span>
+                        </label>
+                        <label className={`radio-card${!form.hasCar ? ' active' : ''}`}>
+                          <input
+                            type="radio"
+                            name="hasCar"
+                            checked={!form.hasCar}
+                            onChange={() => setForm((current) => ({ ...current, hasCar: false }))}
+                          />
+                          <span>Нет</span>
+                        </label>
+                      </fieldset>
+
+                      <div className="modal-form-grid additional-grid">
                         <label>
-                          <span>Здоровье и ограничения</span>
+                          <span className="label-with-help">
+                            Здоровье и ограничения
+                            <button
+                              className="field-help"
+                              type="button"
+                              aria-label="Здоровье и ограничения учитываются при планировании программы лагеря"
+                              title="Учтем при планировании программы лагеря"
+                            >
+                              ?
+                            </button>
+                          </span>
                           <textarea
+                            aria-label="Здоровье и ограничения"
                             rows={3}
                             value={form.healthNotes}
                             onChange={(event) => setForm((current) => ({ ...current, healthNotes: event.target.value }))}
@@ -881,26 +939,39 @@ export function RegistrationModal({
                         </label>
 
                         <label>
-                          <span>Аллергии</span>
+                          <span className="label-with-help">
+                            Аллергии
+                            <button
+                              className="field-help"
+                              type="button"
+                              aria-label="Аллергии учитываются при планировании питания"
+                              title="Учтем при планировании питания"
+                            >
+                              ?
+                            </button>
+                          </span>
                           <textarea
+                            aria-label="Аллергии"
                             rows={3}
                             value={form.allergyNotes}
                             onChange={(event) => setForm((current) => ({ ...current, allergyNotes: event.target.value }))}
                           />
                         </label>
 
-                        <label>
-                          <span>Особые условия</span>
+                        <label className="wide-field">
+                          <span className="label-with-help">
+                            Пожелания
+                            <button
+                              className="field-help"
+                              type="button"
+                              aria-label="В пожеланиях можно указать особые условия и комментарий к заявке"
+                              title="Особые условия и комментарий к заявке"
+                            >
+                              ?
+                            </button>
+                          </span>
                           <textarea
-                            rows={3}
-                            value={form.specialNeeds}
-                            onChange={(event) => setForm((current) => ({ ...current, specialNeeds: event.target.value }))}
-                          />
-                        </label>
-
-                        <label>
-                          <span>Комментарий</span>
-                          <textarea
+                            aria-label="Пожелания"
                             rows={3}
                             value={form.motivation}
                             onChange={(event) => setForm((current) => ({ ...current, motivation: event.target.value }))}

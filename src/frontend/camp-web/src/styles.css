@@ -884,18 +884,19 @@ img {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 24px;
+  padding: 32px 38px;
   scrollbar-gutter: stable;
 }
 
 .modal-close {
   position: sticky;
-  top: 0;
+  top: 24px;
   left: calc(100% - 48px);
   display: grid;
   place-items: center;
   width: 42px;
   height: 42px;
+  margin-bottom: 16px;
   margin-left: auto;
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -1124,14 +1125,26 @@ img {
 .success-summary-grid article {
   display: grid;
   gap: 4px;
+  align-content: center;
+  justify-items: center;
   padding: 16px;
   border-radius: 20px;
   background: rgba(245, 240, 232, 0.82);
+  text-align: center;
 }
 
 .modal-metrics-grid span,
 .success-summary-grid span {
   color: var(--text-soft);
+}
+
+.metric-link {
+  color: var(--text-main);
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: underline;
+  text-decoration-color: rgba(156, 102, 52, 0.32);
+  text-underline-offset: 4px;
 }
 
 .price-option-list {
@@ -1143,15 +1156,33 @@ img {
 
 .price-option-card {
   display: grid;
-  gap: 6px;
-  padding: 18px;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 18px 20px;
   border-radius: 20px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 244, 237, 0.9));
 }
 
 .price-option-card input {
   margin: 0;
+}
+
+.price-option-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.price-option-copy > span {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.price-option-copy strong {
+  color: var(--accent-strong);
+  font-size: 1.16rem;
 }
 
 .price-option-card em {
@@ -1161,12 +1192,33 @@ img {
 
 .price-option-card.active {
   border-color: rgba(209, 143, 86, 0.28);
-  box-shadow: 0 12px 24px rgba(209, 143, 86, 0.1);
+  box-shadow: 0 14px 28px rgba(209, 143, 86, 0.12);
 }
 
 .modal-section-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 20px;
+}
+
+.registration-contacts-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.contacts-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.emergency-grid,
+.extra-participant-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.additional-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.wide-field {
+  grid-column: 1 / -1;
 }
 
 .participant-summary-row {
@@ -1179,6 +1231,10 @@ img {
 .participant-list {
   display: grid;
   gap: 14px;
+}
+
+.extra-participant-list {
+  margin-top: 16px;
 }
 
 .participant-card {
@@ -1207,6 +1263,57 @@ img {
   margin-top: 16px;
 }
 
+.car-choice-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+}
+
+.car-choice-group legend {
+  width: 100%;
+  margin-bottom: 2px;
+  color: var(--text-main);
+}
+
+.radio-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(94, 123, 145, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.radio-card.active {
+  border-color: rgba(209, 143, 86, 0.38);
+  background: rgba(255, 250, 243, 0.94);
+}
+
+.label-with-help {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-help {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid rgba(94, 123, 145, 0.2);
+  border-radius: 999px;
+  background: rgba(248, 251, 247, 0.9);
+  color: var(--text-accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
 .checkbox-row {
   display: inline-flex;
   align-items: center;
@@ -1219,7 +1326,12 @@ img {
 }
 
 .consent-row {
-  margin-top: 20px;
+  margin-top: 4px;
+  margin-bottom: 22px;
+}
+
+.modal-action-row {
+  justify-content: center;
 }
 
 label {
@@ -2250,6 +2362,18 @@ input[type="radio"] {
 
 .modal-form-grid {
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.contacts-grid,
+.emergency-grid,
+.extra-participant-grid,
+.additional-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.registration-contacts-grid,
+.price-option-list {
+  grid-template-columns: 1fr;
 }
 
 .participant-card {

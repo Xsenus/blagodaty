@@ -198,6 +198,7 @@ public sealed class EventRegistrationExportService
                 : [new CampRegistrationParticipant
                     {
                         FullName = registration.FullName,
+                        PhoneNumber = registration.PhoneNumber,
                         BirthDate = registration.BirthDate == default ? null : registration.BirthDate,
                         IsChild = registration.HasChildren,
                         SortOrder = 0
@@ -211,7 +212,7 @@ public sealed class EventRegistrationExportService
                 sheet.Cell(rowIndex, 4).Value = participant.BirthDate?.ToString("dd.MM.yyyy") ?? string.Empty;
                 sheet.Cell(rowIndex, 5).Value = participant.IsChild ? "Да" : "Нет";
                 sheet.Cell(rowIndex, 6).Value = FormatRegistrationStatus(registration.Status);
-                sheet.Cell(rowIndex, 7).Value = registration.PhoneNumber;
+                sheet.Cell(rowIndex, 7).Value = GetParticipantPhoneNumber(participant, registration);
                 sheet.Cell(rowIndex, 8).Value = !string.IsNullOrWhiteSpace(registration.ContactEmail)
                     ? registration.ContactEmail
                     : TechnicalEmailHelper.ToVisibleEmail(registration.User.Email);
@@ -275,6 +276,7 @@ public sealed class EventRegistrationExportService
             : [new CampRegistrationParticipant
                 {
                     FullName = registration.FullName,
+                    PhoneNumber = registration.PhoneNumber,
                     BirthDate = registration.BirthDate == default ? null : registration.BirthDate,
                     IsChild = registration.HasChildren,
                     SortOrder = 0
@@ -284,6 +286,13 @@ public sealed class EventRegistrationExportService
             "\n",
             participants.Select((participant, index) =>
                 $"{index + 1}. {participant.FullName}{FormatParticipantBirthDate(participant)}{(participant.IsChild ? " (16-17 лет)" : string.Empty)}"));
+    }
+
+    private static string GetParticipantPhoneNumber(CampRegistrationParticipant participant, CampRegistration registration)
+    {
+        return string.IsNullOrWhiteSpace(participant.PhoneNumber)
+            ? registration.PhoneNumber
+            : participant.PhoneNumber;
     }
 
     private static string FormatParticipantBirthDate(CampRegistrationParticipant participant)

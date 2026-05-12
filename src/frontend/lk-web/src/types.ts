@@ -167,6 +167,7 @@ export type SessionState = {
 export type CampRegistrationParticipant = {
   id: string;
   fullName: string;
+  phoneNumber?: string | null;
   birthDate?: string | null;
   isChild: boolean;
   sortOrder: number;
@@ -221,6 +222,7 @@ export type SaveRegistrationRequest = {
   hasChildren: boolean;
   participants: Array<{
     fullName: string;
+    phoneNumber?: string;
     birthDate?: string;
     isChild: boolean;
   }>;
