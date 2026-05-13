@@ -68,6 +68,7 @@ public static class AccountMapper
             RegistrationHasCar = null,
             RegistrationHasChildren = null,
             RegistrationUpdatedAtUtc = registrationUpdatedAtUtc,
+            RegistrationHistory = Array.Empty<AdminRegistrationHistoryEntryDto>(),
             ExternalIdentities = externalIdentities
         };
     }

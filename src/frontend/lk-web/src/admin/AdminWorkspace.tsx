@@ -15,6 +15,7 @@ import {
   getTelegramAuthStatus,
   startAdminExternalAuthProviderTest,
   updateAdminExternalAuthProvider,
+  updateAdminRegistrationPayment,
   updateAdminRegistrationStatus,
   updateUserRoles,
 } from '../lib/api';
@@ -24,6 +25,7 @@ import type {
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
   AdminGoogleSheetsSyncSettings,
+  AdminRegistrationHistoryEntry,
   AdminOverview,
   AdminTelegramOverview,
   AdminUser,
@@ -128,6 +130,34 @@ function formatDateTime(value?: string | null) {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+function formatDateAndTime(value?: string | null) {
+  if (!value) {
+    return { date: 'Не указано', time: '' };
+  }
+
+  const date = new Date(value);
+  return {
+    date: new Intl.DateTimeFormat('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(date),
+    time: new Intl.DateTimeFormat('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).format(date),
+  };
+}
+
+function formatHistoryValue(entry: AdminRegistrationHistoryEntry, value?: string | null) {
+  if (!value) {
+    return 'Пусто';
+  }
+
+  return entry.changeType === 'Status' ? formatStatus(value as RegistrationStatus) : value;
 }
 
 function formatMoney(value?: number | null, currency = 'RUB') {
@@ -282,7 +312,7 @@ export function AdminWorkspace() {
       accessLabel={auth.account?.user.displayName ?? 'Администратор'}
       description={meta.description}
       eyebrow={meta.eyebrow}
-      hideHeader={section === 'overview'}
+      hideHeader={section === 'overview' || section === 'registrations'}
       title={meta.title}
     >
       <AdminContent accessToken={accessToken} section={section} />
@@ -558,6 +588,7 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
   const [statusDraft, setStatusDraft] = useState<RegistrationStatus>('Submitted');
   const [savingRegistrationId, setSavingRegistrationId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; registration: AdminUser } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -575,6 +606,18 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
       setStatusDraft(selectedRegistration.registrationStatus);
     }
   }, [selectedRegistration]);
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', close);
+    };
+  }, [contextMenu]);
 
   async function loadEvents() {
     if (!accessToken) return;
@@ -630,6 +673,51 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
     }
   }
 
+  async function changeRegistrationStatus(registration: AdminUser, nextStatus: RegistrationStatus) {
+    if (!accessToken || !registration.registrationId) return;
+
+    if (registration.registrationStatus === nextStatus) {
+      setContextMenu(null);
+      return;
+    }
+
+    setSavingRegistrationId(registration.registrationId);
+    setContextMenu(null);
+    try {
+      const updated = await updateAdminRegistrationStatus(accessToken, registration.registrationId, nextStatus);
+      if (selectedRegistration?.registrationId === updated.registrationId) {
+        setSelectedRegistration(updated);
+      }
+      await loadRegistrations();
+      toast.success('Статус обновлен', `${updated.registrationFullName || updated.displayName}: ${formatStatus(updated.registrationStatus)}.`);
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Не удалось обновить статус.';
+      toast.error('Статус не сохранен', message);
+    } finally {
+      setSavingRegistrationId(null);
+    }
+  }
+
+  async function changeRegistrationPayment(registration: AdminUser, isPaid: boolean) {
+    if (!accessToken || !registration.registrationId) return;
+
+    setSavingRegistrationId(registration.registrationId);
+    setContextMenu(null);
+    try {
+      const updated = await updateAdminRegistrationPayment(accessToken, registration.registrationId, isPaid);
+      if (selectedRegistration?.registrationId === updated.registrationId) {
+        setSelectedRegistration(updated);
+      }
+      await loadRegistrations();
+      toast.success(isPaid ? 'Оплата отмечена' : 'Оплата отменена', updated.registrationFullName || updated.displayName);
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Не удалось обновить оплату.';
+      toast.error('Оплата не сохранена', message);
+    } finally {
+      setSavingRegistrationId(null);
+    }
+  }
+
   async function confirmDelete() {
     if (!accessToken || !deleteTarget?.registrationId) return;
     setSavingRegistrationId(deleteTarget.registrationId);
@@ -651,12 +739,6 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
 
   return (
     <div className="admin-workspace-stack">
-      <AdminSectionHeader
-        eyebrow="Очередь"
-        title="Работа с заявками"
-        description="Фильтруйте, открывайте детали в панели справа и меняйте статус явным сохранением."
-      />
-
       <DataToolbar>
         <label>
           <span>Поиск</span>
@@ -681,22 +763,16 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
             ))}
           </select>
         </label>
-        <button className="secondary-button" type="button" onClick={() => { setSearch(''); setStatus('all'); setEventId('all'); setPage(1); }}>
-          Сбросить
+        <button
+          aria-label="Сбросить фильтры"
+          className="admin-reset-icon-button"
+          title="Сбросить фильтры"
+          type="button"
+          onClick={() => { setSearch(''); setStatus('all'); setEventId('all'); setPage(1); }}
+        >
+          ↺
         </button>
       </DataToolbar>
-
-      {registrationsPage ? (
-        <Pagination
-          page={registrationsPage.page}
-          pageSize={registrationsPage.pageSize}
-          totalItems={registrationsPage.totalItems}
-          totalPages={registrationsPage.totalPages}
-          isLoading={isLoading}
-          onPageChange={setPage}
-          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
-        />
-      ) : null}
 
       {error ? <ErrorState message={error} /> : null}
       {isLoading && !registrationsPage ? <LoadingState title="Загружаем заявки" /> : null}
@@ -713,12 +789,20 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
                 <th>Статус</th>
                 <th>Тариф</th>
                 <th>Обновлено</th>
-                <th>Действия</th>
               </tr>
             </thead>
             <tbody>
-              {registrations.map((registration) => (
-                <tr key={registration.id}>
+              {registrations.map((registration) => {
+                const updated = formatDateAndTime(registration.registrationUpdatedAtUtc);
+                return (
+                <tr
+                  key={registration.id}
+                  onDoubleClick={() => setSelectedRegistration(registration)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    setContextMenu({ x: event.clientX, y: event.clientY, registration });
+                  }}
+                >
                   <td>
                     <strong>{registration.registrationFullName || registration.displayName}</strong>
                     <span>{registration.registrationParticipantsCount ?? 1} чел.</span>
@@ -735,18 +819,15 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
                   <td>
                     <strong>{registration.registrationSelectedPriceOptionTitle || 'Не выбран'}</strong>
                     <span>{formatMoney(registration.registrationSelectedPriceOptionAmount, registration.registrationSelectedPriceOptionCurrency ?? 'RUB')}</span>
+                    <StatusBadge label={registration.registrationIsPaid ? 'Оплачено' : 'Не оплачено'} tone={registration.registrationIsPaid ? 'success' : 'muted'} />
                   </td>
-                  <td>{formatDateTime(registration.registrationUpdatedAtUtc)}</td>
-                  <td>
-                    <div className="admin-row-actions">
-                      <button className="secondary-button" type="button" onClick={() => setSelectedRegistration(registration)}>Открыть</button>
-                      {registration.registrationId ? (
-                        <button className="danger-link" type="button" onClick={() => setDeleteTarget(registration)}>Удалить</button>
-                      ) : null}
-                    </div>
+                  <td className="admin-date-cell">
+                    <strong>{updated.date}</strong>
+                    <span>{updated.time}</span>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           <div className="admin-mobile-list">
@@ -761,6 +842,43 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
                 <button className="secondary-button" type="button" onClick={() => setSelectedRegistration(registration)}>Открыть</button>
               </article>
             ))}
+          </div>
+        </div>
+      ) : null}
+
+      {registrationsPage ? (
+        <Pagination
+          page={registrationsPage.page}
+          pageSize={registrationsPage.pageSize}
+          totalItems={registrationsPage.totalItems}
+          totalPages={registrationsPage.totalPages}
+          isLoading={isLoading}
+          onPageChange={setPage}
+          onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
+        />
+      ) : null}
+
+      {contextMenu ? (
+        <div
+          className="admin-context-menu"
+          role="menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div>
+            <button type="button" onClick={() => { setSelectedRegistration(contextMenu.registration); setContextMenu(null); }}>Открыть</button>
+          </div>
+          <div>
+            <button type="button" onClick={() => void changeRegistrationStatus(contextMenu.registration, 'Confirmed')}>Подтвердить</button>
+            <button type="button" onClick={() => void changeRegistrationStatus(contextMenu.registration, 'Cancelled')}>Отменить</button>
+          </div>
+          <div>
+            <button type="button" onClick={() => void changeRegistrationPayment(contextMenu.registration, !contextMenu.registration.registrationIsPaid)}>
+              {contextMenu.registration.registrationIsPaid ? 'Отменить оплату' : 'Оплачено'}
+            </button>
+          </div>
+          <div>
+            <button className="danger" type="button" onClick={() => { setDeleteTarget(contextMenu.registration); setContextMenu(null); }}>Удалить</button>
           </div>
         </div>
       ) : null}
@@ -827,6 +945,7 @@ function RegistrationDetails({
           <div><span>Мероприятие</span><strong>{registration.registrationEventTitle || 'Не указано'}</strong></div>
           <div><span>Тариф</span><strong>{registration.registrationSelectedPriceOptionTitle || 'Не выбран'}</strong></div>
           <div><span>Стоимость</span><strong>{formatMoney(registration.registrationSelectedPriceOptionAmount, registration.registrationSelectedPriceOptionCurrency ?? 'RUB')}</strong></div>
+          <div><span>Оплата</span><strong>{registration.registrationIsPaid ? `Оплачено${registration.registrationPaidAtUtc ? `, ${formatDateTime(registration.registrationPaidAtUtc)}` : ''}` : 'Не оплачено'}</strong></div>
           <div><span>Участников</span><strong>{registration.registrationParticipantsCount ?? 1}</strong></div>
         </div>
       </FormSection>
@@ -863,6 +982,21 @@ function RegistrationDetails({
           <div><span>Отправлено</span><strong>{formatDateTime(registration.registrationSubmittedAtUtc)}</strong></div>
           <div><span>Обновлено</span><strong>{formatDateTime(registration.registrationUpdatedAtUtc)}</strong></div>
           <div><span>Согласие</span><strong>{registration.registrationConsentAccepted ? 'Принято' : 'Нет'}</strong></div>
+          <div><span>Оплату менял</span><strong>{registration.registrationPaymentUpdatedBy || 'Нет данных'}</strong></div>
+        </div>
+      </FormSection>
+      <FormSection title="История изменений">
+        <div className="admin-history-list">
+          {registration.registrationHistory.length ? registration.registrationHistory.map((entry) => (
+            <article key={`${entry.changeType}-${entry.createdAtUtc}-${entry.newValue}`}>
+              <div>
+                <strong>{entry.changeType === 'Payment' ? 'Оплата' : 'Статус'}</strong>
+                <span>{formatDateTime(entry.createdAtUtc)}</span>
+              </div>
+              <p>{formatHistoryValue(entry, entry.previousValue)} → {formatHistoryValue(entry, entry.newValue)}</p>
+              <small>{entry.actorDisplayName}</small>
+            </article>
+          )) : <p className="form-muted">Изменений пока нет.</p>}
         </div>
       </FormSection>
     </div>

@@ -429,6 +429,17 @@ export function updateAdminRegistrationStatus(accessToken: string, registrationI
   );
 }
 
+export function updateAdminRegistrationPayment(accessToken: string, registrationId: string, isPaid: boolean) {
+  return request<AdminUser>(
+    `/api/admin/registrations/${registrationId}/payment`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ isPaid }),
+    },
+    accessToken,
+  );
+}
+
 export function deleteAdminRegistration(accessToken: string, registrationId: string) {
   return request<void>(
     `/api/admin/registrations/${registrationId}`,

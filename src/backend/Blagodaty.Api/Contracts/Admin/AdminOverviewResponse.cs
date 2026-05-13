@@ -65,9 +65,13 @@ public sealed class AdminUserDto
     public string? RegistrationSpecialNeeds { get; init; }
     public string? RegistrationMotivation { get; init; }
     public bool? RegistrationConsentAccepted { get; init; }
+    public bool? RegistrationIsPaid { get; init; }
+    public DateTime? RegistrationPaidAtUtc { get; init; }
+    public string? RegistrationPaymentUpdatedBy { get; init; }
     public DateTime? RegistrationCreatedAtUtc { get; init; }
     public DateTime? RegistrationSubmittedAtUtc { get; init; }
     public DateTime? RegistrationUpdatedAtUtc { get; init; }
+    public required IReadOnlyCollection<AdminRegistrationHistoryEntryDto> RegistrationHistory { get; init; }
     public required IReadOnlyCollection<ExternalIdentityDto> ExternalIdentities { get; init; }
 }
 
@@ -77,4 +81,13 @@ public sealed class AdminRegistrationParticipantDto
     public DateOnly? BirthDate { get; init; }
     public required bool IsChild { get; init; }
     public required int SortOrder { get; init; }
+}
+
+public sealed class AdminRegistrationHistoryEntryDto
+{
+    public required string ChangeType { get; init; }
+    public string? PreviousValue { get; init; }
+    public string? NewValue { get; init; }
+    public required string ActorDisplayName { get; init; }
+    public required DateTime CreatedAtUtc { get; init; }
 }

@@ -28,11 +28,30 @@ public sealed class CampRegistration
     public string? SpecialNeeds { get; set; }
     public string? Motivation { get; set; }
     public bool ConsentAccepted { get; set; }
+    public bool IsPaid { get; set; }
+    public DateTime? PaidAtUtc { get; set; }
+    public Guid? PaymentUpdatedByUserId { get; set; }
+    public ApplicationUser? PaymentUpdatedByUser { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime? SubmittedAtUtc { get; set; }
 
     public ICollection<CampRegistrationParticipant> Participants { get; set; } = [];
+    public ICollection<CampRegistrationHistoryEntry> HistoryEntries { get; set; } = [];
+}
+
+public sealed class CampRegistrationHistoryEntry
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CampRegistrationId { get; set; }
+    public CampRegistration CampRegistration { get; set; } = null!;
+    public Guid? ActorUserId { get; set; }
+    public ApplicationUser? ActorUser { get; set; }
+    public string ActorDisplayName { get; set; } = string.Empty;
+    public string ChangeType { get; set; } = string.Empty;
+    public string? PreviousValue { get; set; }
+    public string? NewValue { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
 public enum RegistrationStatus

@@ -14,6 +14,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
 
     public DbSet<CampRegistration> CampRegistrations => Set<CampRegistration>();
     public DbSet<CampRegistrationParticipant> CampRegistrationParticipants => Set<CampRegistrationParticipant>();
+    public DbSet<CampRegistrationHistoryEntry> CampRegistrationHistoryEntries => Set<CampRegistrationHistoryEntry>();
     public DbSet<EventSeries> EventSeries => Set<EventSeries>();
     public DbSet<EventEdition> EventEditions => Set<EventEdition>();
     public DbSet<EventPriceOption> EventPriceOptions => Set<EventPriceOption>();
@@ -209,6 +210,14 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
                 .WithOne(x => x.CampRegistration)
                 .HasForeignKey(x => x.CampRegistrationId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.HistoryEntries)
+                .WithOne(x => x.CampRegistration)
+                .HasForeignKey(x => x.CampRegistrationId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.PaymentUpdatedByUser)
+                .WithMany()
+                .HasForeignKey(x => x.PaymentUpdatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<CampRegistrationParticipant>(entity =>
@@ -217,6 +226,19 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
             entity.Property(x => x.FullName).HasMaxLength(180);
             entity.Property(x => x.PhoneNumber).HasMaxLength(32);
             entity.Property(x => x.BirthDate).HasColumnType("date");
+        });
+
+        builder.Entity<CampRegistrationHistoryEntry>(entity =>
+        {
+            entity.HasIndex(x => new { x.CampRegistrationId, x.CreatedAtUtc });
+            entity.Property(x => x.ActorDisplayName).HasMaxLength(180);
+            entity.Property(x => x.ChangeType).HasMaxLength(64);
+            entity.Property(x => x.PreviousValue).HasMaxLength(512);
+            entity.Property(x => x.NewValue).HasMaxLength(512);
+            entity.HasOne(x => x.ActorUser)
+                .WithMany()
+                .HasForeignKey(x => x.ActorUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<AppSetting>(entity =>

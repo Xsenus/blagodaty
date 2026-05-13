@@ -285,6 +285,14 @@ export type AdminRegistrationParticipant = {
   sortOrder: number;
 };
 
+export type AdminRegistrationHistoryEntry = {
+  changeType: string;
+  previousValue?: string | null;
+  newValue?: string | null;
+  actorDisplayName: string;
+  createdAtUtc: string;
+};
+
 export type AdminUser = {
   id: string;
   registrationId?: string | null;
@@ -324,9 +332,13 @@ export type AdminUser = {
   registrationSpecialNeeds?: string | null;
   registrationMotivation?: string | null;
   registrationConsentAccepted?: boolean | null;
+  registrationIsPaid?: boolean | null;
+  registrationPaidAtUtc?: string | null;
+  registrationPaymentUpdatedBy?: string | null;
   registrationCreatedAtUtc?: string | null;
   registrationSubmittedAtUtc?: string | null;
   registrationUpdatedAtUtc?: string | null;
+  registrationHistory: AdminRegistrationHistoryEntry[];
   externalIdentities: ExternalIdentity[];
 };
 

@@ -320,6 +320,13 @@ public sealed class AdminController : ControllerBase
             var now = _timeProvider.GetUtcNow().UtcDateTime;
             registration.Status = request.Status;
             registration.UpdatedAtUtc = now;
+            await AddRegistrationHistoryAsync(
+                registration.Id,
+                "Status",
+                previousStatus.ToString(),
+                request.Status.ToString(),
+                now,
+                HttpContext.RequestAborted);
 
             if (request.Status == RegistrationStatus.Draft)
             {
@@ -346,6 +353,63 @@ public sealed class AdminController : ControllerBase
             await _googleSheetsSyncService.TrySyncRegistrationEventAsync(
                 registration.EventEditionId,
                 HttpContext.RequestAborted);
+        }
+
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .FirstAsync(item => item.Id == registration.UserId, HttpContext.RequestAborted);
+
+        var registrationListItem = await SelectRegistrationListItems(
+                _dbContext.CampRegistrations
+                    .AsNoTracking()
+                    .Where(item => item.Id == registration.Id))
+            .FirstAsync(HttpContext.RequestAborted);
+
+        var mappedUser = await MapAdminUsersAsync(
+            [user],
+            registrationsByUserId: new Dictionary<Guid, RegistrationListItem>
+            {
+                [registrationListItem.UserId] = registrationListItem
+            },
+            orderedUserIds: [user.Id]);
+
+        return Ok(mappedUser.Single());
+    }
+
+    [HttpPut("registrations/{registrationId:guid}/payment")]
+    public async Task<ActionResult<AdminUserDto>> UpdateRegistrationPayment(
+        Guid registrationId,
+        [FromBody] UpdateRegistrationPaymentRequest request)
+    {
+        var registration = await _dbContext.CampRegistrations
+            .Include(item => item.EventEdition)
+            .ThenInclude(item => item!.EventSeries)
+            .FirstOrDefaultAsync(item => item.Id == registrationId, HttpContext.RequestAborted);
+
+        if (registration is null)
+        {
+            return NotFound();
+        }
+
+        if (registration.IsPaid != request.IsPaid)
+        {
+            var now = _timeProvider.GetUtcNow().UtcDateTime;
+            var actor = await _userManager.GetUserAsync(User);
+            registration.IsPaid = request.IsPaid;
+            registration.PaidAtUtc = request.IsPaid ? now : null;
+            registration.PaymentUpdatedByUserId = actor?.Id;
+            registration.UpdatedAtUtc = now;
+
+            await AddRegistrationHistoryAsync(
+                registration.Id,
+                "Payment",
+                request.IsPaid ? "Не оплачено" : "Оплачено",
+                request.IsPaid ? "Оплачено" : "Не оплачено",
+                now,
+                HttpContext.RequestAborted);
+
+            await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
+            await _googleSheetsSyncService.TrySyncRegistrationEventAsync(registration.EventEditionId, HttpContext.RequestAborted);
         }
 
         var user = await _dbContext.Users
@@ -541,9 +605,13 @@ public sealed class AdminController : ControllerBase
                     RegistrationSpecialNeeds = registration?.SpecialNeeds,
                     RegistrationMotivation = registration?.Motivation,
                     RegistrationConsentAccepted = registration?.ConsentAccepted,
+                    RegistrationIsPaid = registration?.IsPaid,
+                    RegistrationPaidAtUtc = registration?.PaidAtUtc,
+                    RegistrationPaymentUpdatedBy = registration?.PaymentUpdatedByDisplayName,
                     RegistrationCreatedAtUtc = registration?.CreatedAtUtc,
                     RegistrationSubmittedAtUtc = registration?.SubmittedAtUtc,
                     RegistrationUpdatedAtUtc = registration?.UpdatedAtUtc,
+                    RegistrationHistory = registration?.History ?? Array.Empty<AdminRegistrationHistoryEntryDto>(),
                     ExternalIdentities = externalIdentitiesByUserId.GetValueOrDefault(
                         user.Id,
                         Array.Empty<Blagodaty.Api.Contracts.Account.ExternalIdentityDto>())
@@ -635,6 +703,21 @@ public sealed class AdminController : ControllerBase
             SpecialNeeds = registration.SpecialNeeds,
             Motivation = registration.Motivation,
             ConsentAccepted = registration.ConsentAccepted,
+            IsPaid = registration.IsPaid,
+            PaidAtUtc = registration.PaidAtUtc,
+            PaymentUpdatedByDisplayName = registration.PaymentUpdatedByUser != null ? registration.PaymentUpdatedByUser.DisplayName : null,
+            History = registration.HistoryEntries
+                .OrderByDescending(history => history.CreatedAtUtc)
+                .Take(20)
+                .Select(history => new AdminRegistrationHistoryEntryDto
+                {
+                    ChangeType = history.ChangeType,
+                    PreviousValue = history.PreviousValue,
+                    NewValue = history.NewValue,
+                    ActorDisplayName = history.ActorDisplayName,
+                    CreatedAtUtc = history.CreatedAtUtc
+                })
+                .ToArray(),
             CreatedAtUtc = registration.CreatedAtUtc,
             SubmittedAtUtc = registration.SubmittedAtUtc,
             Status = registration.Status,
@@ -657,6 +740,27 @@ public sealed class AdminController : ControllerBase
                 group => (IReadOnlyCollection<Blagodaty.Api.Contracts.Account.ExternalIdentityDto>)group
                     .Select(AccountMapper.ToExternalIdentity)
                     .ToArray());
+    }
+
+    private async Task AddRegistrationHistoryAsync(
+        Guid registrationId,
+        string changeType,
+        string? previousValue,
+        string? newValue,
+        DateTime createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _userManager.GetUserAsync(User);
+        _dbContext.CampRegistrationHistoryEntries.Add(new CampRegistrationHistoryEntry
+        {
+            CampRegistrationId = registrationId,
+            ActorUserId = actor?.Id,
+            ActorDisplayName = actor?.DisplayName ?? User.Identity?.Name ?? "Администратор",
+            ChangeType = changeType,
+            PreviousValue = previousValue,
+            NewValue = newValue,
+            CreatedAtUtc = createdAtUtc
+        });
     }
 
     private static AdminPagedResponse<AdminUserDto> CreatePagedResponse(
@@ -733,6 +837,10 @@ public sealed class AdminController : ControllerBase
         public string? SpecialNeeds { get; init; }
         public string? Motivation { get; init; }
         public bool ConsentAccepted { get; init; }
+        public bool IsPaid { get; init; }
+        public DateTime? PaidAtUtc { get; init; }
+        public string? PaymentUpdatedByDisplayName { get; init; }
+        public required IReadOnlyCollection<AdminRegistrationHistoryEntryDto> History { get; init; }
         public required DateTime CreatedAtUtc { get; init; }
         public DateTime? SubmittedAtUtc { get; init; }
         public required RegistrationStatus Status { get; init; }
