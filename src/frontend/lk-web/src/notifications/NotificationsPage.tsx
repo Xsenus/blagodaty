@@ -206,25 +206,12 @@ export function NotificationsPage() {
   }
 
   return (
-    <div className="page-stack">
-      <header className="page-hero glass-card compact-hero">
-        <div>
-          <p className="mini-eyebrow">Уведомления</p>
-          <h2>Что требует внимания сейчас</h2>
-          <p>Здесь собраны важные изменения по вашим заявкам и событиям, а также напоминания о скором закрытии регистрации.</p>
-        </div>
-
-        <div className="status-badge">
-          <span>Непрочитанные</span>
-          <strong>{response?.unreadCount ?? auth.account?.unreadNotificationsCount ?? 0}</strong>
-        </div>
-      </header>
-
-      <section className="glass-card stack-form">
-        <div className="section-inline">
+    <div className="page-stack notifications-page">
+      <section className="glass-card stack-form notifications-workspace">
+        <div className="notifications-toolbar">
           <div>
-            <p className="mini-eyebrow">Лента</p>
-            <h3>Уведомления по мероприятиям</h3>
+            <p className="mini-eyebrow">Журнал</p>
+            <h3>История уведомлений</h3>
           </div>
 
           <div className="action-row">
@@ -246,7 +233,7 @@ export function NotificationsPage() {
           </div>
         </div>
 
-        <div className="pagination-bar">
+        <div className="pagination-bar notifications-pagination">
           <div className="pagination-copy">
             <strong>
               {response?.totalItems ?? 0} записей
@@ -286,89 +273,103 @@ export function NotificationsPage() {
           </div>
         </div>
 
-        <div className="user-list">
+        <div className="notifications-table-wrap">
           {isLoading && !response ? (
-            <article className="user-card admin-empty-state">
+            <article className="admin-empty-state">
               <strong className="user-name">Загружаем уведомления</strong>
               <p className="form-muted">Собираем для вас все важные статусы и напоминания.</p>
             </article>
           ) : null}
 
-          {response?.items.map((notification) => {
-            const notificationLink = getNotificationLink(notification);
-            const internalNotificationLink = notificationLink ? getInternalAppHref(notificationLink) : null;
-            const hasExternalLink =
-              notificationLink ? !internalNotificationLink && isExternalUrl(notificationLink) : false;
+          {response?.items.length ? (
+            <table className="notifications-table">
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Событие</th>
+                  <th>Уведомление</th>
+                  <th>Статус</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody>
+                {response.items.map((notification) => {
+                  const notificationLink = getNotificationLink(notification);
+                  const internalNotificationLink = notificationLink ? getInternalAppHref(notificationLink) : null;
+                  const hasExternalLink =
+                    notificationLink ? !internalNotificationLink && isExternalUrl(notificationLink) : false;
 
-            return (
-            <article
-              className={`user-card notification-card notification-${notification.severity.toLowerCase()}${notification.isRead ? ' notification-read' : ''}`}
-              key={notification.id}
-            >
-              <div className="user-card-head">
-                <div>
-                  <strong className="user-name">{notification.title}</strong>
-                  <p className="user-meta">
-                    {notification.eventTitle || 'Система'}
-                    {' • '}
-                    {formatDateTime(notification.createdAtUtc)}
-                  </p>
-                </div>
+                  return (
+                    <tr className={notification.isRead ? 'notification-row-read' : ''} key={notification.id}>
+                      <td data-label="Дата">
+                        <span className="notification-date">{formatDateTime(notification.createdAtUtc)}</span>
+                      </td>
+                      <td data-label="Событие">
+                        <span className="notification-event">{notification.eventTitle || 'Система'}</span>
+                      </td>
+                      <td data-label="Уведомление">
+                        <strong>{notification.title}</strong>
+                        <p>{notification.message}</p>
+                      </td>
+                      <td data-label="Статус">
+                        <StatusBadge
+                          status={notification.isRead ? 'read' : 'unread'}
+                          label={notification.isRead ? 'Прочитано' : formatSeverity(notification.severity)}
+                        />
+                      </td>
+                      <td data-label="Действия">
+                        <div className="notification-row-actions">
+                          {!notification.isRead ? (
+                            <button
+                              className="secondary-button"
+                              type="button"
+                              onClick={() => void markAsRead(notification)}
+                              disabled={processingNotificationId === notification.id}
+                            >
+                              {processingNotificationId === notification.id ? '...' : 'Прочитать'}
+                            </button>
+                          ) : null}
 
-                <div className="role-pills">
-                  <StatusBadge
-                    status={notification.isRead ? 'read' : 'unread'}
-                    label={notification.isRead ? 'Прочитано' : formatSeverity(notification.severity)}
-                  />
-                </div>
-              </div>
-
-              <p className="form-muted notification-message">{notification.message}</p>
-
-              <div className="action-row">
-                {!notification.isRead ? (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    onClick={() => void markAsRead(notification)}
-                    disabled={processingNotificationId === notification.id}
-                  >
-                    {processingNotificationId === notification.id ? 'Обновляем...' : 'Отметить как прочитанное'}
-                  </button>
-                ) : null}
-
-                {notificationLink ? (
-                  internalNotificationLink ? (
-                    <NavLink className="primary-button" to={internalNotificationLink}>
-                      Открыть
-                    </NavLink>
-                  ) : hasExternalLink ? (
-                    <a
-                      className="primary-button"
-                      href={notificationLink}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Открыть
-                    </a>
-                  ) : null
-                ) : null}
-              </div>
-            </article>
-            );
-          })}
+                          {notificationLink ? (
+                            internalNotificationLink ? (
+                              <NavLink className="primary-button" to={internalNotificationLink}>
+                                Открыть
+                              </NavLink>
+                            ) : hasExternalLink ? (
+                              <a
+                                className="primary-button"
+                                href={notificationLink}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Открыть
+                              </a>
+                            ) : null
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : null}
 
           {error ? (
-            <article className="user-card admin-empty-state">
+            <article className="admin-empty-state">
               <strong className="user-name">Не удалось загрузить уведомления</strong>
               <p className="form-muted">{error}</p>
             </article>
           ) : null}
 
           {!isLoading && !error && !response?.items.length ? (
-            <article className="user-card admin-empty-state">
-              <strong className="user-name">Пока уведомлений нет</strong>
-              <p className="form-muted">Когда по вашим заявкам появятся обновления или дедлайны, они появятся здесь.</p>
+            <article className="admin-empty-state">
+              <strong className="user-name">{unreadOnly ? 'Непрочитанных уведомлений нет' : 'Пока уведомлений нет'}</strong>
+              <p className="form-muted">
+                {unreadOnly
+                  ? 'Можно отключить фильтр и посмотреть всю историю уведомлений.'
+                  : 'Когда по вашим заявкам появятся обновления или дедлайны, они появятся здесь.'}
+              </p>
             </article>
           ) : null}
         </div>

@@ -13,10 +13,12 @@ import {
   getAdminExternalAuthSettings,
   getAdminOverview,
   getAdminUsers,
+  getAccountNotifications,
   getExternalAuthStatus,
   getPublicExternalAuthProviders,
   getTelegramAuthStatus,
   loginWithTelegramWidget,
+  markAllAccountNotificationsAsRead,
   startAdminExternalAuthProviderTest,
   startExternalAuth,
   startTelegramAuth,
@@ -37,6 +39,7 @@ import { normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPa
 import { StatusBadge as UiStatusBadge } from './ui/status';
 import type {
   AccountRegistrationSummary,
+  AccountNotification,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
   AdminEventDetails,
@@ -734,7 +737,7 @@ function getWorkspaceTitle(pathname: string) {
   }
 
   if (pathname.startsWith('/notifications')) {
-    return 'Оповещения';
+    return 'Уведомления';
   }
 
   if (pathname.startsWith('/camp-registration')) {
@@ -746,6 +749,15 @@ function getWorkspaceTitle(pathname: string) {
   }
 
   return 'Личный кабинет';
+}
+
+function formatNotificationPreviewDate(value: string) {
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
 }
 
 function AppLoader() {
@@ -769,16 +781,23 @@ function LandingGate() {
 }
 
 function ProtectedLayout() {
-  const { isAuthenticated, account, logout } = useAuth();
+  const auth = useAuth();
+  const { isAuthenticated, account, logout } = auth;
   const navigate = useNavigate();
   const location = useLocation();
   const canOpenAdmin = isAdmin(account?.user.roles);
   const [isAccountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [isNotificationsMenuOpen, setNotificationsMenuOpen] = useState(false);
+  const [topbarNotifications, setTopbarNotifications] = useState<AccountNotification[]>([]);
+  const [isTopbarNotificationsLoading, setTopbarNotificationsLoading] = useState(false);
+  const [isTopbarMarkingAll, setTopbarMarkingAll] = useState(false);
   const [isAdminMenuOpen, setAdminMenuOpen] = useState(() => location.pathname.startsWith('/admin'));
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const notificationsMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setAccountMenuOpen(false);
+    setNotificationsMenuOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
@@ -812,6 +831,71 @@ function ProtectedLayout() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isAccountMenuOpen]);
+
+  useEffect(() => {
+    if (!isNotificationsMenuOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!notificationsMenuRef.current?.contains(event.target as Node)) {
+        setNotificationsMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setNotificationsMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isNotificationsMenuOpen]);
+
+  useEffect(() => {
+    if (!isNotificationsMenuOpen || !auth.session) {
+      return;
+    }
+
+    let cancelled = false;
+    setTopbarNotificationsLoading(true);
+    getAccountNotifications(auth.session.accessToken, { page: 1, pageSize: 5, unreadOnly: false })
+      .then((response) => {
+        if (!cancelled) {
+          setTopbarNotifications(response.items);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setTopbarNotificationsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isNotificationsMenuOpen, auth.session?.accessToken]);
+
+  async function handleTopbarMarkAllAsRead() {
+    if (!auth.session) {
+      return;
+    }
+
+    setTopbarMarkingAll(true);
+    try {
+      await markAllAccountNotificationsAsRead(auth.session.accessToken);
+      setTopbarNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
+      await auth.reloadAccount();
+    } finally {
+      setTopbarMarkingAll(false);
+    }
+  }
 
   if (!isAuthenticated) {
     const nextPath = `${location.pathname}${location.search}`;
@@ -886,10 +970,65 @@ function ProtectedLayout() {
             <strong>{getWorkspaceTitle(location.pathname)}</strong>
           </div>
           <div className="workspace-topbar-actions">
-            <NavLink className="topbar-icon-button" to="/notifications" aria-label="Открыть оповещения">
-              ◇
-              {account?.unreadNotificationsCount ? <span>{account.unreadNotificationsCount}</span> : null}
-            </NavLink>
+            <div className="topbar-notifications" ref={notificationsMenuRef}>
+              <button
+                aria-expanded={isNotificationsMenuOpen}
+                aria-haspopup="menu"
+                className="topbar-icon-button"
+                type="button"
+                aria-label="Открыть уведомления"
+                onClick={() => setNotificationsMenuOpen((value) => !value)}
+              >
+                ◇
+                {account?.unreadNotificationsCount ? <span>{account.unreadNotificationsCount}</span> : null}
+              </button>
+              {isNotificationsMenuOpen ? (
+                <div className="topbar-notification-menu" role="menu">
+                  <div className="topbar-notification-head">
+                    <div>
+                      <strong>Уведомления</strong>
+                      <span>{account?.unreadNotificationsCount ?? 0} непрочитанных</span>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isTopbarMarkingAll || !(account?.unreadNotificationsCount ?? 0)}
+                      onClick={() => void handleTopbarMarkAllAsRead()}
+                    >
+                      {isTopbarMarkingAll ? 'Обновляем...' : 'Отметить всё'}
+                    </button>
+                  </div>
+
+                  <div className="topbar-notification-list">
+                    {isTopbarNotificationsLoading ? (
+                      <p className="form-muted">Загружаем последние уведомления...</p>
+                    ) : null}
+                    {!isTopbarNotificationsLoading && !topbarNotifications.length ? (
+                      <p className="form-muted">Новых уведомлений пока нет.</p>
+                    ) : null}
+                    {topbarNotifications.map((notification) => (
+                      <article className={notification.isRead ? 'is-read' : ''} key={notification.id}>
+                        <div>
+                          <strong>{notification.title}</strong>
+                          <span>{formatNotificationPreviewDate(notification.createdAtUtc)}</span>
+                        </div>
+                        <p>{notification.message}</p>
+                      </article>
+                    ))}
+                  </div>
+
+                  <button
+                    className="topbar-notification-all"
+                    type="button"
+                    onClick={() => {
+                      setNotificationsMenuOpen(false);
+                      navigate('/notifications');
+                    }}
+                  >
+                    Открыть все уведомления
+                  </button>
+                </div>
+              ) : null}
+            </div>
             <div className="topbar-account-menu" ref={accountMenuRef}>
               <button
                 aria-expanded={isAccountMenuOpen}
