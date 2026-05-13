@@ -776,13 +776,6 @@ export default function App() {
             </div>
           ) : null}
 
-          <div className="place-review-footer media-source-footer">
-            <span>Подборка локальных фотографий помогает заранее почувствовать район Курая и горное окружение.</span>
-            <a className="button button-secondary" href={PLACE_URL} target="_blank" rel="noreferrer">
-              Смотреть место в 2ГИС
-            </a>
-          </div>
-
           {videoItems.length ? (
             <div className="video-grid">
               {videoItems.map((item) => {
