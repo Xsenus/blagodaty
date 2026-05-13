@@ -3754,6 +3754,21 @@ input[type="radio"] {
     min-height: 400px;
   }
 
+  .activities-list {
+    max-height: min(58vh, 560px);
+    overflow-y: auto;
+    padding-right: 4px;
+    padding-bottom: 78px;
+    scrollbar-gutter: stable;
+    scroll-snap-type: y proximity;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .activity-card {
+    scroll-snap-align: start;
+  }
+
   .media-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3940,6 +3955,24 @@ input[type="radio"] {
     min-height: 340px;
   }
 
+  .activities-list {
+    max-height: min(54vh, 390px);
+    gap: 7px;
+  }
+
+  .activity-card-trigger {
+    gap: 6px;
+    padding: 12px 12px 8px;
+  }
+
+  .activity-card-summary {
+    -webkit-line-clamp: 1;
+  }
+
+  .activity-card .activity-meta-row {
+    display: none;
+  }
+
   .activity-meta-row,
   .activity-popup-meta {
     grid-template-columns: 1fr;
@@ -4000,10 +4033,13 @@ input[type="radio"] {
   }
 
   .modal-shell {
+    display: block;
     width: 100vw;
     height: 100dvh;
     max-height: 100dvh;
     border-radius: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .modal-shell.success-mode {
@@ -4018,12 +4054,30 @@ input[type="radio"] {
   }
 
   .modal-sidebar {
-    max-height: 30dvh;
-    padding: 14px;
+    max-height: none;
+    overflow: visible;
+    padding: 14px 62px 14px 14px;
+  }
+
+  .modal-sidebar .modal-event-summary {
+    display: none;
   }
 
   .modal-main {
+    overflow: visible;
     padding: 12px;
+  }
+
+  .modal-close {
+    position: fixed;
+    top: 8px;
+    right: 10px;
+    width: 38px;
+    height: 38px;
+    margin: 0;
+    margin-bottom: 10px;
+    transform: none;
+    z-index: 30;
   }
 
   .modal-success-view {
