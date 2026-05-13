@@ -825,7 +825,6 @@ function ProtectedLayout() {
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/dashboard"><span className="sidebar-nav-icon">⌂</span><span>{'\u041e\u0431\u0437\u043e\u0440'}</span></NavLink>
           <NavLink to="/camp-registration"><span className="sidebar-nav-icon">✦</span><span>{'\u0417\u0430\u044f\u0432\u043a\u0438'}</span></NavLink>
           <NavLink to="/profile"><span className="sidebar-nav-icon">◉</span><span>{'\u041f\u0440\u043e\u0444\u0438\u043b\u044c'}</span></NavLink>
           <NavLink to="/notifications" className="sidebar-link-with-badge">

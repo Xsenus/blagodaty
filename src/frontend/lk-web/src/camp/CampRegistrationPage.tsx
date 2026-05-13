@@ -244,6 +244,21 @@ function getEventSwitchNote(
   return 'Событие открыто для регистрации, можно сразу переходить к анкете.';
 }
 
+function getEventActionLabel(
+  eventItem: PublicEventSummary,
+  registration: CurrentAccount['registrations'][number] | null,
+) {
+  if (registration?.status === 'Draft') {
+    return eventItem.isRegistrationOpen ? 'Продолжить заявку' : 'Открыть черновик';
+  }
+
+  if (registration) {
+    return 'Открыть заявку';
+  }
+
+  return eventItem.isRegistrationOpen ? 'Зарегистрироваться' : 'Регистрация закрыта';
+}
+
 function formatProviderLabel(identity: ExternalIdentity) {
   switch (identity.provider) {
     case 'google':
@@ -950,6 +965,17 @@ export function CampRegistrationFlowPage() {
     }
   }
 
+  function openEventRegistration(eventSlug: string) {
+    setSelectedEventSlug(eventSlug);
+    navigate(
+      {
+        pathname: '/camp-registration',
+        search: buildRegistrationSearch(eventSlug, 'form'),
+      },
+      { replace: true },
+    );
+  }
+
   const availablePriceOptions = selectedEvent?.priceOptions.filter((option) => option.isActive) ?? [];
 
   return (
@@ -985,20 +1011,9 @@ export function CampRegistrationFlowPage() {
             const eventRegistration = registrationsByEventSlug.get(eventItem.slug) ?? null;
 
             return (
-            <button
+            <article
               key={eventItem.id}
               className={`event-switch-card${selectedEventSlug === eventItem.slug ? ' active' : ''}`}
-              type="button"
-              onClick={() => {
-                setSelectedEventSlug(eventItem.slug);
-                navigate(
-                  {
-                    pathname: '/camp-registration',
-                    search: buildRegistrationSearch(eventItem.slug),
-                  },
-                  { replace: true },
-                );
-              }}
             >
               <div className="event-switch-card-head">
                 <span className="mini-eyebrow">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
@@ -1022,7 +1037,15 @@ export function CampRegistrationFlowPage() {
                 {eventItem.isRegistrationClosingSoon ? <span>Скоро закрывается</span> : null}
                 {eventRegistration ? <span>Участников: {eventRegistration.participantsCount}</span> : null}
               </div>
-            </button>
+              <button
+                className="event-switch-action"
+                type="button"
+                disabled={!eventRegistration && !eventItem.isRegistrationOpen}
+                onClick={() => openEventRegistration(eventItem.slug)}
+              >
+                {getEventActionLabel(eventItem, eventRegistration)}
+              </button>
+            </article>
             );
           })}
         </div>
