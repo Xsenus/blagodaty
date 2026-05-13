@@ -1738,9 +1738,9 @@ img {
 
 .car-choice-group {
   display: grid;
-  grid-template-columns: repeat(2, max-content);
-  gap: 10px;
-  align-items: start;
+  grid-template-columns: max-content repeat(2, max-content);
+  gap: 10px 12px;
+  align-items: center;
   justify-content: start;
   margin: 0 0 18px;
   padding: 0;
@@ -1748,9 +1748,19 @@ img {
 }
 
 .car-choice-group legend {
-  grid-column: 1 / -1;
-  margin-bottom: 2px;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: 0 4px 0 0;
+  padding: 0;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.car-choice-title {
   color: var(--text-main);
+  white-space: nowrap;
 }
 
 .radio-card {

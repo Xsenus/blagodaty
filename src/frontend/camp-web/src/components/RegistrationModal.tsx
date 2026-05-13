@@ -1212,6 +1212,9 @@ export function RegistrationModal({
 
                       <fieldset className="car-choice-group">
                         <legend>Наличие автомобиля</legend>
+                        <span className="car-choice-title" aria-hidden="true">
+                          Наличие автомобиля
+                        </span>
                         <label className={`radio-card${form.hasCar ? ' active' : ''}`}>
                           <input
                             type="radio"
