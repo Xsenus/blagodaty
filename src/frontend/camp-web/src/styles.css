@@ -799,6 +799,35 @@ img {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.program-card {
+  text-align: center;
+  padding: 32px;
+}
+
+.program-card h2 {
+  max-width: 920px;
+  margin-inline: auto;
+}
+
+.program-highlights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 1060px;
+  margin: 24px auto 0;
+}
+
+.program-highlights p {
+  margin: 0;
+  padding: 18px 20px;
+  border: 1px solid rgba(209, 143, 86, 0.16);
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 244, 237, 0.88));
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+
 .content-list {
   margin: 18px 0 0;
   padding-left: 20px;
@@ -809,23 +838,46 @@ img {
 .pricing-stack {
   display: grid;
   gap: 14px;
-  margin-top: 22px;
+  margin-top: 26px;
+}
+
+.timeline-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 980px;
+  margin-inline: auto;
 }
 
 .timeline-row,
 .pricing-row {
   display: grid;
-  gap: 6px;
-  padding: 16px 18px;
+  gap: 10px;
+  padding: 24px;
   border-radius: 20px;
-  background: rgba(245, 240, 232, 0.82);
-  border: 1px solid rgba(94, 123, 145, 0.12);
+  background:
+    linear-gradient(180deg, rgba(250, 248, 242, 0.96), rgba(239, 246, 238, 0.9));
+  border: 1px solid rgba(49, 95, 83, 0.12);
+}
+
+.timeline-row {
+  min-height: 168px;
+  align-content: center;
+}
+
+.timeline-row strong {
+  color: var(--text-main);
+  font-size: 1.08rem;
+}
+
+.timeline-row span {
+  color: var(--text-accent);
+  font-weight: 700;
 }
 
 .timeline-row p,
 .pricing-row p {
   margin: 0;
   color: var(--text-soft);
+  line-height: 1.58;
 }
 
 .pricing-row {
@@ -1588,6 +1640,15 @@ select:focus {
   .modal-account-bar,
   .section-inline {
     display: grid;
+  }
+
+  .program-card {
+    padding: 24px;
+  }
+
+  .program-highlights,
+  .timeline-list {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2400,6 +2461,12 @@ body {
 .success-summary-grid article {
   border-radius: 8px;
   background: var(--surface-muted);
+}
+
+.program-card .timeline-row {
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, rgba(250, 248, 242, 0.96), rgba(239, 246, 238, 0.9));
 }
 
 .media-card-image img {

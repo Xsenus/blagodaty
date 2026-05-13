@@ -7,6 +7,7 @@ import type {
   PublicEventContentBlock,
   PublicEventDetails,
   PublicEventMediaItem,
+  PublicEventScheduleItem,
   PublicSiteContactPerson,
   PublicSiteSocialLink,
 } from './types';
@@ -88,10 +89,29 @@ const PLACE_REVIEWS = [
 ];
 
 const fallbackHighlights = [
-  'Палаточный поход в Горном Алтае с 17 по 22 августа.',
-  'Возраст участников: с 16 лет. Количество мест ограничено: 35.',
-  'Регистрация открыта до 10.07, оплату нужно внести до 13.07.',
+  'Шесть дней в Горном Алтае: палаточный лагерь среди Курайской степи, горный воздух, молитва и живое общение без городской суеты.',
+  'Камерный формат до 35 участников с 16 лет: общий ритм, внимательная команда и пространство, где легко быть частью лагеря.',
+  'Место закрепляется после заявки до 10.07 и оплаты до 13.07, чтобы команда заранее подготовила размещение, питание и программу.',
 ];
+
+const scheduleCopyByKind: Partial<Record<PublicEventScheduleItem['kind'], { title: string; body: string }>> = {
+  Deadline: {
+    title: 'Подтверждение участия',
+    body: 'После оплаты место закрепляется за участником, а координатор отмечает заявку в общей таблице подготовки.',
+  },
+  Arrival: {
+    title: 'Заезд и мягкий старт',
+    body: 'Встречаемся в Курае, размещаемся в палаточном лагере, знакомимся с территорией и спокойно входим в общий ритм.',
+  },
+  MainProgram: {
+    title: 'Дни программы',
+    body: 'Горы, общение, молитва, активности на природе и общий распорядок, который помогает прожить эти дни глубоко и собранно.',
+  },
+  Departure: {
+    title: 'Сбор лагеря и отъезд',
+    body: 'Финальное утро проходит без спешки: собираем вещи, закрываем бытовые вопросы и выезжаем с хорошим запасом времени.',
+  },
+};
 
 const fallbackThingsToBring = [
   'Сон и тепло: спальник по погоде, туристический коврик, маленькая подушка и удобная пижама.',
@@ -277,6 +297,15 @@ function buildGalleryImages(eventImages: PublicEventMediaItem[]) {
   const uniqueImages = sourceImages.filter((item, index, items) => items.findIndex((candidate) => candidate.url === item.url) === index);
 
   return shuffleItems(uniqueImages).slice(0, Math.min(GALLERY_IMAGE_LIMIT, uniqueImages.length));
+}
+
+function getProgramScheduleCopy(item: PublicEventScheduleItem) {
+  const copy = scheduleCopyByKind[item.kind];
+
+  return {
+    title: copy?.title ?? item.title,
+    body: copy?.body ?? item.notes ?? item.location ?? 'Подробности появятся ближе к дате.',
+  };
 }
 
 function isLegacyExternalPlaceImage(url?: string | null) {
@@ -815,24 +844,27 @@ export default function App() {
         </section>
 
         <section className="content-grid container program-grid" id="program">
-          <article className="content-card">
-            <p className="section-kicker">Главное</p>
+          <article className="content-card program-card">
             <h2>{selectedEventSummary?.title || 'Blagodaty Camp'}</h2>
-            <ul className="content-list">
+            <div className="program-highlights">
               {activeHighlights.map((item) => (
-                <li key={item}>{item}</li>
+                <p key={item}>{item}</p>
               ))}
-            </ul>
+            </div>
 
             {details?.scheduleItems.length ? (
               <div className="timeline-list">
-                {details.scheduleItems.slice(0, 4).map((item) => (
-                  <article className="timeline-row" key={item.id}>
-                    <strong>{item.title}</strong>
-                    <span>{formatDateRange(item.startsAtUtc, item.endsAtUtc || item.startsAtUtc)}</span>
-                    <p>{item.location || item.notes || 'Подробности появятся ближе к дате.'}</p>
-                  </article>
-                ))}
+                {details.scheduleItems.slice(0, 4).map((item) => {
+                  const scheduleCopy = getProgramScheduleCopy(item);
+
+                  return (
+                    <article className="timeline-row" key={item.id}>
+                      <strong>{scheduleCopy.title}</strong>
+                      <span>{formatDateRange(item.startsAtUtc, item.endsAtUtc || item.startsAtUtc)}</span>
+                      <p>{scheduleCopy.body}</p>
+                    </article>
+                  );
+                })}
               </div>
             ) : null}
           </article>

@@ -11,10 +11,10 @@ namespace Blagodaty.Api.Data;
 public static class AppDbSeeder
 {
     private const string Camp2026ContentVersionKey = "blagodaty_camp_2026_content_version";
-    private const string Camp2026ContentVersion = "2026-05-13-tour-copy-v3";
+    private const string Camp2026ContentVersion = "2026-05-13-premium-program-v4";
     private const decimal Camp2026PriceAmount = 18_000m;
     private const int Camp2026Capacity = 35;
-    private const string Camp2026Tagline = "Палаточный поход в Горном Алтае: природа, общение, молитва и общий распорядок.";
+    private const string Camp2026Tagline = "Палаточный лагерь в Горном Алтае: горы, молитва, живое общение и продуманный общий ритм.";
 
     public static async Task SeedAsync(IServiceProvider services)
     {
@@ -194,7 +194,7 @@ public static class AppDbSeeder
                 Id = Guid.NewGuid(),
                 Code = "standard",
                 Title = "Стандартное участие",
-                Description = "Палаточный поход. Регистрация до 10.07, оплата до 13.07.",
+                Description = "Палаточный лагерь в Горном Алтае. Заявка до 10.07, оплата до 13.07.",
                 Amount = campOptions.SuggestedDonation,
                 Currency = "RUB",
                 IsDefault = true,
@@ -218,7 +218,7 @@ public static class AppDbSeeder
             edition.ScheduleItems.Add(new EventScheduleItem
             {
                 Id = Guid.NewGuid(),
-                Title = "Основная программа лагеря",
+                Title = "Основные дни лагеря",
                 Kind = EventScheduleItemKind.MainProgram,
                 StartsAtUtc = edition.StartsAtUtc.AddHours(6),
                 EndsAtUtc = edition.EndsAtUtc.AddHours(-6),
@@ -244,8 +244,8 @@ public static class AppDbSeeder
                 Kind = EventScheduleItemKind.Deadline,
                 StartsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
                 EndsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
-                Location = "Google Таблица / координатор",
-                Notes = "Оплату нужно внести до 13.07.",
+                Location = "Координатор оплаты",
+                Notes = "Оплату вносим до 13.07, чтобы команда закрепила место и заранее подготовила участие.",
                 SortOrder = -10
             });
 
@@ -254,9 +254,9 @@ public static class AppDbSeeder
                 (EventContentBlockType.Hero, "О событии", string.IsNullOrWhiteSpace(campOptions.Tagline)
                     ? "Тихий отдых, молитва, братское общение и горный воздух Алтая."
                     : campOptions.Tagline.Trim(), 0),
-                (EventContentBlockType.Highlight, (string?)null, "Палаточный поход в Горном Алтае с 17 по 22 августа.", 10),
-                (EventContentBlockType.Highlight, (string?)null, "Возраст участников: с 16 лет. Количество мест ограничено: 35.", 20),
-                (EventContentBlockType.Highlight, (string?)null, "Регистрация открыта до 10.07, оплату нужно внести до 13.07.", 30),
+                (EventContentBlockType.Highlight, (string?)null, "Шесть дней в Горном Алтае: палаточный лагерь среди Курайской степи, горный воздух, молитва и живое общение без городской суеты.", 10),
+                (EventContentBlockType.Highlight, (string?)null, "Камерный формат до 35 участников с 16 лет: общий ритм, внимательная команда и пространство, где легко быть частью лагеря.", 20),
+                (EventContentBlockType.Highlight, (string?)null, "Место закрепляется после заявки до 10.07 и оплаты до 13.07, чтобы команда заранее подготовила размещение, питание и программу.", 30),
                 (EventContentBlockType.WhatToBring, "Сон и тепло", "Спальник по погоде, туристический коврик, маленькая подушка и удобная пижама.", 40),
                 (EventContentBlockType.WhatToBring, "Одежда слоями", "Футболки, удобные штаны, теплая кофта, куртка, теплые носки и тонкая шапка для вечера.", 50),
                 (EventContentBlockType.WhatToBring, "Обувь", "Надежные кроссовки или треккинговая пара для прогулок и резиновые сапоги на случай дождя.", 60),
@@ -351,7 +351,7 @@ public static class AppDbSeeder
 
         defaultPrice.Code = "standard";
         defaultPrice.Title = "Стандартное участие";
-        defaultPrice.Description = "Палаточный поход. Регистрация до 10.07, оплата до 13.07.";
+        defaultPrice.Description = "Палаточный лагерь в Горном Алтае. Заявка до 10.07, оплата до 13.07.";
         defaultPrice.Amount = Camp2026PriceAmount;
         defaultPrice.Currency = "RUB";
         defaultPrice.IsActive = true;
@@ -409,8 +409,8 @@ public static class AppDbSeeder
             Kind = EventScheduleItemKind.Deadline,
             StartsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
             EndsAtUtc = new DateTime(year, 7, 13, 16, 59, 0, DateTimeKind.Utc),
-            Location = "Google Таблица / координатор",
-            Notes = "Оплату нужно внести до 13.07.",
+            Location = "Координатор оплаты",
+            Notes = "Оплату вносим до 13.07, чтобы команда закрепила место и заранее подготовила участие.",
             SortOrder = -10
         });
 
@@ -428,7 +428,7 @@ public static class AppDbSeeder
         edition.ScheduleItems.Add(new EventScheduleItem
         {
             Id = Guid.NewGuid(),
-            Title = "Основная программа похода",
+            Title = "Основные дни лагеря",
             Kind = EventScheduleItemKind.MainProgram,
             StartsAtUtc = edition.StartsAtUtc.AddHours(6),
             EndsAtUtc = edition.EndsAtUtc.AddHours(-6),
@@ -453,9 +453,9 @@ public static class AppDbSeeder
         var contentBlocks = new[]
         {
             (EventContentBlockType.Hero, "О событии", Camp2026Tagline, 0),
-            (EventContentBlockType.Highlight, (string?)null, "Палаточный поход в Горном Алтае с 17 по 22 августа.", 10),
-            (EventContentBlockType.Highlight, (string?)null, "Возраст участников: с 16 лет. Количество мест ограничено: 35.", 20),
-            (EventContentBlockType.Highlight, (string?)null, "Регистрация открыта до 10.07, оплату нужно внести до 13.07.", 30),
+            (EventContentBlockType.Highlight, (string?)null, "Шесть дней в Горном Алтае: палаточный лагерь среди Курайской степи, горный воздух, молитва и живое общение без городской суеты.", 10),
+            (EventContentBlockType.Highlight, (string?)null, "Камерный формат до 35 участников с 16 лет: общий ритм, внимательная команда и пространство, где легко быть частью лагеря.", 20),
+            (EventContentBlockType.Highlight, (string?)null, "Место закрепляется после заявки до 10.07 и оплаты до 13.07, чтобы команда заранее подготовила размещение, питание и программу.", 30),
             (EventContentBlockType.WhatToBring, "Сон и тепло", "Спальник по погоде, туристический коврик, маленькая подушка и удобная пижама.", 40),
             (EventContentBlockType.WhatToBring, "Одежда слоями", "Футболки, удобные штаны, теплая кофта, куртка, теплые носки и тонкая шапка для вечера.", 50),
             (EventContentBlockType.WhatToBring, "Обувь", "Надежные кроссовки или треккинговая пара для прогулок и резиновые сапоги на случай дождя.", 60),
