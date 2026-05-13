@@ -2124,7 +2124,7 @@ button:disabled {
 }
 
 .event-switch-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 320px));
+  grid-template-columns: repeat(auto-fit, minmax(286px, 304px));
   justify-content: start;
 }
 
@@ -2141,8 +2141,9 @@ button:disabled {
 
 .event-switch-card {
   justify-items: center;
+  gap: 12px;
   padding: 18px;
-  max-width: 320px;
+  max-width: 304px;
   text-align: center;
   transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -2160,7 +2161,9 @@ button:disabled {
 }
 
 .event-selection-panel {
-  min-height: calc(100vh - 132px);
+  align-content: start;
+  gap: 22px;
+  min-height: 0;
 }
 
 .event-card-season-chip {
@@ -2176,15 +2179,18 @@ button:disabled {
 }
 
 .event-card-title {
+  margin: 2px 0 10px;
+  color: #24333b;
   font-size: 1rem;
+  line-height: 1.25;
 }
 
 .event-card-summary-box {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   justify-items: center;
   width: 100%;
-  padding: 14px;
+  padding: 13px 14px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.72);
@@ -2199,12 +2205,31 @@ button:disabled {
 }
 
 .event-card-summary-box strong {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
   line-height: 1.35;
+}
+
+.event-card-summary-box strong span {
+  color: var(--text-main);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 1rem;
+  font-weight: 900;
 }
 
 .event-card-summary-box.places-box {
   border-color: rgba(216, 154, 104, 0.28);
   background: rgba(255, 246, 230, 0.78);
+}
+
+.event-card-summary-box.places-box strong {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: #24333b;
+  font-size: 1.28rem;
 }
 
 .event-switch-card-head,
@@ -2223,6 +2248,10 @@ button:disabled {
 .price-option-card.active {
   border-color: rgba(216, 154, 104, 0.45);
   background: linear-gradient(180deg, rgba(255, 251, 244, 0.94), rgba(248, 236, 215, 0.82));
+}
+
+.event-switch-card.active {
+  background: rgba(255, 255, 255, 0.9);
 }
 
 .event-switch-status,

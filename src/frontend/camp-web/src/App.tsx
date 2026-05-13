@@ -540,6 +540,30 @@ function readCampUrlState(): CampUrlState {
   };
 }
 
+function getSafeReturnUrl() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const rawReturnUrl = new URLSearchParams(window.location.search).get('returnUrl');
+  if (!rawReturnUrl) {
+    return null;
+  }
+
+  try {
+    const returnUrl = new URL(rawReturnUrl, window.location.origin);
+    const allowedHosts = new Set([
+      window.location.host,
+      'lk.blagodaty.ru',
+      'lk.blagodaty.online',
+    ]);
+
+    return allowedHosts.has(returnUrl.host) ? returnUrl.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function getCampHistoryState() {
   if (typeof window === 'undefined') {
     return {
@@ -714,6 +738,12 @@ export default function App() {
 
     if (typeof window !== 'undefined' && getCampHistoryState().isModalPushed) {
       window.history.back();
+      return;
+    }
+
+    const returnUrl = getSafeReturnUrl();
+    if (returnUrl) {
+      window.location.assign(returnUrl);
       return;
     }
 

@@ -121,6 +121,22 @@ function formatDateRangeCompact(startsAtUtc?: string | null, endsAtUtc?: string 
   return `${formatter.format(startsAt)} - ${formatter.format(endsAt)}`;
 }
 
+function formatDateRangeParts(startsAtUtc?: string | null, endsAtUtc?: string | null) {
+  if (!startsAtUtc) {
+    return ['Даты уточняются'];
+  }
+
+  const formatter = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+  const startsAt = formatter.format(new Date(startsAtUtc));
+  const endsAt = endsAtUtc ? formatter.format(new Date(endsAtUtc)) : startsAt;
+
+  return startsAt === endsAt ? [startsAt] : [startsAt, endsAt];
+}
+
 function formatMoney(amount?: number | null, currency = 'RUB') {
   if (amount == null) {
     return 'Уточняется';
@@ -974,6 +990,7 @@ export function CampRegistrationFlowPage() {
     const targetUrl = new URL(campBaseUrl || '/', window.location.origin);
     targetUrl.searchParams.set('event', eventSlug);
     targetUrl.searchParams.set('register', '1');
+    targetUrl.searchParams.set('returnUrl', window.location.href);
     window.location.assign(targetUrl.toString());
   }
 
@@ -984,7 +1001,6 @@ export function CampRegistrationFlowPage() {
       <section className="glass-card stack-form event-selection-panel" ref={eventSectionRef}>
         <div className="section-inline">
           <div>
-            <p className="mini-eyebrow">Выбор события</p>
             <h3>Доступные мероприятия</h3>
           </div>
         </div>
@@ -1003,11 +1019,19 @@ export function CampRegistrationFlowPage() {
               <strong className="event-card-title">{eventItem.title}</strong>
               <div className="event-card-summary-box">
                 <span>Даты</span>
-                <strong>{formatDateRangeCompact(eventItem.startsAtUtc, eventItem.endsAtUtc)}</strong>
+                <strong>
+                  {formatDateRangeParts(eventItem.startsAtUtc, eventItem.endsAtUtc).map((datePart) => (
+                    <span key={datePart}>{datePart}</span>
+                  ))}
+                </strong>
               </div>
               <div className="event-card-summary-box">
                 <span>Место</span>
-                <strong>{eventItem.location || 'Локация уточняется'}</strong>
+                <strong>
+                  <span>Экоаил, ул. Мира, 7а</span>
+                  <span>село Курай</span>
+                  <span>Кош-Агачский район, Республика Алтай</span>
+                </strong>
               </div>
               <div className="event-card-summary-box places-box">
                 <span>Мест осталось</span>
