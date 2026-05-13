@@ -429,6 +429,16 @@ export function updateAdminRegistrationStatus(accessToken: string, registrationI
   );
 }
 
+export function deleteAdminRegistration(accessToken: string, registrationId: string) {
+  return request<void>(
+    `/api/admin/registrations/${registrationId}`,
+    {
+      method: 'DELETE',
+    },
+    accessToken,
+  );
+}
+
 export function getAdminExternalAuthSettings(accessToken: string) {
   return request<AdminExternalAuthSettings>('/api/admin/auth/settings', {}, accessToken);
 }

@@ -880,6 +880,50 @@ select {
   border-top: 1px solid var(--line);
 }
 
+.admin-registrations-panel {
+  padding: 18px;
+  border: 1px solid rgba(74, 96, 124, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.52);
+}
+
+.admin-registration-list {
+  display: grid;
+  gap: 12px;
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.admin-registration-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid rgba(74, 96, 124, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.admin-registration-card h4 {
+  margin: 0.35rem 0 0.25rem;
+  color: var(--text-main);
+  font-size: 1rem;
+}
+
+.admin-registration-card p {
+  margin: 0.2rem 0;
+  color: var(--text-muted);
+}
+
+.admin-registration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .event-subsection-head.compact {
   align-items: center;
 }
@@ -1032,8 +1076,18 @@ select {
 }
 
 .danger-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0.7rem 1rem;
+  border: 1px solid rgba(192, 103, 86, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
   border-color: rgba(192, 103, 86, 0.22);
   color: #a55042;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .danger-link:hover {
@@ -1945,5 +1999,18 @@ select {
 
   .admin-page .role-pills {
     justify-content: flex-start;
+  }
+
+  .admin-registration-card {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-registration-actions {
+    justify-content: flex-start;
+  }
+
+  .admin-registration-actions .secondary-button,
+  .admin-registration-actions .danger-link {
+    width: 100%;
   }
 }

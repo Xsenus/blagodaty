@@ -1,20 +1,25 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
   createAdminEvent,
+  deleteAdminRegistration,
   downloadAdminEventRegistrationsExport,
   getAdminEventDetails,
   getAdminEvents,
+  getAdminRegistrations,
+  updateAdminRegistrationStatus,
   updateAdminEvent,
 } from '../lib/api';
 import { useToast } from '../ui/ToastProvider';
 import type {
   AdminEventDetails,
   AdminEventSummary,
+  AdminUser,
   EventContentBlockType,
   EventEditionStatus,
   EventKind,
   EventMediaType,
   EventScheduleItemKind,
+  RegistrationStatus,
   UpsertAdminEventContentBlockRequest,
   UpsertAdminEventMediaItemRequest,
   UpsertAdminEventPriceOptionRequest,
@@ -80,6 +85,13 @@ const eventStatusLabels: Record<EventEditionStatus, string> = {
   Archived: '\u0410\u0440\u0445\u0438\u0432',
 };
 
+const registrationStatusLabels: Record<RegistrationStatus, string> = {
+  Draft: 'Черновик',
+  Submitted: 'Ждет подтверждения',
+  Confirmed: 'Подтверждена',
+  Cancelled: 'Отменена',
+};
+
 const scheduleKindLabels: Record<EventScheduleItemKind, string> = {
   Arrival: '\u0417\u0430\u0435\u0437\u0434',
   MainProgram: '\u041e\u0441\u043d\u043e\u0432\u043d\u0430\u044f \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0430',
@@ -110,6 +122,10 @@ function formatEventKind(kind: EventKind) {
 
 function formatEventStatus(status: EventEditionStatus) {
   return eventStatusLabels[status] ?? status;
+}
+
+function formatRegistrationStatus(status?: RegistrationStatus | null) {
+  return status ? registrationStatusLabels[status] ?? status : 'Без заявки';
 }
 
 function formatScheduleKind(kind: EventScheduleItemKind) {
@@ -306,6 +322,9 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
   const [draft, setDraft] = useState<UpsertAdminEventRequest>(() => createEmptyEventDraft());
   const [isListLoading, setIsListLoading] = useState(false);
   const [isDetailsLoading, setIsDetailsLoading] = useState(false);
+  const [registrations, setRegistrations] = useState<AdminUser[]>([]);
+  const [isRegistrationsLoading, setIsRegistrationsLoading] = useState(false);
+  const [registrationActionId, setRegistrationActionId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -330,6 +349,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
 
     if (selectedEventId === 'new') {
       setCurrentEventId(null);
+      setRegistrations([]);
       setDraft(createEmptyEventDraft());
       setActiveTab('main');
       return;
@@ -349,6 +369,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
 
         setCurrentEventId(loaded.id);
         setDraft(createDraftFromEvent(loaded));
+        void loadRegistrationsForEvent(loaded.id);
       } catch (loadError) {
         if (cancelled) {
           return;
@@ -403,6 +424,30 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
     }
   }
 
+  async function loadRegistrationsForEvent(eventId: string) {
+    if (!accessToken) {
+      return;
+    }
+
+    setIsRegistrationsLoading(true);
+
+    try {
+      const response = await getAdminRegistrations(accessToken, {
+        page: 1,
+        pageSize: 100,
+        status: 'all',
+        eventEditionId: eventId,
+      });
+      setRegistrations(response.items);
+    } catch (loadError) {
+      const nextError = loadError instanceof Error ? loadError.message : 'Не удалось получить заявки мероприятия.';
+      setError(nextError);
+      toast.error('Не удалось загрузить заявки', nextError);
+    } finally {
+      setIsRegistrationsLoading(false);
+    }
+  }
+
   async function handleExportRegistrations() {
     if (!accessToken || !currentEventId || isCreateMode) {
       return;
@@ -419,6 +464,53 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
       toast.error('Не удалось скачать выгрузку', nextError);
     } finally {
       setIsExporting(false);
+    }
+  }
+
+  async function handleRegistrationStatusChange(registrationId: string, status: RegistrationStatus) {
+    if (!accessToken || !currentEventId) {
+      return;
+    }
+
+    setRegistrationActionId(registrationId);
+    setError(null);
+
+    try {
+      await updateAdminRegistrationStatus(accessToken, registrationId, status);
+      await Promise.all([loadRegistrationsForEvent(currentEventId), loadEvents(currentEventId)]);
+      toast.success('Заявка обновлена', `Статус: ${formatRegistrationStatus(status)}.`);
+    } catch (updateError) {
+      const nextError = updateError instanceof Error ? updateError.message : 'Не удалось изменить статус заявки.';
+      setError(nextError);
+      toast.error('Не удалось обновить заявку', nextError);
+    } finally {
+      setRegistrationActionId(null);
+    }
+  }
+
+  async function handleDeleteRegistration(registrationId: string, displayName: string) {
+    if (!accessToken || !currentEventId) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Удалить заявку ${displayName}? Это действие уберет ее из списка заявок.`);
+    if (!confirmed) {
+      return;
+    }
+
+    setRegistrationActionId(registrationId);
+    setError(null);
+
+    try {
+      await deleteAdminRegistration(accessToken, registrationId);
+      await Promise.all([loadRegistrationsForEvent(currentEventId), loadEvents(currentEventId)]);
+      toast.success('Заявка удалена', 'Место освобождено, если заявка была подтверждена.');
+    } catch (deleteError) {
+      const nextError = deleteError instanceof Error ? deleteError.message : 'Не удалось удалить заявку.';
+      setError(nextError);
+      toast.error('Не удалось удалить заявку', nextError);
+    } finally {
+      setRegistrationActionId(null);
     }
   }
 
@@ -710,12 +802,99 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
             <span className="role-pill">Всего заявок: {selectedSummary.registrationsCount}</span>
             <span className="role-pill">Отправлено: {selectedSummary.submittedRegistrations}</span>
             <span className="role-pill">Подтверждено: {selectedSummary.confirmedRegistrations}</span>
+            <span className="role-pill">
+              {selectedSummary.remainingCapacity == null ? 'Лимит не задан' : `Свободно: ${selectedSummary.remainingCapacity}`}
+            </span>
             <span className="role-pill muted-pill">
               {selectedSummary.registrationClosesAtUtc
                 ? `Регистрация до ${formatDateTime(selectedSummary.registrationClosesAtUtc)}`
                 : 'Без дедлайна'}
             </span>
           </div>
+        ) : null}
+
+        {!isCreateMode ? (
+          <section className="event-subsection admin-registrations-panel">
+            <div className="event-subsection-head">
+              <div>
+                <p className="mini-eyebrow">Заявки</p>
+                <h3>Подтверждение и освобождение мест</h3>
+              </div>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => currentEventId && loadRegistrationsForEvent(currentEventId)}
+                disabled={isRegistrationsLoading}
+              >
+                {isRegistrationsLoading ? 'Обновляем...' : 'Обновить'}
+              </button>
+            </div>
+
+            <p className="form-muted">
+              В лимит мест входят только подтвержденные заявки. Ожидающие заявки можно отменить или удалить, чтобы они не мешали новым участникам.
+            </p>
+
+            {isRegistrationsLoading ? <p className="form-muted">Загружаем заявки...</p> : null}
+            {!isRegistrationsLoading && registrations.length === 0 ? (
+              <p className="form-muted">По этому мероприятию пока нет заявок.</p>
+            ) : null}
+
+            <div className="admin-registration-list">
+              {registrations.map((registration) => {
+                const registrationId = registration.registrationId;
+                const isBusy = registrationId != null && registrationActionId === registrationId;
+                const displayName = registration.registrationFullName || registration.displayName || registration.email;
+
+                return (
+                  <article className="admin-registration-card" key={registration.id}>
+                    <div>
+                      <div className="event-list-card-head">
+                        <p className="mini-eyebrow">{formatRegistrationStatus(registration.registrationStatus)}</p>
+                        <span className="role-pill">
+                          {registration.registrationParticipantsCount ?? 1} мест
+                        </span>
+                      </div>
+                      <h4>{displayName}</h4>
+                      <p>{registration.registrationContactEmail || registration.email}</p>
+                      <p>{registration.registrationPhoneNumber || registration.phoneNumber || 'Телефон не указан'}</p>
+                    </div>
+                    {registrationId ? (
+                      <div className="admin-registration-actions">
+                        {registration.registrationStatus !== 'Confirmed' ? (
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => handleRegistrationStatusChange(registrationId, 'Confirmed')}
+                            disabled={isBusy}
+                          >
+                            Подтвердить
+                          </button>
+                        ) : null}
+                        {registration.registrationStatus !== 'Cancelled' ? (
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            onClick={() => handleRegistrationStatusChange(registrationId, 'Cancelled')}
+                            disabled={isBusy}
+                          >
+                            Отменить
+                          </button>
+                        ) : null}
+                        <button
+                          className="danger-link"
+                          type="button"
+                          onClick={() => handleDeleteRegistration(registrationId, displayName)}
+                          disabled={isBusy}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         {message ? <p className="form-success">{message}</p> : null}
