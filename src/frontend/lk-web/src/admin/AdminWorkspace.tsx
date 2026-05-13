@@ -318,7 +318,16 @@ export function AdminWorkspace() {
       accessLabel={auth.account?.user.displayName ?? 'Администратор'}
       description={meta.description}
       eyebrow={meta.eyebrow}
-      hideHeader={section === 'overview' || section === 'registrations' || section === 'users'}
+      hideHeader={[
+        'overview',
+        'registrations',
+        'users',
+        'gallery',
+        'site',
+        'telegram',
+        'backups',
+        'auth',
+      ].includes(section)}
       title={meta.title}
     >
       <AdminContent accessToken={accessToken} section={section} />
@@ -1546,7 +1555,13 @@ function AuthProvidersSection({ accessToken }: { accessToken: string | null }) {
 
   return (
     <div className="admin-workspace-stack">
-      <AdminSectionHeader eyebrow="Auth" title="Провайдеры входа" description="Настройка спрятана в панели, карточки показывают готовность и диагностику." />
+      <div className="admin-compact-heading">
+        <div>
+          <h2>Провайдеры входа</h2>
+          <p>Статус, диагностика и настройки внешней авторизации.</p>
+        </div>
+        <StatusBadge label={`${settings.providers.filter((provider) => provider.enabled).length} включено`} tone="info" />
+      </div>
       <div className="admin-provider-grid">
         {settings.providers.map((provider) => (
           <article className="admin-panel" key={provider.provider}>
@@ -1568,7 +1583,9 @@ function AuthProvidersSection({ accessToken }: { accessToken: string | null }) {
         ))}
       </div>
       <section className="admin-panel">
-        <AdminSectionHeader eyebrow="Журнал" title="Последние события входа" />
+        <div className="admin-panel-headline">
+          <h3>Последние события входа</h3>
+        </div>
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead><tr><th>Провайдер</th><th>Событие</th><th>Детали</th><th>Дата</th></tr></thead>

@@ -276,19 +276,16 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
   }
 
   return (
-    <section className="glass-card stack-form">
-      <div className="section-inline">
+    <div className="admin-workspace-stack">
+      <div className="admin-compact-heading">
         <div>
-          <p className="mini-eyebrow">Галерея</p>
-          <h3>Файлы, фото и видео на сервере</h3>
+          <h2>Медиатека</h2>
+          <p>Загрузка, поиск и управление файлами для сайта и мероприятий.</p>
         </div>
-        <p className="form-muted">
-          Загружайте изображения, видео и документы на сервер, а затем используйте готовые ссылки в карточках событий,
-          контентных блоках и на публичном сайте.
-        </p>
+        <span className="role-pill">{pageData?.totalItems ?? 0} файлов</span>
       </div>
 
-      <div className="gallery-upload-panel">
+      <section className="admin-panel gallery-upload-panel">
         <label className="stack-form">
           <span>Выберите файлы</span>
           <input ref={fileInputRef} type="file" multiple />
@@ -299,17 +296,14 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
 
         <div className="action-row">
           <button type="button" className="primary-button" onClick={() => void handleUpload()} disabled={isUploading}>
-            {isUploading ? 'Загружаем…' : 'Загрузить на сервер'}
+            {isUploading ? 'Загружаем…' : 'Загрузить'}
           </button>
-          <a className="secondary-link" href="/admin/events">
-            Перейти к мероприятиям
-          </a>
         </div>
-      </div>
+      </section>
 
-      <form className="admin-filter-bar" onSubmit={handleSearchSubmit}>
+      <form className="admin-data-toolbar" onSubmit={handleSearchSubmit}>
         <label>
-          <span>Поиск по галерее</span>
+          <span>Поиск</span>
           <input
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
@@ -319,7 +313,7 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
 
         <div className="gallery-filter-actions">
           <label>
-            <span>На странице</span>
+            <span>Размер страницы</span>
             <select
               value={pageSize}
               onChange={(event) => {
@@ -333,8 +327,21 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
             </select>
           </label>
 
-          <button type="submit" className="secondary-link">
-            Обновить
+          <button type="submit" className="secondary-button">
+            Найти
+          </button>
+          <button
+            type="button"
+            className="admin-reset-icon-button"
+            aria-label="Сбросить поиск"
+            title="Сбросить поиск"
+            onClick={() => {
+              setSearchInput('');
+              setSearchTerm('');
+              setPage(1);
+            }}
+          >
+            ↺
           </button>
         </div>
       </form>
@@ -504,6 +511,6 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
           <p className="form-muted">Загрузите первые файлы на сервер, чтобы получить прямые ссылки для сайта и мероприятий.</p>
         </div>
       )}
-    </section>
+    </div>
   );
 }

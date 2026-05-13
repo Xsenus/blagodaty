@@ -3457,6 +3457,44 @@ button:disabled {
   align-items: end;
 }
 
+.admin-compact-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 4px 4px 2px;
+}
+
+.admin-compact-heading h2 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
+}
+
+.admin-compact-heading p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+}
+
+.admin-panel-headline {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.admin-panel-headline h3 {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.05rem;
+}
+
+.admin-panel-headline p {
+  margin: 3px 0 0;
+  color: var(--text-muted);
+}
+
 .admin-context-menu {
   position: fixed;
   z-index: 120;

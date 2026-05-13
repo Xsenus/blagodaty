@@ -400,21 +400,22 @@ export function AdminSiteSettingsSection({ accessToken, isActive }: AdminSiteSet
   }
 
   return (
-    <section className="glass-card stack-form">
-      <div className="section-inline">
+    <div className="admin-workspace-stack">
+      <div className="admin-compact-heading">
         <div>
-          <p className="mini-eyebrow">Сайт</p>
-          <h3>Социальные сети и внешние ссылки</h3>
+          <h2>Сайт</h2>
+          <p>Публичные ссылки, контакты и синхронизация Google Sheets.</p>
         </div>
-        <p className="form-muted">
-          Здесь можно настроить официальные ссылки общины для шапки и подвала публичного сайта.
-        </p>
+        <button className="primary-button" type="button" onClick={() => void saveSettings()} disabled={isSaving}>
+          {isSaving ? 'Сохраняем...' : 'Сохранить сайт'}
+        </button>
       </div>
 
       {message ? <p className="form-success">{message}</p> : null}
       {error ? <p className="form-error">{error}</p> : null}
       {isLoading && !settings ? <p className="form-muted">Загружаем настройки сайта...</p> : null}
 
+      <section className="admin-panel stack-form">
       <div className="event-toggle-row">
         <label className="role-toggle">
           <input
@@ -447,6 +448,7 @@ export function AdminSiteSettingsSection({ accessToken, isActive }: AdminSiteSet
         </label>
       </div>
 
+      <section className="admin-panel stack-form">
       <div className="section-inline">
         <div>
           <p className="mini-eyebrow">Ссылки</p>
@@ -587,7 +589,9 @@ export function AdminSiteSettingsSection({ accessToken, isActive }: AdminSiteSet
           Включено: {draft.socialLinks.filter((item) => item.enabled).length}
         </span>
       </div>
+      </section>
 
+      <section className="admin-panel stack-form">
       <div className="section-inline">
         <div>
           <p className="mini-eyebrow">Ответственные</p>
@@ -791,6 +795,7 @@ export function AdminSiteSettingsSection({ accessToken, isActive }: AdminSiteSet
           </article>
         )}
       </div>
+      </section>
 
       <div className="section-inline">
         <div>
@@ -869,13 +874,11 @@ export function AdminSiteSettingsSection({ accessToken, isActive }: AdminSiteSet
       </div>
 
       <div className="action-row">
-        <button className="primary-button" type="button" onClick={saveSettings} disabled={isSaving}>
-          {isSaving ? 'Сохраняем...' : 'Сохранить настройки сайта'}
-        </button>
         <button className="secondary-button" type="button" onClick={saveSheetsSettings} disabled={isSavingSheets}>
           {isSavingSheets ? 'Сохраняем...' : 'Сохранить Google Sheets'}
         </button>
       </div>
-    </section>
+      </section>
+    </div>
   );
 }

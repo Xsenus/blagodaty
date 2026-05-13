@@ -222,20 +222,18 @@ export function AdminBackupsSection({ accessToken, isActive }: AdminBackupsSecti
   const canSendToTelegram = (overview?.adminTelegramRecipientsCount ?? 0) > 0;
 
   return (
-    <section className="glass-card stack-form">
-      <div className="section-inline">
+    <div className="admin-workspace-stack">
+      <div className="admin-compact-heading">
         <div>
-          <p className="mini-eyebrow">Резервные копии</p>
-          <h3>База данных и Telegram-доставка</h3>
+          <h2>Бэкапы</h2>
+          <p>Резервные копии базы, расписание и Telegram-доставка.</p>
         </div>
-        <p className="form-muted">
-          Здесь настраиваются автоматические дампы базы, каталог хранения, путь до `pg_dump` и отправка
-          готовых файлов администраторам через Telegram-бота.
-        </p>
+        <span className="role-pill">{backups.length} файлов</span>
       </div>
 
       {error ? <p className="form-error">{error}</p> : null}
 
+      <section className="admin-panel stack-form">
       <div className="user-info-grid">
         <div>
           <span>Каталог</span>
@@ -355,6 +353,7 @@ export function AdminBackupsSection({ accessToken, isActive }: AdminBackupsSecti
           администратора в системе.
         </p>
       ) : null}
+      </section>
 
       {isLoading && !overview ? <p className="form-muted">Загружаем список резервных копий...</p> : null}
 
@@ -417,6 +416,6 @@ export function AdminBackupsSection({ accessToken, isActive }: AdminBackupsSecti
           </article>
         ) : null}
       </div>
-    </section>
+    </div>
   );
 }

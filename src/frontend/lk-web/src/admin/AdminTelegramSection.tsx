@@ -254,6 +254,13 @@ export function AdminTelegramSection({ accessToken, isActive }: AdminTelegramSec
 
   return (
     <div className="page-stack">
+      <div className="admin-compact-heading">
+        <div>
+          <h2>Telegram</h2>
+          <p>Чаты, подписки и журнал команд бота.</p>
+        </div>
+        <span className="role-pill">{overview?.summary.activeChats ?? 0} активных чатов</span>
+      </div>
       <section className="dashboard-grid admin-stats-grid">
         <article className="glass-card metric-card">
           <p>Чаты</p>
@@ -281,15 +288,9 @@ export function AdminTelegramSection({ accessToken, isActive }: AdminTelegramSec
       </section>
 
       <section className="glass-card stack-form">
-        <div className="section-inline">
-          <div>
-            <p className="mini-eyebrow">Telegram</p>
-            <h3>Чаты, подписки и команды</h3>
-          </div>
-          <p className="form-muted">
-            Добавьте бота в группу, выполните там <code>/chat_id</code> или <code>/bind_event slug</code>, а здесь уже можно
-            увидеть чат, вручную настроить подписки и проверить, какие команды запускались последними.
-          </p>
+        <div className="admin-panel-headline">
+          <h3>Новая подписка</h3>
+          <p>Чат появится здесь после команды <code>/chat_id</code> или <code>/bind_event slug</code>.</p>
         </div>
 
         {error ? <p className="form-error">{error}</p> : null}
@@ -345,15 +346,6 @@ export function AdminTelegramSection({ accessToken, isActive }: AdminTelegramSec
           </button>
         </div>
 
-        <div className="role-pills">
-          <span className="role-pill">/events</span>
-          <span className="role-pill">/event_stats slug</span>
-          <span className="role-pill">/event_participants slug</span>
-          <span className="role-pill">/event_registrations slug</span>
-          <span className="role-pill">/event_export slug</span>
-          <span className="role-pill">/bind_event slug</span>
-          <span className="role-pill">/subscriptions</span>
-        </div>
       </section>
 
       <section className="user-list">
@@ -451,12 +443,9 @@ export function AdminTelegramSection({ accessToken, isActive }: AdminTelegramSec
       </section>
 
       <section className="glass-card stack-form">
-        <div className="section-inline">
-          <div>
-            <p className="mini-eyebrow">Журнал</p>
-            <h3>Последние команды бота</h3>
-          </div>
-          <p className="form-muted">Здесь видно, кто вызывал команды, в каком чате это происходило и чем ответил бот.</p>
+        <div className="admin-panel-headline">
+          <h3>Последние команды</h3>
+          <p>Кто вызывал команды, в каком чате и с каким результатом.</p>
         </div>
 
         <div className="user-list">
