@@ -326,7 +326,7 @@ function sortDashboardRegistrations(registrations: AccountRegistrationSummary[])
   });
 }
 
-function getDashboardActionCard(
+export function getDashboardActionCard(
   registration: AccountRegistrationSummary | null,
   isPhoneConfirmed: boolean,
 ) {
@@ -1346,7 +1346,6 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
 function DashboardPage() {
   const { account } = useAuth();
-  const canOpenAdmin = isAdmin(account?.user.roles);
   const registrations = sortDashboardRegistrations(account?.registrations ?? []);
   const nextRegistration = registrations[0] ?? null;
   const isPhoneConfirmed =
@@ -1359,41 +1358,9 @@ function DashboardPage() {
   const draftCount = registrations.filter((item) => item.status === 'Draft').length;
   const submittedCount = registrations.filter((item) => item.status === 'Submitted').length;
   const confirmedCount = registrations.filter((item) => item.status === 'Confirmed').length;
-  const actionCard = getDashboardActionCard(nextRegistration, isPhoneConfirmed);
 
   return (
     <div className="page-stack">
-      <header className="page-hero glass-card">
-        <div>
-          <p className="mini-eyebrow">Обзор</p>
-          <h2>Здравствуйте, {account?.user.displayName}</h2>
-          <p>Здесь видно ваши мероприятия, статусы заявок и следующие шаги по каждому событию.</p>
-        </div>
-
-        <div className="status-badge">
-          <span>Ближайший статус</span>
-          <strong>{formatStatus(nextRegistration?.status ?? account?.registration?.status)}</strong>
-        </div>
-      </header>
-
-      <section className="glass-card callout-card">
-        <p className="mini-eyebrow">{actionCard.eyebrow}</p>
-        <h3>{actionCard.title}</h3>
-        <p>{actionCard.description}</p>
-        <div className="role-pills">
-          {nextRegistration ? <UiStatusBadge status={nextRegistration.status} /> : null}
-          <UiStatusBadge status={isPhoneConfirmed ? 'active' : 'pending'} label={isPhoneConfirmed ? 'Телефон подтверждён' : 'Телефон не подтверждён'} />
-          {draftCount ? <span className="role-pill">Черновиков: {draftCount}</span> : null}
-          {submittedCount ? <span className="role-pill">Отправлены: {submittedCount}</span> : null}
-          {confirmedCount ? <span className="role-pill">Подтверждены: {confirmedCount}</span> : null}
-        </div>
-        <div className="inline-links">
-          <NavLink to={actionCard.primaryTo}>{actionCard.primaryLabel}</NavLink>
-          <NavLink to={actionCard.secondaryTo}>{actionCard.secondaryLabel}</NavLink>
-          {canOpenAdmin ? <NavLink to="/admin">Открыть админку</NavLink> : null}
-        </div>
-      </section>
-
       <section className="dashboard-grid">
         <article className="glass-card metric-card">
           <p>Аккаунт</p>
