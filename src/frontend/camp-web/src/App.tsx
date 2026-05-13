@@ -347,6 +347,22 @@ function ContactLinkIcon({ link }: { link: PublicSiteContactPerson['links'][numb
   );
 }
 
+function RegisterActionIcon() {
+  return (
+    <svg className="floating-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 3h10a2 2 0 0 1 2 2v14.5a1 1 0 0 1-1.5.9L12 17.5l-5.5 2.9a1 1 0 0 1-1.5-.9V5a2 2 0 0 1 2-2Zm0 2v12.8l4.5-2.4a1 1 0 0 1 .9 0l4.6 2.4V5H7Zm2.2 4.2h5.6v2H9.2v-2Zm0 3.5h3.8v2H9.2v-2Z" />
+    </svg>
+  );
+}
+
+function ArrowUpIcon() {
+  return (
+    <svg className="floating-action-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 4.4 5.6 10.8 7 12.2l4-4V20h2V8.2l4 4 1.4-1.4L12 4.4Z" />
+    </svg>
+  );
+}
+
 function isLegacyExternalPlaceImage(url?: string | null) {
   return Boolean(url && (url.includes('photo.2gis.com') || url.includes('share.api.2gis.ru')));
 }
@@ -417,6 +433,8 @@ export default function App() {
   const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(() => readCampUrlState().eventSlug);
   const [isModalOpen, setIsModalOpen] = useState(() => readCampUrlState().isRegistrationOpen);
   const [selectedGalleryIndex, setSelectedGalleryIndex] = useState<number | null>(null);
+  const [isBackToTopVisible, setIsBackToTopVisible] = useState(false);
+  const [isFloatingRegistrationVisible, setIsFloatingRegistrationVisible] = useState(false);
 
   const eventsQuery = useQuery({
     queryKey: ['public-events'],
@@ -551,6 +569,46 @@ export default function App() {
     void selectedEventQuery.refetch();
   }
 
+  function scrollToTop() {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  }
+
+  useEffect(() => {
+    let animationFrameId = 0;
+
+    const updateFloatingActions = () => {
+      window.cancelAnimationFrame(animationFrameId);
+      animationFrameId = window.requestAnimationFrame(() => {
+        const registrationButtons = Array.from(document.querySelectorAll<HTMLElement>('[data-registration-cta="true"]'));
+        const hasVisibleRegistrationButton = registrationButtons.some((button) => {
+          const rect = button.getBoundingClientRect();
+          return rect.width > 0 && rect.height > 0 && rect.bottom > 24 && rect.top < window.innerHeight - 24;
+        });
+
+        setIsBackToTopVisible(window.scrollY > 520);
+        setIsFloatingRegistrationVisible(!hasVisibleRegistrationButton && window.scrollY > 180);
+      });
+    };
+
+    updateFloatingActions();
+    const layoutCheckTimeout = window.setTimeout(updateFloatingActions, 220);
+    const lateLayoutCheckTimeout = window.setTimeout(updateFloatingActions, 700);
+    window.addEventListener('scroll', updateFloatingActions, { passive: true });
+    window.addEventListener('resize', updateFloatingActions);
+    window.addEventListener('hashchange', updateFloatingActions);
+    return () => {
+      window.clearTimeout(layoutCheckTimeout);
+      window.clearTimeout(lateLayoutCheckTimeout);
+      window.cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('scroll', updateFloatingActions);
+      window.removeEventListener('resize', updateFloatingActions);
+      window.removeEventListener('hashchange', updateFloatingActions);
+    };
+  }, [events.length, selectedEventSlug, selectedEventSummary?.slug]);
+
   useEffect(() => {
     if (!selectedGalleryImage) {
       return undefined;
@@ -615,7 +673,7 @@ export default function App() {
             </div>
           ) : null}
 
-          <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+          <button className="button button-primary" type="button" data-registration-cta="true" onClick={() => openRegistration(selectedEventSummary?.slug)}>
             Зарегистрироваться
           </button>
         </div>
@@ -639,7 +697,7 @@ export default function App() {
             </div>
 
             <div className="hero-actions">
-              <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+              <button className="button button-primary" type="button" data-registration-cta="true" onClick={() => openRegistration(selectedEventSummary?.slug)}>
                 Зарегистрироваться
               </button>
               <a className="button button-secondary hero-map-link" href={PLACE_URL} target="_blank" rel="noreferrer">
@@ -700,7 +758,7 @@ export default function App() {
                     <button className="button button-secondary" type="button" onClick={() => selectEvent(eventItem.slug)}>
                       {selectedEventSlug === eventItem.slug ? 'Выбрано' : 'Показать'}
                     </button>
-                    <button className="button button-primary" type="button" onClick={() => openRegistration(eventItem.slug)}>
+                    <button className="button button-primary" type="button" data-registration-cta="true" onClick={() => openRegistration(eventItem.slug)}>
                       Зарегистрироваться
                     </button>
                   </div>
@@ -910,7 +968,7 @@ export default function App() {
         </section>
 
         <section className="cta-banner container">
-          <button className="button button-primary" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+          <button className="button button-primary" type="button" data-registration-cta="true" onClick={() => openRegistration(selectedEventSummary?.slug)}>
             Зарегистрироваться
           </button>
         </section>
@@ -956,6 +1014,23 @@ export default function App() {
             </div>
           ) : null}
         </footer>
+      ) : null}
+
+      {(isFloatingRegistrationVisible || isBackToTopVisible) && !isModalOpen && !selectedGalleryImage ? (
+        <div className="floating-actions" aria-label="Быстрые действия">
+          {isFloatingRegistrationVisible ? (
+            <button className="floating-register" type="button" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+              <RegisterActionIcon />
+              <span>Регистрация</span>
+            </button>
+          ) : null}
+
+          {isBackToTopVisible ? (
+            <button className="floating-scroll-top" type="button" onClick={scrollToTop} aria-label="Наверх" title="Наверх">
+              <ArrowUpIcon />
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       <RegistrationModal
