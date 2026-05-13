@@ -2916,3 +2916,573 @@ input[type="radio"] {
     margin-inline: 14px;
   }
 }
+
+@media (max-width: 1180px) {
+  .camp-page {
+    padding: 14px 14px 48px;
+  }
+
+  .camp-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px 18px;
+    align-items: center;
+  }
+
+  .site-nav {
+    grid-column: 1 / -1;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .site-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .site-nav a {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+
+  .header-actions {
+    justify-content: flex-end;
+    justify-self: end;
+  }
+
+  .hero-panel,
+  .hero-inner {
+    min-height: 580px;
+  }
+
+  .hero-inner {
+    padding-block: 48px;
+    padding-inline: clamp(28px, 5vw, 48px);
+  }
+
+  .hero-inner h1 {
+    font-size: clamp(4rem, 8vw, 5.1rem);
+  }
+
+  .facts-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .place-section {
+    grid-template-columns: 1fr;
+  }
+
+  .place-copy,
+  .place-photos,
+  .place-photo-main {
+    min-height: 460px;
+  }
+
+  .activities-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .activities-map-panel {
+    position: static;
+  }
+
+  .activities-map {
+    height: 520px;
+    min-height: 460px;
+  }
+
+  .activities-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .video-grid,
+  .faq-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .program-highlights {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .timeline-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .modal-shell {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  }
+
+  .modal-main {
+    padding: 24px;
+  }
+
+  .modal-section-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .camp-page {
+    padding: 12px 12px 44px;
+  }
+
+  .camp-main {
+    gap: 20px;
+  }
+
+  .camp-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .brand-lockup {
+    min-width: 0;
+  }
+
+  .brand-mark {
+    width: 42px;
+    height: 42px;
+  }
+
+  .site-nav {
+    gap: 8px;
+    margin-inline: -2px;
+    padding-block: 2px 8px;
+  }
+
+  .site-nav a {
+    min-height: 38px;
+    padding: 8px 10px;
+    border: 1px solid rgba(49, 95, 83, 0.1);
+    background: rgba(255, 255, 255, 0.58);
+  }
+
+  .hero-panel,
+  .hero-inner {
+    min-height: 540px;
+  }
+
+  .hero-inner {
+    padding-block: 42px;
+    padding-inline: 24px;
+  }
+
+  .hero-inner h1 {
+    max-width: 11ch;
+    font-size: clamp(3.2rem, 10vw, 4.3rem);
+  }
+
+  .hero-panel .hero-lead {
+    max-width: 38rem;
+    font-size: 1rem;
+  }
+
+  .hero-badges,
+  .hero-actions {
+    gap: 10px;
+  }
+
+  .facts-strip {
+    gap: 10px;
+  }
+
+  .facts-strip article {
+    min-height: 86px;
+    padding: 16px 12px;
+  }
+
+  .section-heading h2,
+  .content-card h2,
+  .cta-banner h2 {
+    font-size: clamp(2.1rem, 7vw, 3rem);
+  }
+
+  .place-copy {
+    min-height: 420px;
+    padding: 24px;
+  }
+
+  .place-photos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto;
+    min-height: 0;
+  }
+
+  .place-photo-main {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    min-height: 300px;
+    clip-path: none;
+  }
+
+  .place-photo-side {
+    min-height: 180px;
+  }
+
+  .place-review-grid,
+  .faq-grid,
+  .info-bring-columns,
+  .activities-list,
+  .program-highlights {
+    grid-template-columns: 1fr;
+  }
+
+  .activities-toolbar {
+    align-items: flex-start;
+  }
+
+  .activities-legend {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .activities-legend::-webkit-scrollbar {
+    display: none;
+  }
+
+  .activity-legend-item {
+    flex: 0 0 auto;
+  }
+
+  .activities-map {
+    height: 450px;
+    min-height: 400px;
+  }
+
+  .media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .timeline-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footer-contacts {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-root {
+    padding: 10px;
+  }
+
+  .modal-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: min(100%, calc(100vw - 20px));
+    max-height: calc(100dvh - 20px);
+  }
+
+  .modal-sidebar {
+    max-height: 34dvh;
+    overflow-y: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 18px;
+  }
+
+  .modal-main {
+    padding: 16px;
+  }
+
+  .modal-close {
+    top: 10px;
+    margin-bottom: 12px;
+  }
+
+  .modal-metrics-grid,
+  .success-summary-grid,
+  .modal-form-grid,
+  .modal-event-grid,
+  .modal-progress-grid,
+  .contacts-grid,
+  .emergency-grid,
+  .extra-participant-grid,
+  .additional-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .price-option-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .camp-page {
+    padding: 10px 10px 40px;
+  }
+
+  .camp-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .brand-lockup {
+    justify-self: start;
+  }
+
+  .header-actions,
+  .header-actions > .button,
+  .hero-actions,
+  .hero-actions > .button,
+  .hero-actions > .hero-map-link,
+  .cta-banner > .button {
+    width: 100%;
+  }
+
+  .header-actions {
+    justify-self: stretch;
+  }
+
+  .site-nav {
+    grid-column: 1;
+    width: calc(100vw - 20px);
+  }
+
+  .hero-panel {
+    min-height: auto;
+    background-position: center top;
+  }
+
+  .hero-inner {
+    min-height: 520px;
+    padding-block: 34px;
+    padding-inline: 16px;
+  }
+
+  .hero-inner h1 {
+    max-width: 10ch;
+    font-size: clamp(2.65rem, 13vw, 3.35rem);
+  }
+
+  .hero-panel .hero-lead {
+    overflow-wrap: anywhere;
+  }
+
+  .hero-panel .hero-badges {
+    display: grid;
+  }
+
+  .hero-panel .hero-badges span {
+    width: 100%;
+    min-width: 0;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .facts-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .facts-strip article {
+    min-height: 82px;
+    padding: 14px 10px;
+  }
+
+  .facts-strip span {
+    font-size: 0.86rem;
+  }
+
+  .facts-strip strong {
+    font-size: 0.98rem;
+    line-height: 1.28;
+  }
+
+  .content-card,
+  .faq-card,
+  .program-card,
+  .site-footer,
+  .cta-banner {
+    padding: 18px;
+  }
+
+  .place-copy {
+    min-height: 360px;
+    padding: 18px;
+  }
+
+  .place-copy h2,
+  .section-heading h2,
+  .content-card h2,
+  .cta-banner h2 {
+    font-size: clamp(2rem, 10vw, 2.45rem);
+  }
+
+  .place-copy-notes {
+    display: grid;
+  }
+
+  .place-copy-notes span {
+    width: 100%;
+  }
+
+  .place-photo-main {
+    min-height: 240px;
+  }
+
+  .place-photo-side {
+    min-height: 145px;
+  }
+
+  .activities-toolbar {
+    display: grid;
+  }
+
+  .activities-map {
+    height: 370px;
+    min-height: 340px;
+  }
+
+  .activity-meta-row,
+  .activity-popup-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-popup-shell .leaflet-popup-content {
+    width: min(280px, calc(100vw - 72px));
+    max-width: min(280px, calc(100vw - 72px));
+  }
+
+  .media-grid,
+  .video-grid,
+  .timeline-list {
+    grid-template-columns: 1fr;
+  }
+
+  .media-card-copy {
+    padding: 14px 16px 16px;
+  }
+
+  .timeline-row {
+    min-height: 0;
+    padding: 18px;
+  }
+
+  .footer-contact {
+    padding: 18px 14px;
+  }
+
+  .footer-contact-links,
+  .contact-link {
+    width: 100%;
+  }
+
+  .floating-actions {
+    right: 10px;
+    bottom: 10px;
+    gap: 8px;
+  }
+
+  .floating-register {
+    width: auto;
+    min-height: 44px;
+    padding-inline: 13px;
+  }
+
+  .floating-scroll-top {
+    width: 44px;
+    height: 44px;
+  }
+
+  .modal-root {
+    padding: 0;
+  }
+
+  .modal-shell {
+    width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .modal-sidebar {
+    max-height: 30dvh;
+    padding: 14px;
+  }
+
+  .modal-main {
+    padding: 12px;
+  }
+
+  .modal-state-card,
+  .modal-auth-card,
+  .modal-panel,
+  .modal-subpanel,
+  .modal-account-bar,
+  .modal-success-view {
+    padding: 16px;
+  }
+
+  .price-option-card {
+    padding: 16px;
+  }
+
+  .participant-card-header {
+    display: grid;
+    justify-items: start;
+  }
+}
+
+@media (max-width: 420px) {
+  .facts-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-inner h1 {
+    font-size: clamp(2.35rem, 14vw, 3rem);
+  }
+
+  .place-photos {
+    grid-template-columns: 1fr;
+  }
+
+  .place-photo-side {
+    min-height: 180px;
+  }
+
+  .floating-register span {
+    max-width: 8.4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (hover: none) {
+  .button:hover,
+  .media-card:hover,
+  .activity-card:hover,
+  .contact-link:hover,
+  .floating-register:hover,
+  .floating-scroll-top:hover {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
