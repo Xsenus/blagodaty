@@ -38,6 +38,50 @@ export function normalizePhone(value?: string | null) {
   return digits.length >= 10 ? `+${digits}` : value.trim();
 }
 
+export function formatPhoneForInput(value?: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  let digits = value.replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+
+  if (digits.startsWith('8')) {
+    digits = `7${digits.slice(1)}`;
+  } else if (!digits.startsWith('7')) {
+    digits = `7${digits}`;
+  }
+
+  const national = digits.slice(1, 11);
+  const parts = [
+    national.slice(0, 3),
+    national.slice(3, 6),
+    national.slice(6, 8),
+    national.slice(8, 10),
+  ];
+
+  let formatted = '+7';
+  if (parts[0]) {
+    formatted += ` (${parts[0]}`;
+    if (parts[0].length === 3) {
+      formatted += ')';
+    }
+  }
+  if (parts[1]) {
+    formatted += ` ${parts[1]}`;
+  }
+  if (parts[2]) {
+    formatted += ` ${parts[2]}`;
+  }
+  if (parts[3]) {
+    formatted += ` ${parts[3]}`;
+  }
+
+  return formatted;
+}
+
 function formatResendCountdown(seconds: number) {
   if (seconds < 60) {
     return `${seconds} сек.`;
@@ -129,10 +173,10 @@ export function PhoneVerificationPanel({
 
     try {
       const response = await sendPhoneVerificationCode(accessToken, {
-        phoneNumber,
+        phoneNumber: normalizePhone(phoneNumber),
       });
 
-      onPhoneNumberChange(response.phoneNumber);
+      onPhoneNumberChange(formatPhoneForInput(response.phoneNumber));
       setCode('');
       setExpiresAtUtc(response.alreadyVerified ? null : response.expiresAtUtc);
       setDebugCode(response.alreadyVerified ? null : response.debugCode ?? null);
@@ -175,11 +219,11 @@ export function PhoneVerificationPanel({
 
     try {
       const response = await verifyPhoneVerificationCode(accessToken, {
-        phoneNumber,
+        phoneNumber: normalizePhone(phoneNumber),
         code,
       });
 
-      onPhoneNumberChange(response.phoneNumber);
+      onPhoneNumberChange(formatPhoneForInput(response.phoneNumber));
       setCode('');
       setDebugCode(null);
       setCooldownUntilMs(null);

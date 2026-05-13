@@ -120,7 +120,7 @@ function readDraftForm(storageKey: string | null): SaveRegistrationRequest | nul
     const participants = Array.isArray(parsed.participants)
       ? parsed.participants.map((participant) => ({
           fullName: typeof participant?.fullName === 'string' ? participant.fullName : '',
-          phoneNumber: typeof participant?.phoneNumber === 'string' ? participant.phoneNumber : '',
+          phoneNumber: typeof participant?.phoneNumber === 'string' ? formatPhoneForInput(participant.phoneNumber) : '',
           birthDate: typeof participant?.birthDate === 'string' ? participant.birthDate : '',
           isChild: Boolean(participant?.isChild),
         }))
@@ -138,9 +138,9 @@ function readDraftForm(storageKey: string | null): SaveRegistrationRequest | nul
       birthDate: typeof parsed.birthDate === 'string' ? parsed.birthDate : '',
       city: DEFAULT_CITY,
       churchName: DEFAULT_CHURCH_NAME,
-      phoneNumber: typeof parsed.phoneNumber === 'string' ? parsed.phoneNumber : '',
+      phoneNumber: typeof parsed.phoneNumber === 'string' ? formatPhoneForInput(parsed.phoneNumber) : '',
       emergencyContactName: typeof parsed.emergencyContactName === 'string' ? parsed.emergencyContactName : '',
-      emergencyContactPhone: typeof parsed.emergencyContactPhone === 'string' ? parsed.emergencyContactPhone : '',
+      emergencyContactPhone: typeof parsed.emergencyContactPhone === 'string' ? formatPhoneForInput(parsed.emergencyContactPhone) : '',
       accommodationPreference: normalizeAccommodationPreference(parsed.accommodationPreference),
       healthNotes: typeof parsed.healthNotes === 'string' ? parsed.healthNotes : '',
       allergyNotes: typeof parsed.allergyNotes === 'string' ? parsed.allergyNotes : '',
@@ -303,6 +303,50 @@ function normalizePhone(value?: string | null) {
   }
 
   return digits.length >= 10 ? `+${digits}` : value.trim();
+}
+
+function formatPhoneForInput(value?: string | null) {
+  if (!value) {
+    return '';
+  }
+
+  let digits = value.replace(/\D/g, '');
+  if (!digits) {
+    return '';
+  }
+
+  if (digits.startsWith('8')) {
+    digits = `7${digits.slice(1)}`;
+  } else if (!digits.startsWith('7')) {
+    digits = `7${digits}`;
+  }
+
+  const national = digits.slice(1, 11);
+  const parts = [
+    national.slice(0, 3),
+    national.slice(3, 6),
+    national.slice(6, 8),
+    national.slice(8, 10),
+  ];
+
+  let formatted = '+7';
+  if (parts[0]) {
+    formatted += ` (${parts[0]}`;
+    if (parts[0].length === 3) {
+      formatted += ')';
+    }
+  }
+  if (parts[1]) {
+    formatted += ` ${parts[1]}`;
+  }
+  if (parts[2]) {
+    formatted += ` ${parts[2]}`;
+  }
+  if (parts[3]) {
+    formatted += ` ${parts[3]}`;
+  }
+
+  return formatted;
 }
 
 function isValidEmail(value: string) {
@@ -1121,8 +1165,9 @@ export function RegistrationModal({
                           <input
                             value={form.phoneNumber}
                             inputMode="tel"
-                            placeholder="+7"
-                            onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
+                            autoComplete="tel"
+                            placeholder="+7 (000) 000 00 00"
+                            onChange={(event) => setForm((current) => ({ ...current, phoneNumber: formatPhoneForInput(event.target.value) }))}
                             required
                           />
                         </label>
@@ -1199,9 +1244,10 @@ export function RegistrationModal({
                                     <input
                                       value={participant.phoneNumber ?? ''}
                                       inputMode="tel"
-                                      placeholder="+7"
+                                      autoComplete="tel"
+                                      placeholder="+7 (000) 000 00 00"
                                       onChange={(event) => {
-                                        const phoneNumber = event.target.value;
+                                        const phoneNumber = formatPhoneForInput(event.target.value);
                                         updateParticipants((items) =>
                                           items.map((item, currentIndex) =>
                                             currentIndex === participantIndex ? { ...item, phoneNumber } : item,
@@ -1248,8 +1294,9 @@ export function RegistrationModal({
                           <input
                             value={form.emergencyContactPhone}
                             inputMode="tel"
-                            placeholder="+7"
-                            onChange={(event) => setForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))}
+                            autoComplete="tel"
+                            placeholder="+7 (000) 000 00 00"
+                            onChange={(event) => setForm((current) => ({ ...current, emergencyContactPhone: formatPhoneForInput(event.target.value) }))}
                           />
                         </label>
                       </div>

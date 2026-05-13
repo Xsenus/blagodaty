@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { ApiError, getPublicEvent, getPublicEvents, saveEventRegistration } from '../lib/api';
 import { campBaseUrl } from '../lib/config';
 import { useToast } from '../ui/ToastProvider';
-import { normalizePhone, PhoneVerificationPanel } from '../ui/PhoneVerificationPanel';
+import { formatPhoneForInput, normalizePhone, PhoneVerificationPanel } from '../ui/PhoneVerificationPanel';
 import type {
   AccommodationPreference,
   CampRegistration,
@@ -353,7 +353,7 @@ function ensureParticipants(
     const birthDate = (index === 0 ? primaryBirthDate || participant.birthDate : participant.birthDate) ?? '';
     return {
       fullName: participant.fullName,
-      phoneNumber: participant.phoneNumber?.trim() ?? '',
+      phoneNumber: formatPhoneForInput(participant.phoneNumber),
       birthDate,
       isChild: birthDate ? isMinorParticipant(birthDate, eventStartsAtUtc) : participant.isChild,
     };
@@ -393,14 +393,14 @@ function registrationToForm(currentRegistration: CampRegistration): SaveRegistra
         .sort((left, right) => left.sortOrder - right.sortOrder)
         .map((participant) => ({
           fullName: participant.fullName,
-          phoneNumber: participant.phoneNumber ?? '',
+          phoneNumber: formatPhoneForInput(participant.phoneNumber),
           birthDate: participant.birthDate ?? '',
           isChild: participant.isChild,
         }))
     : [
         {
           fullName: currentRegistration.fullName,
-          phoneNumber: currentRegistration.phoneNumber,
+          phoneNumber: formatPhoneForInput(currentRegistration.phoneNumber),
           birthDate: currentRegistration.birthDate,
           isChild: currentRegistration.hasChildren,
         },
@@ -413,12 +413,12 @@ function registrationToForm(currentRegistration: CampRegistration): SaveRegistra
     birthDate: currentRegistration.birthDate,
     city: currentRegistration.city,
     churchName: currentRegistration.churchName,
-    phoneNumber: currentRegistration.phoneNumber,
+    phoneNumber: formatPhoneForInput(currentRegistration.phoneNumber),
     hasCar: currentRegistration.hasCar,
     hasChildren: currentRegistration.hasChildren,
     participants,
     emergencyContactName: currentRegistration.emergencyContactName,
-    emergencyContactPhone: currentRegistration.emergencyContactPhone,
+    emergencyContactPhone: formatPhoneForInput(currentRegistration.emergencyContactPhone),
     accommodationPreference: normalizeAccommodationPreference(currentRegistration.accommodationPreference),
     healthNotes: currentRegistration.healthNotes ?? '',
     allergyNotes: currentRegistration.allergyNotes ?? '',
@@ -591,7 +591,7 @@ function buildPrefillForm(
     ?? null;
   const preferredName = getPreferredName(account);
   const participants = preferredName
-    ? [{ fullName: preferredName, phoneNumber: account?.user.phoneNumber ?? '', birthDate: '', isChild: false }]
+    ? [{ fullName: preferredName, phoneNumber: formatPhoneForInput(account?.user.phoneNumber), birthDate: '', isChild: false }]
     : current.participants.length
       ? current.participants
       : [{ ...EMPTY_PARTICIPANT }];
@@ -604,7 +604,7 @@ function buildPrefillForm(
     participants,
     city: account?.user.city ?? '',
     churchName: account?.user.churchName ?? '',
-    phoneNumber: account?.user.phoneNumber ?? '',
+    phoneNumber: formatPhoneForInput(account?.user.phoneNumber),
   };
 }
 
@@ -615,7 +615,7 @@ function buildDraftPayload(
   const participants = ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent?.startsAtUtc)
     .map((participant) => ({
       fullName: participant.fullName.trim(),
-      phoneNumber: participant.phoneNumber?.trim() ?? '',
+      phoneNumber: normalizePhone(participant.phoneNumber),
       birthDate: participant.birthDate ?? '',
       isChild: participant.isChild,
     }))
@@ -629,11 +629,11 @@ function buildDraftPayload(
     birthDate: form.birthDate,
     city: form.city.trim(),
     churchName: form.churchName.trim(),
-    phoneNumber: form.phoneNumber.trim(),
+    phoneNumber: normalizePhone(form.phoneNumber),
     hasChildren: form.hasChildren || participants.some((participant) => participant.isChild),
     participants,
     emergencyContactName: form.emergencyContactName.trim(),
-    emergencyContactPhone: form.emergencyContactPhone.trim(),
+    emergencyContactPhone: normalizePhone(form.emergencyContactPhone),
     healthNotes: form.healthNotes?.trim() ?? '',
     allergyNotes: form.allergyNotes?.trim() ?? '',
     specialNeeds: form.specialNeeds?.trim() ?? '',
@@ -947,7 +947,7 @@ export function CampRegistrationFlowPage() {
       participants: ensureParticipants(form.participants, form.fullName, form.birthDate, selectedEvent.startsAtUtc)
         .map((participant, index) => ({
           fullName: participant.fullName.trim(),
-          phoneNumber: index === 0 ? form.phoneNumber.trim() : participant.phoneNumber?.trim() ?? '',
+          phoneNumber: index === 0 ? normalizePhone(form.phoneNumber) : normalizePhone(participant.phoneNumber),
           birthDate: participant.birthDate ?? '',
           isChild: participant.isChild,
         })),
@@ -1182,7 +1182,10 @@ export function CampRegistrationFlowPage() {
                     <span>Телефон</span>
                     <input
                       value={form.phoneNumber}
-                      onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
+                      onChange={(event) => setForm((current) => ({ ...current, phoneNumber: formatPhoneForInput(event.target.value) }))}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="+7 (000) 000 00 00"
                       required
                     />
                     <small className={`form-muted${registration?.phoneNumberConfirmed || auth.account?.user.phoneNumberConfirmed ? ' form-success-inline' : ''}`}>
@@ -1197,7 +1200,7 @@ export function CampRegistrationFlowPage() {
                   accessToken={auth.session?.accessToken ?? null}
                   phoneNumber={form.phoneNumber}
                   isConfirmed={isPhoneConfirmed}
-                  onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
+                  onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: formatPhoneForInput(value) }))}
                   onAccountReload={auth.reloadAccount}
                   onVerified={async () => {
                     setMessage('Телефон подтверждён. Можно отправлять заявку.');
@@ -1266,10 +1269,11 @@ export function CampRegistrationFlowPage() {
                             <span>Телефон</span>
                             <input
                               inputMode="tel"
-                              placeholder="+7"
+                              autoComplete="tel"
+                              placeholder="+7 (000) 000 00 00"
                               value={participant.phoneNumber ?? ''}
                               onChange={(event) => {
-                                const phoneNumber = event.target.value;
+                                const phoneNumber = formatPhoneForInput(event.target.value);
                                 updateParticipants((items) =>
                                   items.map((item, currentIndex) =>
                                     currentIndex === index
@@ -1432,7 +1436,10 @@ export function CampRegistrationFlowPage() {
                     <span>Телефон доверенного лица</span>
                     <input
                       value={form.emergencyContactPhone}
-                      onChange={(event) => setForm((current) => ({ ...current, emergencyContactPhone: event.target.value }))}
+                      onChange={(event) => setForm((current) => ({ ...current, emergencyContactPhone: formatPhoneForInput(event.target.value) }))}
+                      inputMode="tel"
+                      autoComplete="tel"
+                      placeholder="+7 (000) 000 00 00"
                       required
                     />
                   </label>

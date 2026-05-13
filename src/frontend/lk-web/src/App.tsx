@@ -35,7 +35,7 @@ import { AdminWorkspace } from './admin/AdminWorkspace';
 import { CampRegistrationFlowPage } from './camp/CampRegistrationPage';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
-import { normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPanel';
+import { formatPhoneForInput, normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPanel';
 import { StatusBadge as UiStatusBadge } from './ui/status';
 import type {
   AccountRegistrationSummary,
@@ -1708,7 +1708,7 @@ function ProfilePage() {
       lastName: account.user.lastName,
       patronymic: account.user.patronymic ?? '',
       displayName: account.user.displayName,
-      phoneNumber: account.user.phoneNumber ?? '',
+      phoneNumber: formatPhoneForInput(account.user.phoneNumber),
       city: account.user.city ?? '',
       churchName: account.user.churchName ?? '',
     });
@@ -1798,7 +1798,10 @@ function ProfilePage() {
     setIsSaving(true);
 
     try {
-      await updateProfile(form);
+      await updateProfile({
+        ...form,
+        phoneNumber: normalizePhone(form.phoneNumber),
+      });
       setMessage('Профиль сохранен.');
       toast.success('Профиль сохранен', 'Изменения уже доступны в личном кабинете.');
     } catch (submitError) {
@@ -1940,7 +1943,10 @@ function ProfilePage() {
             <div className="profile-phone-row">
               <input
                 value={form.phoneNumber}
-                onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
+                onChange={(event) => setForm((current) => ({ ...current, phoneNumber: formatPhoneForInput(event.target.value) }))}
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="+7 (000) 000 00 00"
               />
               {!isProfilePhoneConfirmed ? (
                 <button
@@ -2058,7 +2064,7 @@ function ProfilePage() {
               accessToken={auth.session?.accessToken ?? null}
               phoneNumber={form.phoneNumber ?? ''}
               isConfirmed={isProfilePhoneConfirmed}
-              onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
+              onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: formatPhoneForInput(value) }))}
               onAccountReload={auth.reloadAccount}
               onVerified={async () => {
                 setMessage('Номер телефона подтверждён.');
