@@ -2530,11 +2530,16 @@ button:disabled {
 .profile-actions {
   grid-column: 1 / -1;
   display: flex;
+  align-items: center;
   justify-content: flex-end;
 }
 
 .profile-actions .primary-button {
-  min-width: 220px;
+  min-width: 190px;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(216, 154, 104, 0.16);
 }
 
 .profile-modal-overlay {
