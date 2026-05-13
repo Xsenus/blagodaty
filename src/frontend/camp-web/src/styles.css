@@ -1604,6 +1604,14 @@ img {
 
 .registration-contacts-grid {
   grid-template-columns: minmax(0, 1fr);
+  position: relative;
+  z-index: 4;
+}
+
+.registration-contacts-panel {
+  position: relative;
+  overflow: visible;
+  z-index: 1;
 }
 
 .contacts-grid {
@@ -1817,6 +1825,12 @@ label {
   color: var(--text-main);
 }
 
+.modal-form-grid > label > span,
+.date-picker-label > span:first-child {
+  justify-self: center;
+  text-align: center;
+}
+
 input,
 textarea,
 select {
@@ -1845,6 +1859,10 @@ select:focus {
   position: relative;
   display: grid;
   gap: 8px;
+}
+
+.date-picker-label:focus-within {
+  z-index: 30;
 }
 
 .date-picker-control {
@@ -1909,7 +1927,7 @@ select:focus {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
-  z-index: 20;
+  z-index: 40;
   display: grid;
   gap: 12px;
   width: min(340px, calc(100vw - 48px));

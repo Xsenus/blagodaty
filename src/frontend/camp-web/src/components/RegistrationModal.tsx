@@ -614,6 +614,7 @@ function BirthDatePicker({
           required={required}
           type="text"
           value={textValue}
+          onFocus={() => setIsOpen(true)}
           onChange={(event) => updateTextValue(event.target.value)}
           onBlur={() => setTextValue((current) => formatBirthDateDisplay(parseBirthDateInput(current) ?? value))}
           onKeyDown={(event) => {
@@ -1089,7 +1090,7 @@ export function RegistrationModal({
                         </label>
 
                         <BirthDatePicker
-                          label="Дата рождения основного участника"
+                          label="Дата рождения"
                           value={form.birthDate}
                           eventStartsAtUtc={selectedEvent?.startsAtUtc}
                           required

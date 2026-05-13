@@ -165,7 +165,7 @@ describe('RegistrationModal', () => {
 
     expect(screen.getByLabelText(/^Email$/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^Телефон$/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Дата рождения основного участника/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Дата рождения$/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/^Город$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Церковь$/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/^ФИО$/i)).toBeInTheDocument();
@@ -208,7 +208,7 @@ describe('RegistrationModal', () => {
 
     fireEvent.change(screen.getByLabelText(/^Email$/i), { target: { value: 'ivan@example.com' } });
     fireEvent.change(screen.getByLabelText(/^Телефон$/i), { target: { value: '89991234567' } });
-    fireEvent.change(screen.getByLabelText(/Дата рождения основного участника/i), { target: { value: '1990-01-10' } });
+    fireEvent.change(screen.getByLabelText(/^Дата рождения$/i), { target: { value: '1990-01-10' } });
     fireEvent.change(screen.getByLabelText(/^ФИО$/i), { target: { value: 'Иван Иванов' } });
 
     await user.click(screen.getByRole('button', { name: /Добавить участника/i }));
@@ -258,7 +258,7 @@ describe('RegistrationModal', () => {
 
     await user.type(screen.getByLabelText(/^Email$/i), 'ivan@example.com');
     await user.type(screen.getByLabelText(/^Телефон$/i), '89991234567');
-    await user.type(screen.getByLabelText(/Дата рождения основного участника/i), '1990-01-10');
+    await user.type(screen.getByLabelText(/^Дата рождения$/i), '1990-01-10');
     await user.type(screen.getByLabelText(/^ФИО$/i), 'Иван Иванов');
     await user.type(screen.getByLabelText(/^Телефон доверенного лица$/i), '123');
     await user.click(screen.getByRole('checkbox', { name: /Подтверждаю корректность данных/i }));
@@ -274,7 +274,7 @@ describe('RegistrationModal', () => {
 
     await user.type(screen.getByLabelText(/^Email$/i), 'ivan@example.com');
     await user.type(screen.getByLabelText(/^Телефон$/i), '89991234567');
-    fireEvent.change(screen.getByLabelText(/Дата рождения основного участника/i), { target: { value: '2011-07-16' } });
+    fireEvent.change(screen.getByLabelText(/^Дата рождения$/i), { target: { value: '2011-07-16' } });
     await user.type(screen.getByLabelText(/^ФИО$/i), 'Иван Иванов');
     await user.click(screen.getByRole('checkbox', { name: /Подтверждаю корректность данных/i }));
     await user.click(screen.getByRole('button', { name: /Отправить заявку/i }));
