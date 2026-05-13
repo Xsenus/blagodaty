@@ -39,6 +39,10 @@ const MINIMUM_PARTICIPANT_AGE = 16;
 const ADULT_PARTICIPANT_AGE = 18;
 const PLACE_URL = 'https://2gis.ru/gornoaltaysk/firm/70000001077460445/87.929919%2C50.228723';
 const CAMP_LOCATION_FULL = 'Экоаил, ул. Мира, 7а, село Курай, Кош-Агачский район, Республика Алтай';
+const MONTH_NAMES = Array.from({ length: 12 }, (_, monthIndex) =>
+  new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(new Date(2026, monthIndex, 1)),
+);
+const WEEKDAY_NAMES = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 function createEmptyForm(): SaveRegistrationRequest {
   return {
@@ -219,6 +223,69 @@ function formatMoney(amount?: number | null, currency = 'RUB') {
     currency,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function parseIsoDateParts(value?: string | null) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? '');
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  return { year, month, day, date };
+}
+
+function toIsoDateValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatBirthDateDisplay(value?: string | null) {
+  const parsed = parseIsoDateParts(value);
+  if (!parsed) {
+    return value ?? '';
+  }
+
+  return `${String(parsed.day).padStart(2, '0')}.${String(parsed.month).padStart(2, '0')}.${parsed.year}`;
+}
+
+function parseBirthDateInput(value: string) {
+  const trimmed = value.trim();
+  const isoDate = parseIsoDateParts(trimmed);
+  if (isoDate) {
+    return toIsoDateValue(isoDate.date);
+  }
+
+  const ruMatch = /^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/.exec(trimmed);
+  if (!ruMatch) {
+    return null;
+  }
+
+  const day = Number(ruMatch[1]);
+  const month = Number(ruMatch[2]);
+  const year = Number(ruMatch[3]);
+  const date = new Date(year, month - 1, day);
+
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return null;
+  }
+
+  return toIsoDateValue(date);
+}
+
+function getDefaultBirthViewDate(eventStartsAtUtc?: string | null) {
+  const referenceDate = eventStartsAtUtc ? new Date(eventStartsAtUtc) : new Date();
+  return new Date(referenceDate.getFullYear() - ADULT_PARTICIPANT_AGE, referenceDate.getMonth(), referenceDate.getDate());
 }
 
 function normalizePhone(value?: string | null) {
@@ -450,6 +517,191 @@ function buildInitialForm(selectedEvent: PublicEventDetails | null) {
     ...createEmptyForm(),
     selectedPriceOptionId: getDefaultPriceOptionId(selectedEvent),
   };
+}
+
+function BirthDatePicker({
+  label,
+  value,
+  eventStartsAtUtc,
+  onChange,
+  required,
+}: {
+  label: string;
+  value: string;
+  eventStartsAtUtc?: string | null;
+  onChange: (value: string) => void;
+  required?: boolean;
+}) {
+  const pickerRef = useRef<HTMLLabelElement | null>(null);
+  const selectedDate = parseIsoDateParts(value)?.date ?? null;
+  const [textValue, setTextValue] = useState(() => formatBirthDateDisplay(value));
+  const [isOpen, setIsOpen] = useState(false);
+  const [viewDate, setViewDate] = useState(() => selectedDate ?? getDefaultBirthViewDate(eventStartsAtUtc));
+
+  const currentYear = new Date().getFullYear();
+  const years = useMemo(() => Array.from({ length: 91 }, (_, index) => currentYear - index), [currentYear]);
+  const calendarDays = useMemo(() => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const leadingBlankDays = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+    return [
+      ...Array.from({ length: leadingBlankDays }, () => null),
+      ...Array.from({ length: daysInMonth }, (_, index) => new Date(year, month, index + 1)),
+    ];
+  }, [viewDate]);
+
+  useEffect(() => {
+    setTextValue(formatBirthDateDisplay(value));
+    const nextSelectedDate = parseIsoDateParts(value)?.date;
+    if (nextSelectedDate) {
+      setViewDate(nextSelectedDate);
+    }
+  }, [value]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, [isOpen]);
+
+  function updateTextValue(nextValue: string) {
+    setTextValue(nextValue);
+
+    if (!nextValue.trim()) {
+      onChange('');
+      return;
+    }
+
+    const parsedValue = parseBirthDateInput(nextValue);
+    if (parsedValue) {
+      onChange(parsedValue);
+    }
+  }
+
+  function selectDate(date: Date) {
+    const nextValue = toIsoDateValue(date);
+    onChange(nextValue);
+    setTextValue(formatBirthDateDisplay(nextValue));
+    setViewDate(date);
+    setIsOpen(false);
+  }
+
+  function moveMonth(offset: number) {
+    setViewDate((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
+  }
+
+  return (
+    <label className="date-picker-label" ref={pickerRef}>
+      <span>{label}</span>
+      <span className={`date-picker-control${isOpen ? ' active' : ''}`}>
+        <input
+          aria-label={label}
+          className="date-picker-input"
+          inputMode="numeric"
+          placeholder="дд.мм.гггг"
+          required={required}
+          type="text"
+          value={textValue}
+          onChange={(event) => updateTextValue(event.target.value)}
+          onBlur={() => setTextValue((current) => formatBirthDateDisplay(parseBirthDateInput(current) ?? value))}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              setIsOpen(false);
+            }
+          }}
+        />
+        <button
+          className="date-picker-toggle"
+          type="button"
+          aria-label="Открыть календарь даты рождения"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((current) => !current)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1.5A2.5 2.5 0 0 1 22 6.5v12A2.5 2.5 0 0 1 19.5 21h-15A2.5 2.5 0 0 1 2 18.5v-12A2.5 2.5 0 0 1 4.5 4H6V3a1 1 0 0 1 1-1Zm12.5 8h-15v8.5a.5.5 0 0 0 .5.5h14a.5.5 0 0 0 .5-.5V10ZM5 6a.5.5 0 0 0-.5.5V8h15V6.5A.5.5 0 0 0 19 6H5Z" />
+          </svg>
+        </button>
+
+        {isOpen ? (
+          <span className="date-picker-popover">
+            <span className="date-picker-head">
+              <button type="button" onClick={() => moveMonth(-1)} aria-label="Предыдущий месяц">
+                ‹
+              </button>
+              <span className="date-picker-selects">
+                <select
+                  aria-label="Месяц даты рождения"
+                  value={viewDate.getMonth()}
+                  onChange={(event) => setViewDate((current) => new Date(current.getFullYear(), Number(event.target.value), 1))}
+                >
+                  {MONTH_NAMES.map((monthName, monthIndex) => (
+                    <option key={monthName} value={monthIndex}>
+                      {monthName}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Год даты рождения"
+                  value={viewDate.getFullYear()}
+                  onChange={(event) => setViewDate((current) => new Date(Number(event.target.value), current.getMonth(), 1))}
+                >
+                  {years.map((year) => (
+                    <option key={year} value={year}>
+                      {year}
+                    </option>
+                  ))}
+                </select>
+              </span>
+              <button type="button" onClick={() => moveMonth(1)} aria-label="Следующий месяц">
+                ›
+              </button>
+            </span>
+
+            <span className="date-picker-weekdays">
+              {WEEKDAY_NAMES.map((weekday) => (
+                <span key={weekday}>{weekday}</span>
+              ))}
+            </span>
+
+            <span className="date-picker-grid">
+              {calendarDays.map((date, index) => {
+                if (!date) {
+                  return <span className="date-picker-empty" key={`empty-${index}`} />;
+                }
+
+                const isoValue = toIsoDateValue(date);
+                const isSelected = isoValue === value;
+
+                return (
+                  <button
+                    className={`date-picker-day${isSelected ? ' selected' : ''}`}
+                    type="button"
+                    key={isoValue}
+                    onClick={() => selectDate(date)}
+                    aria-pressed={isSelected}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </span>
+          </span>
+        ) : null}
+      </span>
+    </label>
+  );
 }
 
 export function RegistrationModal({
@@ -836,28 +1088,26 @@ export function RegistrationModal({
                           />
                         </label>
 
-                        <label>
-                          <span>Дата рождения основного участника</span>
-                          <input
-                            type="date"
-                            value={form.birthDate}
-                            onChange={(event) =>
-                              setForm((current) => ({
-                                ...current,
-                                birthDate: event.target.value,
-                                hasChildren:
-                                  isMinorParticipant(event.target.value, selectedEvent?.startsAtUtc) ||
-                                  ensureParticipants(
-                                    current.participants,
-                                    current.fullName,
-                                    event.target.value,
-                                    selectedEvent?.startsAtUtc,
-                                  ).some((participant) => participant.isChild),
-                              }))
-                            }
-                            required
-                          />
-                        </label>
+                        <BirthDatePicker
+                          label="Дата рождения основного участника"
+                          value={form.birthDate}
+                          eventStartsAtUtc={selectedEvent?.startsAtUtc}
+                          required
+                          onChange={(birthDate) =>
+                            setForm((current) => ({
+                              ...current,
+                              birthDate,
+                              hasChildren:
+                                isMinorParticipant(birthDate, selectedEvent?.startsAtUtc) ||
+                                ensureParticipants(
+                                  current.participants,
+                                  current.fullName,
+                                  birthDate,
+                                  selectedEvent?.startsAtUtc,
+                                ).some((participant) => participant.isChild),
+                            }))
+                          }
+                        />
                       </div>
 
                       {form.participants.length > 1 ? (
