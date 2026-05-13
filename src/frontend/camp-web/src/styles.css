@@ -1666,16 +1666,18 @@ img {
 }
 
 .car-choice-group {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
   gap: 10px;
+  align-items: start;
+  justify-content: start;
   margin: 0 0 18px;
   padding: 0;
   border: 0;
 }
 
 .car-choice-group legend {
-  width: 100%;
+  grid-column: 1 / -1;
   margin-bottom: 2px;
   color: var(--text-main);
 }
@@ -1683,8 +1685,10 @@ img {
 .radio-card {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 42px;
+  min-width: 94px;
   padding: 0 14px;
   border: 1px solid rgba(94, 123, 145, 0.18);
   border-radius: 8px;
