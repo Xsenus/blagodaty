@@ -25,6 +25,8 @@ type EditableParticipant = {
   isChild: boolean;
 };
 
+type HelpTopic = 'health' | 'allergy' | 'wishes';
+
 const EMPTY_PARTICIPANT: EditableParticipant = {
   fullName: '',
   phoneNumber: '',
@@ -464,6 +466,7 @@ export function RegistrationModal({
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [validationMode, setValidationMode] = useState(false);
+  const [activeHelpTopic, setActiveHelpTopic] = useState<HelpTopic | null>(null);
   const validationSummaryRef = useRef<HTMLDivElement | null>(null);
 
   const draftStorageKey = useMemo(() => getDraftStorageKey(selectedEvent?.slug ?? selectedEventSlug), [selectedEvent?.slug, selectedEventSlug]);
@@ -506,6 +509,7 @@ export function RegistrationModal({
       setFormError(null);
       setValidationMode(false);
       setCompletedRegistration(null);
+      setActiveHelpTopic(null);
       return;
     }
 
@@ -518,6 +522,7 @@ export function RegistrationModal({
     setFormError(null);
     setValidationMode(false);
     setCompletedRegistration(null);
+    setActiveHelpTopic(null);
   }, [draftStorageKey, isOpen, selectedEvent]);
 
   useEffect(() => {
@@ -559,6 +564,31 @@ export function RegistrationModal({
           ).some((participant) => participant.isChild),
       };
     });
+  }
+
+  function renderHelpButton(topic: HelpTopic, text: string, label: string) {
+    const isActive = activeHelpTopic === topic;
+
+    return (
+      <span className={`field-help-wrap${isActive ? ' active' : ''}`}>
+        <button
+          className="field-help"
+          type="button"
+          aria-label={label}
+          aria-expanded={isActive}
+          aria-controls={`field-help-${topic}`}
+          onClick={(event) => {
+            event.preventDefault();
+            setActiveHelpTopic((current) => (current === topic ? null : topic));
+          }}
+        >
+          ?
+        </button>
+        <span className="field-help-popover" id={`field-help-${topic}`} role="tooltip">
+          {text}
+        </span>
+      </span>
+    );
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -955,14 +985,7 @@ export function RegistrationModal({
                         <label>
                           <span className="label-with-help">
                             Здоровье и ограничения
-                            <button
-                              className="field-help"
-                              type="button"
-                              aria-label="Здоровье и ограничения учитываются при планировании программы лагеря"
-                              title="Учтем при планировании программы лагеря"
-                            >
-                              ?
-                            </button>
+                            {renderHelpButton('health', 'Укажи ограничения по здоровью, нагрузкам, сну или лекарствам. Это поможет команде бережно учитывать программу лагеря.', 'Открыть подсказку про здоровье и ограничения')}
                           </span>
                           <textarea
                             aria-label="Здоровье и ограничения"
@@ -975,14 +998,7 @@ export function RegistrationModal({
                         <label>
                           <span className="label-with-help">
                             Аллергии
-                            <button
-                              className="field-help"
-                              type="button"
-                              aria-label="Аллергии учитываются при планировании питания"
-                              title="Учтем при планировании питания"
-                            >
-                              ?
-                            </button>
+                            {renderHelpButton('allergy', 'Напиши пищевые аллергии, непереносимости и продукты, которые нельзя. Это важно для планирования питания.', 'Открыть подсказку про аллергии')}
                           </span>
                           <textarea
                             aria-label="Аллергии"
@@ -995,14 +1011,7 @@ export function RegistrationModal({
                         <label className="wide-field">
                           <span className="label-with-help">
                             Пожелания
-                            <button
-                              className="field-help"
-                              type="button"
-                              aria-label="В пожеланиях можно указать особые условия и комментарий к заявке"
-                              title="Особые условия и комментарий к заявке"
-                            >
-                              ?
-                            </button>
+                            {renderHelpButton('wishes', 'Здесь можно оставить важный комментарий: пожелания по участию, особые условия, дорога или вопросы к организаторам.', 'Открыть подсказку про пожелания')}
                           </span>
                           <textarea
                             aria-label="Пожелания"
