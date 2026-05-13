@@ -25,6 +25,12 @@ const galleryAssetModules = import.meta.glob('./assets/camp/gallery/*.{jpg,jpeg,
   query: '?url',
   import: 'default',
 }) as Record<string, string>;
+const EXCLUDED_GALLERY_ASSET_IDS = new Set([
+  'altai-lake-01',
+  'altai-lake-02',
+  'altai-mountains-01',
+  'forest-mountains-02',
+]);
 const GALLERY_ASSET_TITLES: Record<string, string> = {
   'altai-lake-01': 'Горное озеро Алтая',
   'altai-lake-02': 'Озеро среди гор',
@@ -98,6 +104,12 @@ const ACTIVITY_GALLERY_IMAGES: PublicEventMediaItem[] = [
 
 const EXTRA_GALLERY_IMAGES: PublicEventMediaItem[] = Object.entries(galleryAssetModules)
   .sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath))
+  .filter(([path]) => {
+    const fileName = path.split('/').pop() ?? 'gallery-image.jpg';
+    const id = fileName.replace(/\.(jpe?g|png|webp)$/i, '');
+
+    return !EXCLUDED_GALLERY_ASSET_IDS.has(id);
+  })
   .map(([path, url]) => {
     const fileName = path.split('/').pop() ?? 'gallery-image.jpg';
     const id = fileName.replace(/\.(jpe?g|png|webp)$/i, '');
