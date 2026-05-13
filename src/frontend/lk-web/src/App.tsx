@@ -9,7 +9,6 @@ import {
   useNavigate,
 } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
-import { campBaseUrl } from './lib/config';
 import {
   getAdminExternalAuthSettings,
   getAdminOverview,
@@ -774,6 +773,38 @@ function ProtectedLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const canOpenAdmin = isAdmin(account?.user.roles);
+  const [isAccountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    setAccountMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isAccountMenuOpen) {
+      return undefined;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) {
+        setAccountMenuOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isAccountMenuOpen]);
 
   if (!isAuthenticated) {
     const nextPath = `${location.pathname}${location.search}`;
@@ -787,8 +818,7 @@ function ProtectedLayout() {
 
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <p className="mini-eyebrow">Blagodaty</p>
-          <h1>LK</h1>
+          <h1>Личный кабинет</h1>
           <p className="sidebar-copy">
             {'\u0426\u0435\u043d\u0442\u0440 \u0434\u043b\u044f \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u043d\u0430 \u043f\u043e\u0435\u0437\u0434\u043a\u0443, \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u043f\u0440\u043e\u0444\u0438\u043b\u044f, \u0440\u0430\u0431\u043e\u0442\u044b \u0441 \u0430\u043d\u043a\u0435\u0442\u043e\u0439 \u0438 \u0434\u0430\u043b\u044c\u043d\u0435\u0439\u0448\u0435\u0439 \u0441\u0432\u044f\u0437\u0438 \u0441 \u043a\u043e\u043c\u0430\u043d\u0434\u043e\u0439 \u043b\u0430\u0433\u0435\u0440\u044f.'}
           </p>
@@ -805,10 +835,6 @@ function ProtectedLayout() {
               <span className="sidebar-link-badge">{account.unreadNotificationsCount}</span>
             ) : null}
           </NavLink>
-          <a href={campBaseUrl} target="_blank" rel="noreferrer">
-            <span className="sidebar-nav-icon">↗</span>
-            <span>{'\u041e\u0442\u043a\u0440\u044b\u0442\u044c camp-\u0441\u0430\u0439\u0442'}</span>
-          </a>
         </nav>
 
         {canOpenAdmin ? (
@@ -836,20 +862,6 @@ function ProtectedLayout() {
           </nav>
         ) : null}
 
-        <div className="sidebar-footer">
-          <p>{account?.user.displayName ?? '\u0423\u0447\u0430\u0441\u0442\u043d\u0438\u043a'}</p>
-          <span className="sidebar-role">{formatRoleList(account?.user.roles)}</span>
-          <button
-            className="ghost-button"
-            type="button"
-            onClick={async () => {
-              await logout();
-              navigate('/login');
-            }}
-          >
-            {'\u0412\u044b\u0439\u0442\u0438'}
-          </button>
-        </div>
       </aside>
 
       <section className="workspace">
@@ -863,10 +875,44 @@ function ProtectedLayout() {
               ◇
               {account?.unreadNotificationsCount ? <span>{account.unreadNotificationsCount}</span> : null}
             </NavLink>
-            <NavLink className="topbar-user" to="/profile">
-              <span>{(account?.user.displayName ?? 'У').slice(0, 1).toUpperCase()}</span>
-              <strong>{account?.user.displayName ?? 'Участник'}</strong>
-            </NavLink>
+            <div className="topbar-account-menu" ref={accountMenuRef}>
+              <button
+                aria-expanded={isAccountMenuOpen}
+                aria-haspopup="menu"
+                className="topbar-user"
+                type="button"
+                onClick={() => setAccountMenuOpen((value) => !value)}
+              >
+                <span>{(account?.user.displayName ?? 'У').slice(0, 1).toUpperCase()}</span>
+                <strong>{account?.user.displayName ?? 'Участник'}</strong>
+                <span className="topbar-user-caret" aria-hidden="true">⌄</span>
+              </button>
+              {isAccountMenuOpen ? (
+                <div className="topbar-user-menu" role="menu">
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      navigate('/profile');
+                    }}
+                  >
+                    Профиль
+                  </button>
+                  <button
+                    role="menuitem"
+                    type="button"
+                    onClick={async () => {
+                      setAccountMenuOpen(false);
+                      await logout();
+                      navigate('/login');
+                    }}
+                  >
+                    Выйти
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
         <Outlet />
