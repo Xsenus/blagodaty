@@ -295,6 +295,7 @@ public sealed class AdminController : ControllerBase
         [FromBody] UpdateRegistrationStatusRequest request)
     {
         var registration = await _dbContext.CampRegistrations
+            .Include(item => item.Participants)
             .Include(item => item.EventEdition)
             .ThenInclude(item => item!.EventSeries)
             .FirstOrDefaultAsync(item => item.Id == registrationId, HttpContext.RequestAborted);
@@ -307,6 +308,15 @@ public sealed class AdminController : ControllerBase
         var previousStatus = registration.Status;
         if (previousStatus != request.Status)
         {
+            if (request.Status == RegistrationStatus.Confirmed)
+            {
+                var capacityError = await ValidateConfirmationCapacityAsync(registration, HttpContext.RequestAborted);
+                if (capacityError is not null)
+                {
+                    return BadRequest(new { message = capacityError });
+                }
+            }
+
             var now = _timeProvider.GetUtcNow().UtcDateTime;
             registration.Status = request.Status;
             registration.UpdatedAtUtc = now;
@@ -359,6 +369,26 @@ public sealed class AdminController : ControllerBase
         return Ok(mappedUser.Single());
     }
 
+    [HttpDelete("registrations/{registrationId:guid}")]
+    public async Task<IActionResult> DeleteRegistration(Guid registrationId)
+    {
+        var registration = await _dbContext.CampRegistrations
+            .FirstOrDefaultAsync(item => item.Id == registrationId, HttpContext.RequestAborted);
+
+        if (registration is null)
+        {
+            return NotFound();
+        }
+
+        var eventEditionId = registration.EventEditionId;
+        _dbContext.CampRegistrations.Remove(registration);
+        await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
+
+        await _googleSheetsSyncService.TrySyncRegistrationEventAsync(eventEditionId, HttpContext.RequestAborted);
+
+        return NoContent();
+    }
+
     private ActionResult<AdminUserDto> BuildIdentityProblem(IdentityResult result)
     {
         foreach (var error in result.Errors)
@@ -378,6 +408,31 @@ public sealed class AdminController : ControllerBase
             AppRoles.Admin => 2,
             _ => 10
         };
+    }
+
+    private async Task<string?> ValidateConfirmationCapacityAsync(CampRegistration registration, CancellationToken cancellationToken)
+    {
+        if (registration.EventEditionId is null || registration.EventEdition?.Capacity is not int capacity)
+        {
+            return null;
+        }
+
+        var occupiedSeats = await _dbContext.CampRegistrations
+            .AsNoTracking()
+            .Where(item =>
+                item.EventEditionId == registration.EventEditionId &&
+                item.Id != registration.Id &&
+                item.Status == RegistrationStatus.Confirmed)
+            .SumAsync(item => item.ParticipantsCount, cancellationToken);
+
+        var requestedSeats = EventRegistrationService.GetParticipantsCount(registration);
+        if (occupiedSeats + requestedSeats <= capacity)
+        {
+            return null;
+        }
+
+        var remainingSeats = Math.Max(capacity - occupiedSeats, 0);
+        return $"Нельзя подтвердить заявку: свободных мест {remainingSeats}, в заявке {requestedSeats}.";
     }
 
     private IQueryable<ApplicationUser> ApplyUserSearch(IQueryable<ApplicationUser> query, string? search)

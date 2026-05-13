@@ -246,8 +246,7 @@ public sealed class EventCatalogService
             .Where(registration =>
                 registration.EventEditionId != null &&
                 ids.Contains(registration.EventEditionId.Value) &&
-                registration.Status != RegistrationStatus.Draft &&
-                registration.Status != RegistrationStatus.Cancelled)
+                registration.Status == RegistrationStatus.Confirmed)
             .GroupBy(registration => registration.EventEditionId!.Value)
             .Select(group => new
             {

@@ -47,9 +47,7 @@ public sealed class AdminEventsController : ControllerBase
                 SubmittedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Submitted),
                 ConfirmedRegistrations = group.Count(registration => registration.Status == RegistrationStatus.Confirmed),
                 OccupiedSpots = group
-                    .Where(registration =>
-                        registration.Status == RegistrationStatus.Submitted ||
-                        registration.Status == RegistrationStatus.Confirmed)
+                    .Where(registration => registration.Status == RegistrationStatus.Confirmed)
                     .Sum(registration => registration.ParticipantsCount)
             })
             .ToListAsync();

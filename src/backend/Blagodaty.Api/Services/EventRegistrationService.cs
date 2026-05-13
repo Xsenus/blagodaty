@@ -445,8 +445,7 @@ public sealed class EventRegistrationService
             .Where(item =>
                 item.EventEditionId != null &&
                 eventEditionIds.Contains(item.EventEditionId.Value) &&
-                item.Status != RegistrationStatus.Draft &&
-                item.Status != RegistrationStatus.Cancelled)
+                item.Status == RegistrationStatus.Confirmed)
             .GroupBy(item => item.EventEditionId!.Value)
             .Select(group => new
             {
@@ -559,7 +558,7 @@ public sealed class EventRegistrationService
 
     public static bool CountsAgainstCapacity(RegistrationStatus status)
     {
-        return status != RegistrationStatus.Draft && status != RegistrationStatus.Cancelled;
+        return status == RegistrationStatus.Confirmed;
     }
 
     private static List<CampRegistrationParticipantDto> BuildParticipantDtos(CampRegistration registration)
