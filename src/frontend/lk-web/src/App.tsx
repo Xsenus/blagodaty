@@ -738,7 +738,7 @@ function getWorkspaceTitle(pathname: string) {
   }
 
   if (pathname.startsWith('/camp-registration')) {
-    return 'Заявки и мероприятия';
+    return 'Заявки';
   }
 
   if (pathname.startsWith('/admin')) {

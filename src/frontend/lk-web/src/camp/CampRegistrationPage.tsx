@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { ApiError, getPublicEvent, getPublicEvents, saveEventRegistration } from '../lib/api';
+import { campBaseUrl } from '../lib/config';
 import { useToast } from '../ui/ToastProvider';
 import { normalizePhone, PhoneVerificationPanel } from '../ui/PhoneVerificationPanel';
 import type {
@@ -210,7 +211,7 @@ function formatStatus(status?: CampRegistration['status'] | null) {
   }
 }
 
-function getEventSwitchNote(
+export function getEventSwitchNote(
   eventItem: PublicEventSummary,
   registration: CurrentAccount['registrations'][number] | null,
 ) {
@@ -257,6 +258,10 @@ function getEventActionLabel(
   }
 
   return eventItem.isRegistrationOpen ? 'Зарегистрироваться' : 'Регистрация закрыта';
+}
+
+function isEventRegistrationAvailable(eventItem: PublicEventSummary) {
+  return eventItem.isRegistrationOpen && (eventItem.remainingCapacity == null || eventItem.remainingCapacity > 0 || eventItem.waitlistEnabled);
 }
 
 function formatProviderLabel(identity: ExternalIdentity) {
@@ -966,84 +971,60 @@ export function CampRegistrationFlowPage() {
   }
 
   function openEventRegistration(eventSlug: string) {
-    setSelectedEventSlug(eventSlug);
-    navigate(
-      {
-        pathname: '/camp-registration',
-        search: buildRegistrationSearch(eventSlug, 'form'),
-      },
-      { replace: true },
-    );
+    const targetUrl = new URL(campBaseUrl || '/', window.location.origin);
+    targetUrl.searchParams.set('event', eventSlug);
+    targetUrl.searchParams.set('register', '1');
+    window.location.assign(targetUrl.toString());
   }
 
   const availablePriceOptions = selectedEvent?.priceOptions.filter((option) => option.isActive) ?? [];
 
   return (
     <div className="page-stack">
-      <header className="page-hero glass-card compact-hero">
-        <div>
-          <p className="mini-eyebrow">Мероприятия и заявки</p>
-          <h2>{selectedEvent?.title || 'Выберите мероприятие'}</h2>
-          <p>
-            {selectedEvent
-              ? `${selectedEvent.shortDescription} ${selectedEvent.location ? `Локация: ${selectedEvent.location}.` : ''}`
-              : 'Сначала выберите нужное событие, затем заполните и сохраните заявку.'}
-          </p>
-        </div>
-
-        <div className="status-badge">
-          <span>Текущий статус</span>
-          <strong>{formatStatus(registration?.status)}</strong>
-        </div>
-      </header>
-
-      <section className="glass-card stack-form" ref={eventSectionRef}>
+      <section className="glass-card stack-form event-selection-panel" ref={eventSectionRef}>
         <div className="section-inline">
           <div>
             <p className="mini-eyebrow">Выбор события</p>
-            <h3>Сезоны, выезды и другие мероприятия</h3>
+            <h3>Доступные мероприятия</h3>
           </div>
-          <p className="form-muted">Можно переключаться между событиями без потери логики регистрации и статусов.</p>
         </div>
 
         <div className="event-switch-grid">
           {events.map((eventItem) => {
             const eventRegistration = registrationsByEventSlug.get(eventItem.slug) ?? null;
+            const isAvailable = isEventRegistrationAvailable(eventItem);
 
             return (
             <article
               key={eventItem.id}
               className={`event-switch-card${selectedEventSlug === eventItem.slug ? ' active' : ''}`}
             >
-              <div className="event-switch-card-head">
-                <span className="mini-eyebrow">{eventItem.seasonLabel || eventItem.seriesTitle}</span>
-                {eventRegistration ? (
-                  <span className={`event-switch-status status-${eventRegistration.status.toLowerCase()}`}>
-                    {formatStatus(eventRegistration.status)}
-                  </span>
-                ) : null}
+              <div className="event-card-season-chip">{eventItem.seasonLabel || eventItem.seriesTitle}</div>
+              <strong className="event-card-title">{eventItem.title}</strong>
+              <div className="event-card-summary-box">
+                <span>Даты</span>
+                <strong>{formatDateRangeCompact(eventItem.startsAtUtc, eventItem.endsAtUtc)}</strong>
               </div>
-              <strong>{eventItem.title}</strong>
-              <span>{formatDateRangeCompact(eventItem.startsAtUtc, eventItem.endsAtUtc)}</span>
-              <span>{eventItem.location || 'Локация уточняется'}</span>
-              <span>
-                {eventItem.priceFromAmount != null
-                  ? `от ${formatMoney(eventItem.priceFromAmount, eventItem.priceCurrency || 'RUB')}`
-                  : 'Цена уточняется'}
-              </span>
-              <p className="event-switch-note">{getEventSwitchNote(eventItem, eventRegistration)}</p>
-              <div className="event-switch-pills">
-                <span>{eventItem.isRegistrationOpen ? 'Регистрация открыта' : 'Регистрация закрыта'}</span>
-                {eventItem.isRegistrationClosingSoon ? <span>Скоро закрывается</span> : null}
-                {eventRegistration ? <span>Участников: {eventRegistration.participantsCount}</span> : null}
+              <div className="event-card-summary-box">
+                <span>Место</span>
+                <strong>{eventItem.location || 'Локация уточняется'}</strong>
               </div>
+              <div className="event-card-summary-box places-box">
+                <span>Мест осталось</span>
+                <strong>{eventItem.remainingCapacity ?? eventItem.capacity ?? 'Без лимита'} {typeof (eventItem.remainingCapacity ?? eventItem.capacity) === 'number' ? 'мест' : ''}</strong>
+              </div>
+              {eventRegistration ? (
+                <span className={`event-switch-status status-${eventRegistration.status.toLowerCase()}`}>
+                  {formatStatus(eventRegistration.status)}
+                </span>
+              ) : null}
               <button
                 className="event-switch-action"
                 type="button"
-                disabled={!eventRegistration && !eventItem.isRegistrationOpen}
+                disabled={!eventRegistration && !isAvailable}
                 onClick={() => openEventRegistration(eventItem.slug)}
               >
-                {getEventActionLabel(eventItem, eventRegistration)}
+                {eventRegistration ? getEventActionLabel(eventItem, eventRegistration) : isAvailable ? 'Зарегистрироваться' : 'Регистрация недоступна'}
               </button>
             </article>
             );
@@ -1055,7 +1036,7 @@ export function CampRegistrationFlowPage() {
         ) : null}
       </section>
 
-      <section className="glass-card stack-form">
+      {selectedEvent ? <section className="glass-card stack-form" hidden>
         {isLoadingEvents || isLoadingRegistration ? (
           <p className="form-muted">Загружаем выбранное мероприятие и вашу текущую заявку...</p>
         ) : selectedEvent ? (
@@ -1540,7 +1521,7 @@ export function CampRegistrationFlowPage() {
         ) : (
           <p className="form-muted">Выберите мероприятие из списка выше, чтобы открыть анкету.</p>
         )}
-      </section>
+      </section> : null}
     </div>
   );
 }
