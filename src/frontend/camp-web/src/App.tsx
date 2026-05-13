@@ -56,35 +56,30 @@ const PLACE_IMAGES: PublicEventMediaItem[] = [
     type: 'Image',
     url: kuraiMountainAltaiImage,
     title: 'Курайская степь и горы',
-    caption: 'Курай, Республика Алтай. Фото: sivakovdenis / Pixabay',
   },
   {
     id: 'kurai-steppe-horses',
     type: 'Image',
     url: kuraiSteppeHorsesImage,
     title: 'Курайская степь',
-    caption: 'Алтайские пастбища у гор. Фото: DariaBelykh / Pixabay',
   },
   {
     id: 'kurai-steppe-grassland',
     type: 'Image',
     url: kuraiSteppeGrasslandImage,
     title: 'Тропа через степь',
-    caption: 'Простор Курайской степи. Фото: DariaBelykh / Pixabay',
   },
   {
     id: 'altai-snow-mountains',
     type: 'Image',
     url: altaiSnowMountainsImage,
     title: 'Снежные вершины Алтая',
-    caption: 'Горный Алтай. Фото: Pixabay',
   },
   {
     id: 'altai-yak-steppe',
     type: 'Image',
     url: altaiYakSteppeImage,
     title: 'Высокогорная степь',
-    caption: 'Окрестности Алтая. Фото: Pixabay',
   },
 ];
 
@@ -94,14 +89,12 @@ const ACTIVITY_GALLERY_IMAGES: PublicEventMediaItem[] = [
     type: 'Image',
     url: altaiRiverChuyaImage,
     title: 'Чуя и горные повороты',
-    caption: 'Окрестности Чуйского тракта. Фото: DariaBelykh / Pixabay',
   },
   {
     id: 'geyser-lake-altai',
     type: 'Image',
     url: geyserLakeAltaiImage,
     title: 'Гейзерное озеро',
-    caption: 'Улаганский район, Республика Алтай. Фото: Ludvig14 / Wikimedia Commons, CC BY-SA 4.0',
   },
 ];
 
