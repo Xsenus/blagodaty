@@ -1290,19 +1290,21 @@ img {
 
 .modal-close {
   position: sticky;
-  top: 24px;
-  left: calc(100% - 48px);
+  top: 18px;
+  right: 0;
+  left: auto;
   display: grid;
   place-items: center;
   width: 42px;
   height: 42px;
-  margin-bottom: 16px;
+  margin-bottom: 28px;
   margin-left: auto;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   color: var(--text-main);
   font-size: 1.6rem;
+  transform: translateY(-14px);
   z-index: 2;
 }
 
@@ -3275,8 +3277,9 @@ input[type="radio"] {
   }
 
   .modal-close {
-    top: 10px;
-    margin-bottom: 12px;
+    top: 14px;
+    margin-bottom: 22px;
+    transform: translateY(-8px);
   }
 
   .modal-metrics-grid,
