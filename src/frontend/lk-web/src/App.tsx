@@ -1899,7 +1899,7 @@ function AdminPage() {
         ? 'registrations'
         : location.pathname.startsWith('/admin/users') || location.pathname.startsWith('/admin/access')
           ? 'users'
-      : 'overview';
+          : 'overview';
 
   useEffect(() => {
     if (!canOpenAdmin || !auth.session) {
@@ -2436,21 +2436,21 @@ function AdminPage() {
           };
 
   return (
-    <div className="page-stack">
-      <header className="page-hero glass-card">
+    <div className="page-stack admin-page">
+      <header className="page-hero glass-card admin-hero">
         <div>
           <p className="mini-eyebrow">{adminHeader.eyebrow}</p>
           <h2>{adminHeader.title}</h2>
           <p>{adminHeader.description}</p>
         </div>
 
-        <div className="status-badge">
+        <div className="status-badge admin-access-badge">
           <span>Ваш доступ</span>
           <strong>{formatRoleList(auth.account?.user.roles)}</strong>
         </div>
       </header>
 
-      <section className="admin-nav-grid">
+      <section className="admin-nav-grid admin-section-nav" aria-label="Разделы администрирования">
         <NavLink to="/admin" end className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
           <p className="mini-eyebrow">{'\u041e\u0431\u0437\u043e\u0440'}</p>
           <h3>{'\u0421\u0432\u043e\u0434\u043a\u0430 \u0438 \u0440\u043e\u043b\u0438'}</h3>
@@ -2491,12 +2491,6 @@ function AdminPage() {
           <p className="mini-eyebrow">{'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0438'}</p>
           <h3>{'\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u0438 \u0438 \u043f\u0440\u0430\u0432\u0430'}</h3>
           <p>{'\u0412\u0441\u0435 \u0430\u043a\u043a\u0430\u0443\u043d\u0442\u044b \u0432 \u043e\u0434\u043d\u043e\u043c \u043c\u0435\u0441\u0442\u0435: \u0440\u043e\u043b\u0438, \u0441\u0442\u0430\u0442\u0443\u0441 \u0437\u0430\u044f\u0432\u043a\u0438, \u043f\u043e\u0441\u043b\u0435\u0434\u043d\u0435\u0435 \u043f\u043e\u0441\u0435\u0449\u0435\u043d\u0438\u0435 \u0438 \u0443\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u0438\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043e\u043c.'}</p>
-        </NavLink>
-
-        <NavLink to="/admin/registrations" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
-          <p className="mini-eyebrow">{'\u0417\u0430\u044f\u0432\u043a\u0438'}</p>
-          <h3>{'\u0410\u043d\u043a\u0435\u0442\u044b \u0438 \u0443\u0447\u0430\u0441\u0442\u0438\u0435'}</h3>
-          <p>{'\u0421\u0442\u0430\u0442\u0443\u0441\u044b \u0430\u043d\u043a\u0435\u0442, \u043f\u043e\u0438\u0441\u043a \u043f\u043e \u0443\u0447\u0430\u0441\u0442\u043d\u0438\u043a\u0430\u043c \u0438 \u0431\u044b\u0441\u0442\u0440\u044b\u0439 \u043e\u0431\u0437\u043e\u0440 \u0442\u043e\u0433\u043e, \u0447\u0442\u043e \u0443\u0436\u0435 \u043e\u0442\u043f\u0440\u0430\u0432\u043b\u0435\u043d\u043e \u0438 \u043f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u043e.'}</p>
         </NavLink>
 
         <NavLink to="/admin/roles" className={({ isActive }) => `glass-card admin-nav-card${isActive ? ' active' : ''}`}>
@@ -3332,7 +3326,7 @@ export default function App() {
         <Route path="/admin/telegram" element={<AdminPage />} />
         <Route path="/admin/backups" element={<AdminPage />} />
         <Route path="/admin/users" element={<AdminPage />} />
-        <Route path="/admin/registrations" element={<AdminPage />} />
+        <Route path="/admin/registrations" element={<Navigate replace to="/admin/events" />} />
         <Route path="/admin/roles" element={<AdminPage />} />
         <Route path="/admin/auth" element={<AdminPage />} />
       </Route>

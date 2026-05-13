@@ -546,6 +546,234 @@ select {
   color: var(--text-main);
 }
 
+.admin-page {
+  --admin-ink: #203247;
+  --admin-muted: #64748b;
+  --admin-line: rgba(35, 52, 74, 0.12);
+  --admin-surface: rgba(255, 255, 255, 0.94);
+  --admin-soft: rgba(245, 248, 250, 0.92);
+  --admin-accent: #2f6f64;
+  --admin-warm: #b87945;
+  gap: 18px;
+}
+
+.admin-page .glass-card {
+  border-color: var(--admin-line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 248, 0.9));
+  box-shadow: 0 18px 46px rgba(35, 52, 74, 0.08);
+}
+
+.admin-hero {
+  position: relative;
+  align-items: stretch;
+  min-height: 0;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.admin-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(47, 111, 100, 0.08), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent);
+  pointer-events: none;
+}
+
+.admin-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-hero h2 {
+  max-width: 920px;
+  color: var(--admin-ink);
+  font-size: clamp(2rem, 3vw, 2.7rem);
+}
+
+.admin-hero p:not(.mini-eyebrow) {
+  max-width: 82ch;
+}
+
+.admin-access-badge {
+  display: grid;
+  align-content: center;
+  min-width: 260px;
+  border: 1px solid rgba(47, 111, 100, 0.16);
+  background: rgba(240, 247, 244, 0.88);
+}
+
+.admin-section-nav {
+  position: sticky;
+  top: 16px;
+  z-index: 8;
+  grid-template-columns: repeat(8, minmax(112px, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--admin-line);
+  border-radius: 24px;
+  background: rgba(250, 252, 250, 0.9);
+  box-shadow: 0 14px 34px rgba(35, 52, 74, 0.08);
+  backdrop-filter: blur(16px);
+}
+
+.admin-section-nav .admin-nav-card {
+  gap: 4px;
+  min-height: 88px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: none;
+}
+
+.admin-section-nav .admin-nav-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(47, 111, 100, 0.2);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.admin-section-nav .admin-nav-card.active {
+  border-color: rgba(47, 111, 100, 0.34);
+  background:
+    linear-gradient(180deg, rgba(239, 248, 244, 0.98), rgba(255, 255, 255, 0.94));
+  box-shadow: inset 0 -3px 0 rgba(47, 111, 100, 0.42);
+}
+
+.admin-section-nav .admin-nav-card .mini-eyebrow {
+  margin-bottom: 0;
+  color: var(--admin-accent);
+  letter-spacing: 0.08em;
+  font-size: 0.66rem;
+}
+
+.admin-section-nav .admin-nav-card h3 {
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-size: 0.98rem;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.admin-section-nav .admin-nav-card p:not(.mini-eyebrow) {
+  display: none;
+}
+
+.admin-page .stack-form {
+  gap: 16px;
+  border-radius: 24px;
+  padding: 22px;
+}
+
+.admin-page .section-inline {
+  align-items: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-page .section-inline .form-muted {
+  max-width: 58ch;
+  margin: 0;
+}
+
+.admin-page .admin-filter-bar {
+  grid-template-columns: minmax(260px, 1.3fr) minmax(200px, 0.7fr) minmax(220px, 0.8fr);
+  padding: 14px;
+  border: 1px solid var(--admin-line);
+  border-radius: 18px;
+  background: var(--admin-soft);
+}
+
+.admin-page .metric-card,
+.admin-page .role-card,
+.admin-page .user-card,
+.admin-page .event-list-card,
+.admin-page .event-collection-item,
+.admin-page .gallery-card {
+  border-radius: 18px;
+  border-color: var(--admin-line);
+  background: var(--admin-surface);
+  box-shadow: 0 10px 26px rgba(35, 52, 74, 0.06);
+}
+
+.admin-page .metric-card {
+  min-height: 138px;
+  padding: 20px;
+}
+
+.admin-page .metric-card strong {
+  color: var(--admin-ink);
+  font-size: 1.35rem;
+}
+
+.admin-page .user-card {
+  gap: 14px;
+}
+
+.admin-page .user-card-head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--admin-line);
+}
+
+.admin-page .user-info-grid div,
+.admin-page .registration-detail-grid div,
+.admin-page .registration-notes-grid div,
+.admin-page .registration-participant-list div {
+  border-color: var(--admin-line);
+  border-radius: 14px;
+  background: var(--admin-soft);
+}
+
+.admin-page .role-pill {
+  min-height: 30px;
+  border-radius: 999px;
+  border-color: rgba(47, 111, 100, 0.16);
+  background: rgba(235, 246, 242, 0.86);
+  color: var(--admin-ink);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.admin-page .muted-pill {
+  border-color: rgba(100, 116, 139, 0.16);
+  background: rgba(241, 245, 249, 0.9);
+  color: var(--admin-muted);
+}
+
+.admin-page .primary-button,
+.admin-page .secondary-button,
+.admin-page .ghost-button {
+  border-radius: 12px;
+}
+
+.admin-page .primary-button {
+  background: linear-gradient(135deg, #2f6f64, #4f8c77);
+  color: #ffffff;
+}
+
+.admin-page .event-admin-layout {
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+}
+
+.admin-page .event-list-column {
+  top: 126px;
+}
+
+.admin-page .event-tab-strip {
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+}
+
+.admin-page .event-tab-button {
+  border-radius: 16px;
+  padding: 13px 14px;
+}
+
+.admin-page .pagination-bar {
+  border-color: var(--admin-line);
+  border-radius: 18px;
+  background: var(--admin-soft);
+}
+
 .admin-shortcut-card {
   text-decoration: none;
 }
@@ -1519,6 +1747,24 @@ select {
     flex-direction: column;
     align-items: stretch;
   }
+
+  .admin-section-nav {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-page .admin-filter-bar,
+  .admin-page .event-admin-layout,
+  .admin-page .event-tab-strip,
+  .admin-page .event-editor-grid,
+  .admin-page .event-inline-grid,
+  .admin-page .event-toggle-row {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-page .event-list-column {
+    position: static;
+  }
 }
 
 .registration-section-grid {
@@ -1670,5 +1916,34 @@ select {
     right: 14px;
     bottom: 14px;
     width: min(360px, calc(100vw - 20px));
+  }
+
+  .admin-hero,
+  .admin-page .section-inline,
+  .admin-page .user-card-head {
+    display: grid;
+  }
+
+  .admin-access-badge {
+    min-width: 0;
+  }
+
+  .admin-section-nav {
+    grid-template-columns: 1fr;
+    padding: 8px;
+    border-radius: 18px;
+  }
+
+  .admin-section-nav .admin-nav-card {
+    min-height: 0;
+    padding: 12px 14px;
+  }
+
+  .admin-page .stack-form {
+    padding: 18px;
+  }
+
+  .admin-page .role-pills {
+    justify-content: flex-start;
   }
 }
