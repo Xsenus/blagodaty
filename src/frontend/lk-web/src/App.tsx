@@ -867,7 +867,6 @@ function ProtectedLayout() {
       <section className="workspace">
         <header className="workspace-topbar">
           <div>
-            <p className="mini-eyebrow">Blagodaty LK</p>
             <strong>{getWorkspaceTitle(location.pathname)}</strong>
           </div>
           <div className="workspace-topbar-actions">
