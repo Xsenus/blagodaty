@@ -45,7 +45,6 @@ import {
   Pagination,
   StatCard,
   StatusBadge,
-  type AdminNavItem,
 } from './components/AdminUi';
 
 type AdminSection =
@@ -72,19 +71,6 @@ const statusLabels: Record<RegistrationStatus, string> = {
   Confirmed: 'Подтверждено',
   Cancelled: 'Отменено',
 };
-
-const adminNavItems: AdminNavItem[] = [
-  { to: '/admin', label: 'Обзор', description: 'Сводка и внимание', group: 'Обзор' },
-  { to: '/admin/registrations', label: 'Заявки', description: 'Участие и статусы', group: 'Участники' },
-  { to: '/admin/users', label: 'Пользователи', description: 'Аккаунты и доступ', group: 'Участники' },
-  { to: '/admin/roles', label: 'Роли', description: 'Состав команды', group: 'Участники' },
-  { to: '/admin/events', label: 'Мероприятия', description: 'Сезоны и тарифы', group: 'Контент' },
-  { to: '/admin/gallery', label: 'Медиатека', description: 'Фото и файлы', group: 'Контент' },
-  { to: '/admin/site', label: 'Сайт', description: 'Ссылки и контакты', group: 'Контент' },
-  { to: '/admin/telegram', label: 'Telegram', description: 'Чаты и уведомления', group: 'Интеграции' },
-  { to: '/admin/auth', label: 'Вход', description: 'Провайдеры auth', group: 'Интеграции' },
-  { to: '/admin/backups', label: 'Бэкапы', description: 'Резервные копии', group: 'Система' },
-];
 
 function isAdmin(roles: string[] | undefined) {
   return Boolean(roles?.includes('Admin'));
@@ -254,11 +240,9 @@ export function AdminWorkspace() {
 
   return (
     <AdminShell
-      activePath={location.pathname}
       accessLabel={auth.account?.user.displayName ?? 'Администратор'}
       description={meta.description}
       eyebrow={meta.eyebrow}
-      items={adminNavItems}
       title={meta.title}
     >
       <AdminContent accessToken={accessToken} section={section} />

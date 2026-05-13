@@ -729,6 +729,26 @@ function rolesEqual(left: string[], right: string[]) {
   return left.length === right.length && left.every((role, index) => role === right[index]);
 }
 
+function getWorkspaceTitle(pathname: string) {
+  if (pathname.startsWith('/profile')) {
+    return 'Профиль';
+  }
+
+  if (pathname.startsWith('/notifications')) {
+    return 'Оповещения';
+  }
+
+  if (pathname.startsWith('/camp-registration')) {
+    return 'Заявки и мероприятия';
+  }
+
+  if (pathname.startsWith('/admin')) {
+    return 'Администрирование';
+  }
+
+  return 'Личный кабинет';
+}
+
 function AppLoader() {
   return (
     <div className="screen-shell center-screen">
@@ -766,29 +786,55 @@ function ProtectedLayout() {
       <div className="orb orb-two" aria-hidden="true" />
 
       <aside className="sidebar">
-        <div>
+        <div className="sidebar-brand">
           <p className="mini-eyebrow">Blagodaty</p>
-          <h1>{'\u041b\u0438\u0447\u043d\u044b\u0439 \u043a\u0430\u0431\u0438\u043d\u0435\u0442'}</h1>
+          <h1>LK</h1>
           <p className="sidebar-copy">
             {'\u0426\u0435\u043d\u0442\u0440 \u0434\u043b\u044f \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0446\u0438\u0438 \u043d\u0430 \u043f\u043e\u0435\u0437\u0434\u043a\u0443, \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u043f\u0440\u043e\u0444\u0438\u043b\u044f, \u0440\u0430\u0431\u043e\u0442\u044b \u0441 \u0430\u043d\u043a\u0435\u0442\u043e\u0439 \u0438 \u0434\u0430\u043b\u044c\u043d\u0435\u0439\u0448\u0435\u0439 \u0441\u0432\u044f\u0437\u0438 \u0441 \u043a\u043e\u043c\u0430\u043d\u0434\u043e\u0439 \u043b\u0430\u0433\u0435\u0440\u044f.'}
           </p>
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/dashboard">{'\u041e\u0431\u0437\u043e\u0440'}</NavLink>
-          <NavLink to="/profile">{'\u041f\u0440\u043e\u0444\u0438\u043b\u044c'}</NavLink>
-          <NavLink to="/camp-registration">{'\u041c\u0435\u0440\u043e\u043f\u0440\u0438\u044f\u0442\u0438\u044f \u0438 \u0437\u0430\u044f\u0432\u043a\u0438'}</NavLink>
-          {canOpenAdmin ? <NavLink to="/admin">{'\u0410\u0434\u043c\u0438\u043d\u0438\u0441\u0442\u0440\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435'}</NavLink> : null}
+          <NavLink to="/dashboard"><span className="sidebar-nav-icon">⌂</span><span>{'\u041e\u0431\u0437\u043e\u0440'}</span></NavLink>
+          <NavLink to="/camp-registration"><span className="sidebar-nav-icon">✦</span><span>{'\u0417\u0430\u044f\u0432\u043a\u0438'}</span></NavLink>
+          <NavLink to="/profile"><span className="sidebar-nav-icon">◉</span><span>{'\u041f\u0440\u043e\u0444\u0438\u043b\u044c'}</span></NavLink>
           <NavLink to="/notifications" className="sidebar-link-with-badge">
+            <span className="sidebar-nav-icon">◇</span>
             <span>{'\u0423\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f'}</span>
             {account?.unreadNotificationsCount ? (
               <span className="sidebar-link-badge">{account.unreadNotificationsCount}</span>
             ) : null}
           </NavLink>
           <a href={campBaseUrl} target="_blank" rel="noreferrer">
-            {'\u041e\u0442\u043a\u0440\u044b\u0442\u044c camp-\u0441\u0430\u0439\u0442'}
+            <span className="sidebar-nav-icon">↗</span>
+            <span>{'\u041e\u0442\u043a\u0440\u044b\u0442\u044c camp-\u0441\u0430\u0439\u0442'}</span>
           </a>
         </nav>
+
+        {canOpenAdmin ? (
+          <nav className="sidebar-admin-nav" aria-label="Администрирование">
+            <p>Администрирование</p>
+            <NavLink to="/admin" end>Обзор</NavLink>
+            <div className="sidebar-admin-group">
+              <span>Участники</span>
+              <NavLink to="/admin/registrations">Заявки</NavLink>
+              <NavLink to="/admin/users">Пользователи</NavLink>
+              <NavLink to="/admin/roles">Роли</NavLink>
+            </div>
+            <div className="sidebar-admin-group">
+              <span>Контент</span>
+              <NavLink to="/admin/events">Мероприятия</NavLink>
+              <NavLink to="/admin/gallery">Медиатека</NavLink>
+              <NavLink to="/admin/site">Сайт</NavLink>
+            </div>
+            <div className="sidebar-admin-group">
+              <span>Интеграции</span>
+              <NavLink to="/admin/telegram">Telegram</NavLink>
+              <NavLink to="/admin/auth">Вход</NavLink>
+              <NavLink to="/admin/backups">Бэкапы</NavLink>
+            </div>
+          </nav>
+        ) : null}
 
         <div className="sidebar-footer">
           <p>{account?.user.displayName ?? '\u0423\u0447\u0430\u0441\u0442\u043d\u0438\u043a'}</p>
@@ -807,6 +853,22 @@ function ProtectedLayout() {
       </aside>
 
       <section className="workspace">
+        <header className="workspace-topbar">
+          <div>
+            <p className="mini-eyebrow">Blagodaty LK</p>
+            <strong>{getWorkspaceTitle(location.pathname)}</strong>
+          </div>
+          <div className="workspace-topbar-actions">
+            <NavLink className="topbar-icon-button" to="/notifications" aria-label="Открыть оповещения">
+              ◇
+              {account?.unreadNotificationsCount ? <span>{account.unreadNotificationsCount}</span> : null}
+            </NavLink>
+            <NavLink className="topbar-user" to="/profile">
+              <span>{(account?.user.displayName ?? 'У').slice(0, 1).toUpperCase()}</span>
+              <strong>{account?.user.displayName ?? 'Участник'}</strong>
+            </NavLink>
+          </div>
+        </header>
         <Outlet />
       </section>
     </div>

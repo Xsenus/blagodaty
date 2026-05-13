@@ -1,5 +1,4 @@
 import { useEffect, type ReactNode } from 'react';
-import { NavLink } from 'react-router-dom';
 
 export type AdminNavItem = {
   to: string;
@@ -12,42 +11,13 @@ type AdminShellProps = {
   title: string;
   description: string;
   eyebrow?: string;
-  items: AdminNavItem[];
-  activePath: string;
   accessLabel: string;
   children: ReactNode;
 };
 
-export function AdminShell({ title, description, eyebrow, items, activePath, accessLabel, children }: AdminShellProps) {
-  const groupedItems = items.reduce<Record<string, AdminNavItem[]>>((accumulator, item) => {
-    accumulator[item.group] = [...(accumulator[item.group] ?? []), item];
-    return accumulator;
-  }, {});
-
+export function AdminShell({ title, description, eyebrow, accessLabel, children }: AdminShellProps) {
   return (
     <div className="admin-shell">
-      <aside className="admin-sidebar" aria-label="Разделы администрирования">
-        <div className="admin-sidebar-brand">
-          <span className="mini-eyebrow">Admin</span>
-          <strong>Blagodaty</strong>
-        </div>
-        {Object.entries(groupedItems).map(([group, groupItems]) => (
-          <div className="admin-nav-group" key={group}>
-            <span>{group}</span>
-            {groupItems.map((item) => (
-              <NavLink
-                className={({ isActive }) => `admin-nav-link${isActive || activePath === item.to ? ' active' : ''}`}
-                end={item.to === '/admin'}
-                key={item.to}
-                to={item.to}
-              >
-                <strong>{item.label}</strong>
-                <small>{item.description}</small>
-              </NavLink>
-            ))}
-          </div>
-        ))}
-      </aside>
       <main className="admin-main">
         <section className="admin-topbar">
           <div>
