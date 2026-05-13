@@ -620,11 +620,74 @@ img {
   outline-offset: 4px;
 }
 
-.media-card-image img {
+.image-crossfade {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: rgba(239, 246, 238, 0.78);
+}
+
+.image-crossfade-layer {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.image-crossfade-previous,
+.image-crossfade-current {
+  position: absolute;
+  inset: 0;
+}
+
+.image-crossfade-current {
+  animation: imageCrossfadeIn 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.image-crossfade-previous {
+  animation: imageCrossfadeOut 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes imageCrossfadeIn {
+  from {
+    opacity: 0;
+    filter: saturate(0.94) contrast(0.98);
+    transform: scale(1.015);
+  }
+
+  to {
+    opacity: 1;
+    filter: saturate(1) contrast(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes imageCrossfadeOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.01);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .image-crossfade-current,
+  .image-crossfade-previous {
+    animation: none;
+  }
+
+  .image-crossfade-previous {
+    display: none;
+  }
+}
+
+.media-card-image .media-card-visual {
   width: 100%;
   aspect-ratio: 4 / 3;
-  object-fit: cover;
-  display: block;
 }
 
 .media-card-copy {
@@ -2432,14 +2495,32 @@ body {
   padding: 28px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(12, 25, 27, 0.12), rgba(12, 25, 27, 0.82)),
-    url("./assets/camp/kurai-steppe-horses.jpg") center / cover;
+  background: #1b2c28;
   box-shadow: var(--shadow-soft);
   color: #f8fbf7;
 }
 
+.place-copy::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(12, 25, 27, 0.12), rgba(12, 25, 27, 0.82));
+  pointer-events: none;
+}
+
+.place-copy-visual {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+
 .place-copy-overlay {
+  position: relative;
+  z-index: 2;
   display: grid;
   gap: 16px;
   max-width: 30rem;
@@ -2492,12 +2573,10 @@ body {
   min-height: 520px;
 }
 
-.place-photos img {
+.place-photos .image-crossfade {
   width: 100%;
   height: 100%;
   min-height: 0;
-  object-fit: cover;
-  display: block;
   border-radius: 8px;
   box-shadow: var(--shadow-soft);
 }
@@ -2510,6 +2589,14 @@ body {
 }
 
 .place-photo-side {
+  object-position: center;
+}
+
+.place-photo-main .image-crossfade-layer {
+  object-position: center 56%;
+}
+
+.place-photo-side .image-crossfade-layer {
   object-position: center;
 }
 
@@ -3003,7 +3090,7 @@ body {
     linear-gradient(180deg, rgba(250, 248, 242, 0.96), rgba(239, 246, 238, 0.9));
 }
 
-.media-card-image img {
+.media-card-image .media-card-visual {
   aspect-ratio: 16 / 11;
 }
 

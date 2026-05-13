@@ -47,8 +47,6 @@ const GALLERY_ASSET_TITLES: Record<string, string> = {
   'mountain-steppe-02': 'Просторная степь',
   'mountain-steppe-03': 'Степной горизонт',
   'mountain-steppe-04': 'Горная степь',
-  'siberia-mountains-01': 'Сибирские хребты',
-  'siberia-mountains-02': 'Северные вершины',
 };
 const PLACE_IMAGES: PublicEventMediaItem[] = [
   {
@@ -191,6 +189,48 @@ type GalleryRotationState = {
   remainingIds: string[];
   sourceKey: string;
 };
+
+type CrossfadeImageProps = {
+  src: string;
+  alt: string;
+  className?: string;
+  loading?: 'eager' | 'lazy';
+  decorative?: boolean;
+};
+
+function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = false }: CrossfadeImageProps) {
+  const [displayedSrc, setDisplayedSrc] = useState(src);
+  const [previousSrc, setPreviousSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (src === displayedSrc) {
+      return;
+    }
+
+    setPreviousSrc(displayedSrc);
+    setDisplayedSrc(src);
+  }, [displayedSrc, src]);
+
+  const imageAlt = decorative ? '' : alt;
+  const wrapperClassName = className ? `image-crossfade ${className}` : 'image-crossfade';
+
+  return (
+    <span className={wrapperClassName} aria-hidden={decorative || undefined}>
+      {previousSrc ? (
+        <img className="image-crossfade-layer image-crossfade-previous" src={previousSrc} alt="" aria-hidden="true" decoding="async" />
+      ) : null}
+      <img
+        className="image-crossfade-layer image-crossfade-current"
+        src={displayedSrc}
+        alt={imageAlt}
+        key={displayedSrc}
+        loading={loading}
+        decoding="async"
+        onAnimationEnd={previousSrc ? () => setPreviousSrc(null) : undefined}
+      />
+    </span>
+  );
+}
 
 function formatDateRange(startsAtUtc?: string | null, endsAtUtc?: string | null) {
   if (!startsAtUtc) {
@@ -914,12 +954,8 @@ export default function App() {
         ) : null}
 
         <section className="place-section container" id="place">
-          <div
-            className="place-copy"
-            style={{
-              backgroundImage: `linear-gradient(180deg, rgba(12, 25, 27, 0.12), rgba(12, 25, 27, 0.82)), url("${placeBackgroundImage}")`,
-            }}
-          >
+          <div className="place-copy">
+            <CrossfadeImage className="place-copy-visual" src={placeBackgroundImage} alt="" loading="eager" decorative />
             <div className="place-copy-overlay">
               <p className="section-kicker">Место</p>
               <h2>
@@ -938,11 +974,11 @@ export default function App() {
 
           <div className="place-photos">
             {placePhotoItems.map((item, index) => (
-              <img
+              <CrossfadeImage
                 className={index === 0 ? 'place-photo-main' : 'place-photo-side'}
                 src={item.url}
                 alt={item.title || 'Экоаил'}
-                key={item.id}
+                key={`place-photo-${index}`}
                 loading={index === 0 ? 'eager' : 'lazy'}
               />
             ))}
@@ -1002,11 +1038,11 @@ export default function App() {
             {imageItems.map((item, index) => (
               <button
                 className="media-card media-card-image"
-                key={item.id}
+                key={`media-card-${index}`}
                 type="button"
                 onClick={() => setSelectedGalleryIndex(index)}
               >
-                <img src={item.url} alt={item.title || selectedEventSummary?.title || 'Фото места'} loading="lazy" />
+                <CrossfadeImage className="media-card-visual" src={item.url} alt={item.title || selectedEventSummary?.title || 'Фото места'} />
                 <div className="media-card-copy">
                   <strong>{item.title || 'Фото'}</strong>
                 </div>
