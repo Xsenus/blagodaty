@@ -248,7 +248,10 @@ describe('RegistrationModal', () => {
         submit: true,
       }),
     );
-    await screen.findByText(/Спасибо, мы получили анкету/i);
+    const successMessage = await screen.findByRole('status');
+    expect(successMessage).toHaveTextContent(/Заявка принята/i);
+    expect(successMessage).toHaveTextContent(/Что дальше/i);
+    expect(screen.getByRole('button', { name: /Понятно/i })).toBeInTheDocument();
     expect(onSubmitted).toHaveBeenCalledWith(expect.objectContaining({ id: 'registration-1' }));
   });
 

@@ -721,6 +721,7 @@ export function RegistrationModal({
   const [validationMode, setValidationMode] = useState(false);
   const [activeHelpTopic, setActiveHelpTopic] = useState<HelpTopic | null>(null);
   const validationSummaryRef = useRef<HTMLDivElement | null>(null);
+  const successAnnouncementRef = useRef<HTMLDivElement | null>(null);
 
   const draftStorageKey = useMemo(() => getDraftStorageKey(selectedEvent?.slug ?? selectedEventSlug), [selectedEvent?.slug, selectedEventSlug]);
   const availablePriceOptions = useMemo(
@@ -792,6 +793,23 @@ export function RegistrationModal({
     }
   }, [validationErrors.length]);
 
+  useEffect(() => {
+    if (!completedRegistration) {
+      return;
+    }
+
+    const successAnnouncement = successAnnouncementRef.current;
+    if (!successAnnouncement) {
+      return;
+    }
+
+    if (typeof successAnnouncement.scrollIntoView === 'function') {
+      successAnnouncement.scrollIntoView({ block: 'start' });
+    }
+
+    successAnnouncement.focus({ preventScroll: true });
+  }, [completedRegistration]);
+
   if (!isOpen) {
     return null;
   }
@@ -799,6 +817,16 @@ export function RegistrationModal({
   const sidebarDateParts = selectedEvent ? formatDateRangeLongParts(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc) : [];
   const sidebarCapacity = selectedEvent ? selectedEvent.remainingCapacity ?? selectedEvent.capacity ?? 'Без лимита' : null;
   const isSidebarCapacityNumber = typeof sidebarCapacity === 'number';
+  const completedPriceOption = completedRegistration
+    ? selectedEvent?.priceOptions.find((option) => option.id === completedRegistration.selectedPriceOptionId)
+    : null;
+  const completedPriceTitle = completedRegistration?.selectedPriceOptionTitle ?? completedPriceOption?.title ?? 'Стандартное участие';
+  const completedPriceText = completedRegistration
+    ? formatMoney(
+        completedRegistration.selectedPriceOptionAmount ?? completedPriceOption?.amount,
+        completedRegistration.selectedPriceOptionCurrency ?? completedPriceOption?.currency ?? 'RUB',
+      )
+    : null;
 
   function updateParticipants(updater: (participants: EditableParticipant[]) => EditableParticipant[]) {
     setForm((current) => {
@@ -871,7 +899,7 @@ export function RegistrationModal({
     <div className="modal-root" aria-hidden={!isOpen}>
       <div className="modal-backdrop" onClick={onClose} />
 
-      <section className="modal-shell" role="dialog" aria-modal="true" aria-labelledby="camp-modal-title">
+      <section className={`modal-shell${completedRegistration ? ' success-mode' : ''}`} role="dialog" aria-modal="true" aria-labelledby="camp-modal-title">
         <aside className="modal-sidebar">
           <div className="modal-sidebar-head">
             <p className="section-kicker">Регистрация</p>
@@ -919,10 +947,19 @@ export function RegistrationModal({
           </button>
 
           {completedRegistration ? (
-            <div className="modal-success-view">
-              <p className="section-kicker">Заявка отправлена</p>
-              <h3>Спасибо, мы получили анкету</h3>
-              <p>Организаторы свяжутся с вами по указанным контактам.</p>
+            <div className="modal-success-view" ref={successAnnouncementRef} role="status" aria-live="polite" tabIndex={-1}>
+              <div className="success-hero">
+                <span className="success-mark" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M9.7 16.8 4.9 12l1.4-1.4 3.4 3.4 8-8 1.4 1.4-9.4 9.4Z" />
+                  </svg>
+                </span>
+                <p className="section-kicker">Заявка отправлена</p>
+                <h3>Заявка принята</h3>
+                <p>
+                  Спасибо, мы получили анкету. Организаторы проверят данные и свяжутся с вами по указанным контактам.
+                </p>
+              </div>
 
               <div className="success-summary-grid">
                 <article>
@@ -934,18 +971,29 @@ export function RegistrationModal({
                   <strong>{completedRegistration.participantsCount}</strong>
                 </article>
                 <article>
-                  <span>Email</span>
-                  <strong>{completedRegistration.contactEmail}</strong>
+                  <span>Контакт</span>
+                  <strong>{completedRegistration.phoneNumber}</strong>
                 </article>
                 <article>
-                  <span>Телефон</span>
-                  <strong>{completedRegistration.phoneNumber}</strong>
+                  <span>{completedPriceTitle}</span>
+                  <strong>{completedPriceText}</strong>
                 </article>
               </div>
 
-              <button className="button button-primary" type="button" onClick={onClose}>
-                Готово
-              </button>
+              <div className="success-next-panel">
+                <strong>Что дальше</strong>
+                <ul className="success-next-list">
+                  <li>Координатор сверит заявку и напишет вам в ближайшее время.</li>
+                  <li>Детали по оплате, дороге и подготовке придут отдельным сообщением.</li>
+                  <li>Проверьте, что телефон и email указаны без ошибок.</li>
+                </ul>
+              </div>
+
+              <div className="success-actions">
+                <button className="button button-primary" type="button" onClick={onClose}>
+                  Понятно
+                </button>
+              </div>
             </div>
           ) : (
             <form className="modal-form-layout" noValidate onSubmit={handleSubmit}>
