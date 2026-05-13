@@ -20,6 +20,36 @@ const altaiSnowMountainsImage = new URL('./assets/camp/altai-snow-mountains.jpg'
 const altaiYakSteppeImage = new URL('./assets/camp/altai-yak-steppe.jpg', import.meta.url).href;
 const altaiRiverChuyaImage = new URL('./assets/camp/altai-river-chuya.jpg', import.meta.url).href;
 const geyserLakeAltaiImage = new URL('./assets/camp/geyser-lake-altai.jpg', import.meta.url).href;
+const galleryAssetModules = import.meta.glob('./assets/camp/gallery/*.{jpg,jpeg,png,webp}', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+}) as Record<string, string>;
+const GALLERY_ASSET_TITLES: Record<string, string> = {
+  'altai-lake-01': 'Горное озеро Алтая',
+  'altai-lake-02': 'Озеро среди гор',
+  'altai-mountains-01': 'Алтайские горы',
+  'altai-mountains-02': 'Горный горизонт',
+  'altai-mountains-03': 'Высокие хребты',
+  'altai-mountains-04': 'Дорога к горам',
+  'altai-river-01': 'Горная река',
+  'altai-river-02': 'Река у хребтов',
+  'chuya-road-01': 'Дорога через горы',
+  'forest-mountains-01': 'Лес и горы',
+  'forest-mountains-02': 'Горная тайга',
+  'mountain-lake-01': 'Тихое горное озеро',
+  'mountain-lake-02': 'Вода и вершины',
+  'mountain-river-01': 'Бирюзовая река',
+  'mountain-river-02': 'Речная долина',
+  'mountain-river-03': 'Повороты горной реки',
+  'mountain-river-04': 'Долина у воды',
+  'mountain-steppe-01': 'Степь у гор',
+  'mountain-steppe-02': 'Просторная степь',
+  'mountain-steppe-03': 'Степной горизонт',
+  'mountain-steppe-04': 'Горная степь',
+  'siberia-mountains-01': 'Сибирские хребты',
+  'siberia-mountains-02': 'Северные вершины',
+};
 const PLACE_IMAGES: PublicEventMediaItem[] = [
   {
     id: 'kurai-mountain-altai',
@@ -75,7 +105,23 @@ const ACTIVITY_GALLERY_IMAGES: PublicEventMediaItem[] = [
   },
 ];
 
+const EXTRA_GALLERY_IMAGES: PublicEventMediaItem[] = Object.entries(galleryAssetModules)
+  .sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath))
+  .map(([path, url]) => {
+    const fileName = path.split('/').pop() ?? 'gallery-image.jpg';
+    const id = fileName.replace(/\.(jpe?g|png|webp)$/i, '');
+
+    return {
+      id: `extra-${id}`,
+      type: 'Image',
+      url,
+      title: GALLERY_ASSET_TITLES[id] ?? 'Горный Алтай',
+    };
+  });
+
 const GALLERY_IMAGE_LIMIT = 6;
+const GALLERY_COLLECTION_LIMIT = 30;
+const GALLERY_ROTATION_INTERVAL_MS = 7000;
 
 const PLACE_REVIEWS = [
   {
@@ -145,6 +191,12 @@ const HISTORY_MODAL_PUSH_FLAG = 'blagodatyCampModalPushed';
 type CampUrlState = {
   eventSlug: string | null;
   isRegistrationOpen: boolean;
+};
+
+type GalleryRotationState = {
+  visibleIds: string[];
+  remainingIds: string[];
+  sourceKey: string;
 };
 
 function formatDateRange(startsAtUtc?: string | null, endsAtUtc?: string | null) {
@@ -288,15 +340,74 @@ function shuffleItems<T>(items: T[]) {
   return next;
 }
 
+function getGallerySourceKey(items: PublicEventMediaItem[]) {
+  return items.map((item) => item.id).join('|');
+}
+
+function createGalleryRotationState(items: PublicEventMediaItem[], previousVisibleIds: string[] = []): GalleryRotationState {
+  const sourceIds = items.map((item) => item.id);
+  const sourceKey = sourceIds.join('|');
+
+  if (sourceIds.length <= GALLERY_IMAGE_LIMIT) {
+    return {
+      visibleIds: sourceIds,
+      remainingIds: [],
+      sourceKey,
+    };
+  }
+
+  const previousVisibleSet = new Set(previousVisibleIds);
+  const shuffledIds = shuffleItems(sourceIds);
+  const orderedIds = [
+    ...shuffledIds.filter((id) => !previousVisibleSet.has(id)),
+    ...shuffledIds.filter((id) => previousVisibleSet.has(id)),
+  ];
+
+  return {
+    visibleIds: orderedIds.slice(0, GALLERY_IMAGE_LIMIT),
+    remainingIds: orderedIds.slice(GALLERY_IMAGE_LIMIT),
+    sourceKey,
+  };
+}
+
+function advanceGalleryRotationState(current: GalleryRotationState, items: PublicEventMediaItem[]) {
+  const sourceKey = getGallerySourceKey(items);
+  const sourceIds = items.map((item) => item.id);
+  const sourceIdSet = new Set(sourceIds);
+
+  if (sourceIds.length <= GALLERY_IMAGE_LIMIT || current.sourceKey !== sourceKey) {
+    return createGalleryRotationState(items, current.visibleIds);
+  }
+
+  const remainingIds = current.remainingIds.filter((id) => sourceIdSet.has(id));
+  if (remainingIds.length >= GALLERY_IMAGE_LIMIT) {
+    return {
+      visibleIds: remainingIds.slice(0, GALLERY_IMAGE_LIMIT),
+      remainingIds: remainingIds.slice(GALLERY_IMAGE_LIMIT),
+      sourceKey,
+    };
+  }
+
+  return createGalleryRotationState(items, current.visibleIds);
+}
+
+function resolveGalleryVisibleItems(state: GalleryRotationState, items: PublicEventMediaItem[]) {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  const visibleItems = state.visibleIds.map((id) => itemById.get(id)).filter((item): item is PublicEventMediaItem => Boolean(item));
+
+  return visibleItems.length ? visibleItems : items.slice(0, GALLERY_IMAGE_LIMIT);
+}
+
 function buildGalleryImages(eventImages: PublicEventMediaItem[]) {
   const sourceImages = [
     ...PLACE_IMAGES,
     ...ACTIVITY_GALLERY_IMAGES,
+    ...EXTRA_GALLERY_IMAGES,
     ...eventImages.filter((item) => ![...PLACE_IMAGES, ...ACTIVITY_GALLERY_IMAGES].some((baseImage) => baseImage.url === item.url)),
   ];
   const uniqueImages = sourceImages.filter((item, index, items) => items.findIndex((candidate) => candidate.url === item.url) === index);
 
-  return shuffleItems(uniqueImages).slice(0, Math.min(GALLERY_IMAGE_LIMIT, uniqueImages.length));
+  return shuffleItems(uniqueImages).slice(0, Math.min(GALLERY_COLLECTION_LIMIT, uniqueImages.length));
 }
 
 function getProgramScheduleCopy(item: PublicEventScheduleItem) {
@@ -433,6 +544,7 @@ export default function App() {
   const [selectedEventSlug, setSelectedEventSlug] = useState<string | null>(() => readCampUrlState().eventSlug);
   const [isModalOpen, setIsModalOpen] = useState(() => readCampUrlState().isRegistrationOpen);
   const [selectedGalleryIndex, setSelectedGalleryIndex] = useState<number | null>(null);
+  const [galleryRotation, setGalleryRotation] = useState<GalleryRotationState>(() => createGalleryRotationState([]));
   const [isBackToTopVisible, setIsBackToTopVisible] = useState(false);
   const [isFloatingRegistrationVisible, setIsFloatingRegistrationVisible] = useState(false);
 
@@ -495,7 +607,9 @@ export default function App() {
   const importantNotices = getTitledBlocks(details, 'ImportantNotice');
   const actualMedia = splitMedia(details?.mediaItems ?? []);
   const eventImages = actualMedia.images.filter((item) => !isLegacyExternalPlaceImage(item.url));
-  const imageItems = useMemo(() => buildGalleryImages(eventImages), [details?.id, details?.mediaItems]);
+  const galleryImages = useMemo(() => buildGalleryImages(eventImages), [details?.id, details?.mediaItems]);
+  const gallerySourceKey = useMemo(() => getGallerySourceKey(galleryImages), [galleryImages]);
+  const imageItems = useMemo(() => resolveGalleryVisibleItems(galleryRotation, galleryImages), [galleryImages, galleryRotation]);
   const videoItems = actualMedia.videos;
   const selectedGalleryImage = selectedGalleryIndex === null ? null : imageItems[selectedGalleryIndex] ?? null;
   const customHeroImage = isLegacyExternalPlaceImage(selectedEventSummary?.primaryImageUrl) ? null : selectedEventSummary?.primaryImageUrl;
@@ -568,6 +682,23 @@ export default function App() {
     void eventsQuery.refetch();
     void selectedEventQuery.refetch();
   }
+
+  useEffect(() => {
+    setGalleryRotation(createGalleryRotationState(galleryImages));
+    setSelectedGalleryIndex(null);
+  }, [galleryImages, gallerySourceKey]);
+
+  useEffect(() => {
+    if (selectedGalleryImage || galleryImages.length <= GALLERY_IMAGE_LIMIT) {
+      return undefined;
+    }
+
+    const galleryTimer = window.setInterval(() => {
+      setGalleryRotation((current) => advanceGalleryRotationState(current, galleryImages));
+    }, GALLERY_ROTATION_INTERVAL_MS);
+
+    return () => window.clearInterval(galleryTimer);
+  }, [galleryImages, selectedGalleryImage]);
 
   function scrollToTop() {
     window.scrollTo({
@@ -859,7 +990,6 @@ export default function App() {
                 <img src={item.url} alt={item.title || selectedEventSummary?.title || 'Фото места'} loading="lazy" />
                 <div className="media-card-copy">
                   <strong>{item.title || 'Фото'}</strong>
-                  {item.caption ? <span>{item.caption}</span> : null}
                 </div>
               </button>
             ))}
@@ -896,7 +1026,6 @@ export default function App() {
                 </button>
                 <div className="photo-viewer-caption">
                   <strong>{selectedGalleryImage.title || 'Фото'}</strong>
-                  {selectedGalleryImage.caption ? <span>{selectedGalleryImage.caption}</span> : null}
                 </div>
               </div>
             </div>
