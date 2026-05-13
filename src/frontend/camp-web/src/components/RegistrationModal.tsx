@@ -184,8 +184,12 @@ function formatDateRangeCompact(startsAtUtc?: string | null, endsAtUtc?: string 
 }
 
 function formatDateRangeLong(startsAtUtc?: string | null, endsAtUtc?: string | null) {
+  return formatDateRangeLongParts(startsAtUtc, endsAtUtc).join(' - ');
+}
+
+function formatDateRangeLongParts(startsAtUtc?: string | null, endsAtUtc?: string | null) {
   if (!startsAtUtc) {
-    return 'Даты уточняются';
+    return ['Даты уточняются'];
   }
 
   const formatter = new Intl.DateTimeFormat('ru-RU', {
@@ -194,9 +198,13 @@ function formatDateRangeLong(startsAtUtc?: string | null, endsAtUtc?: string | n
     year: 'numeric',
   });
 
-  return endsAtUtc
-    ? `${formatter.format(new Date(startsAtUtc))} - ${formatter.format(new Date(endsAtUtc))}`
-    : formatter.format(new Date(startsAtUtc));
+  const starts = formatter.format(new Date(startsAtUtc));
+  if (!endsAtUtc) {
+    return [starts];
+  }
+
+  const ends = formatter.format(new Date(endsAtUtc));
+  return starts === ends ? [starts] : [starts, ends];
 }
 
 function formatMoney(amount?: number | null, currency = 'RUB') {
@@ -530,6 +538,10 @@ export function RegistrationModal({
     return null;
   }
 
+  const sidebarDateParts = selectedEvent ? formatDateRangeLongParts(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc) : [];
+  const sidebarCapacity = selectedEvent ? selectedEvent.remainingCapacity ?? selectedEvent.capacity ?? 'Без лимита' : null;
+  const isSidebarCapacityNumber = typeof sidebarCapacity === 'number';
+
   function updateParticipants(updater: (participants: EditableParticipant[]) => EditableParticipant[]) {
     setForm((current) => {
       const nextParticipants = updater(current.participants);
@@ -586,11 +598,33 @@ export function RegistrationModal({
           {selectedEvent ? (
             <article className="modal-event-summary">
               <span className="summary-chip">{selectedEvent.seasonLabel || selectedEvent.seriesTitle}</span>
-              <strong>{selectedEvent.title}</strong>
+              <strong className="modal-event-title">{selectedEvent.title}</strong>
               <div className="modal-summary-list">
-                <span>{formatDateRangeLong(selectedEvent.startsAtUtc, selectedEvent.endsAtUtc)}</span>
-                <span>{CAMP_LOCATION_FULL}</span>
-                <span>{selectedEvent.remainingCapacity ?? selectedEvent.capacity ?? 'Без лимита'} мест</span>
+                <div className="modal-summary-item">
+                  <span className="modal-summary-label">Даты</span>
+                  <span className="modal-summary-value modal-summary-date-lines">
+                    {sidebarDateParts.map((datePart) => (
+                      <span key={datePart}>{datePart}</span>
+                    ))}
+                  </span>
+                </div>
+
+                <a className="modal-summary-item modal-summary-location" href={PLACE_URL} target="_blank" rel="noreferrer">
+                  <span className="modal-summary-label">Место</span>
+                  <span className="modal-summary-value">
+                    <span>Экоаил, ул. Мира, 7а</span>
+                    <span>село Курай</span>
+                    <span>Кош-Агачский район, Республика Алтай</span>
+                  </span>
+                </a>
+
+                <div className="modal-summary-item modal-summary-capacity">
+                  <span className="modal-summary-label">Мест осталось</span>
+                  <span className="modal-summary-value modal-summary-capacity-value">
+                    <span className="modal-summary-capacity-number">{sidebarCapacity}</span>
+                    {isSidebarCapacityNumber ? <span className="modal-summary-capacity-unit">мест</span> : null}
+                  </span>
+                </div>
               </div>
             </article>
           ) : null}
