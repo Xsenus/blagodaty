@@ -30,6 +30,7 @@ import { AdminBackupsSection } from './admin/AdminBackupsSection';
 import { AdminGallerySection } from './admin/AdminGallerySection';
 import { AdminSiteSettingsSection } from './admin/AdminSiteSettingsSection';
 import { AdminTelegramSection } from './admin/AdminTelegramSection';
+import { AdminWorkspace } from './admin/AdminWorkspace';
 import { CampRegistrationFlowPage } from './camp/CampRegistrationPage';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
@@ -1805,7 +1806,7 @@ function ProfilePage() {
   );
 }
 
-function AdminPage() {
+function LegacyAdminPage() {
   const auth = useAuth();
   const toast = useToast();
   const location = useLocation();
@@ -2814,6 +2815,11 @@ function AdminPage() {
   );
 }
 
+function AdminPage() {
+  void LegacyAdminPage;
+  return <AdminWorkspace />;
+}
+
 export default function App() {
   const { isReady } = useAuth();
 
@@ -2834,6 +2840,7 @@ export default function App() {
         <Route path="/camp-registration" element={<CampRegistrationFlowPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/access" element={<AdminPage />} />
+        <Route path="/admin/registrations" element={<AdminPage />} />
         <Route path="/admin/events" element={<AdminPage />} />
         <Route path="/admin/gallery" element={<AdminPage />} />
         <Route path="/admin/site" element={<AdminPage />} />

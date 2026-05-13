@@ -330,9 +330,22 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<EventEditorTab>('main');
+  const [savedDraft, setSavedDraft] = useState<UpsertAdminEventRequest>(() => createEmptyEventDraft());
+  const [eventSearch, setEventSearch] = useState('');
+  const [eventStatusFilter, setEventStatusFilter] = useState<'all' | EventEditionStatus>('all');
 
   const selectedSummary = currentEventId ? events.find((item) => item.id === currentEventId) ?? null : null;
   const isCreateMode = selectedEventId === 'new' || !currentEventId;
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(savedDraft);
+  const filteredEvents = events.filter((eventItem) => {
+    const search = eventSearch.trim().toLowerCase();
+    const matchesSearch = !search ||
+      eventItem.title.toLowerCase().includes(search) ||
+      eventItem.seriesTitle.toLowerCase().includes(search) ||
+      (eventItem.seasonLabel ?? '').toLowerCase().includes(search);
+    const matchesStatus = eventStatusFilter === 'all' || eventItem.status === eventStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   useEffect(() => {
     if (!isActive || !accessToken) {
@@ -350,7 +363,9 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
     if (selectedEventId === 'new') {
       setCurrentEventId(null);
       setRegistrations([]);
-      setDraft(createEmptyEventDraft());
+      const emptyDraft = createEmptyEventDraft();
+      setDraft(emptyDraft);
+      setSavedDraft(emptyDraft);
       setActiveTab('main');
       return;
     }
@@ -368,7 +383,9 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
         }
 
         setCurrentEventId(loaded.id);
-        setDraft(createDraftFromEvent(loaded));
+        const nextDraft = createDraftFromEvent(loaded);
+        setDraft(nextDraft);
+        setSavedDraft(nextDraft);
         void loadRegistrationsForEvent(loaded.id);
       } catch (loadError) {
         if (cancelled) {
@@ -391,6 +408,20 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
       cancelled = true;
     };
   }, [accessToken, isActive, selectedEventId, toast]);
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
 
   async function loadEvents(preferredEventId?: string) {
     if (!accessToken) {
@@ -618,7 +649,9 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
   function startNewEvent() {
     setSelectedEventId('new');
     setCurrentEventId(null);
-    setDraft(createEmptyEventDraft());
+    const emptyDraft = createEmptyEventDraft();
+    setDraft(emptyDraft);
+    setSavedDraft(emptyDraft);
     setActiveTab('main');
     setMessage(null);
     setError(null);
@@ -693,7 +726,9 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
 
       setCurrentEventId(saved.id);
       setSelectedEventId(saved.id);
-      setDraft(createDraftFromEvent(saved));
+      const nextDraft = createDraftFromEvent(saved);
+      setDraft(nextDraft);
+      setSavedDraft(nextDraft);
       await loadEvents(saved.id);
 
       const successMessage = isCreateMode
@@ -732,6 +767,32 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
           <span className="role-pill muted-pill">{isListLoading ? 'Обновляем...' : 'Список готов'}</span>
         </div>
 
+        <div className="admin-filter-bar compact">
+          <label>
+            <span>Поиск</span>
+            <input
+              value={eventSearch}
+              onChange={(event) => setEventSearch(event.target.value)}
+              placeholder="Название или сезон"
+            />
+          </label>
+
+          <label>
+            <span>Статус</span>
+            <select
+              value={eventStatusFilter}
+              onChange={(event) => setEventStatusFilter(event.target.value as 'all' | EventEditionStatus)}
+            >
+              <option value="all">Все</option>
+              {Object.keys(eventStatusLabels).map((status) => (
+                <option value={status} key={status}>
+                  {formatEventStatus(status as EventEditionStatus)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
         <div className="event-list-stack">
           <button
             className={`event-list-card${selectedEventId === 'new' ? ' active' : ''}`}
@@ -743,7 +804,7 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
             <p>Создать новый выпуск, цены, даты и текстовые блоки.</p>
           </button>
 
-          {events.map((eventItem) => (
+          {filteredEvents.map((eventItem) => (
             <button
               className={`event-list-card${selectedEventId === eventItem.id ? ' active' : ''}`}
               type="button"
@@ -775,10 +836,11 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
       </aside>
 
       <form className="glass-card stack-form event-detail-column" onSubmit={handleSave}>
-        <div className="section-inline">
+        <div className="section-inline admin-sticky-editor-head">
           <div>
             <p className="mini-eyebrow">{isCreateMode ? 'Новый выпуск' : 'Редактор'}</p>
             <h3>{isCreateMode ? 'Карточка мероприятия' : draft.title || 'Карточка мероприятия'}</h3>
+            {isDirty ? <p className="form-muted">Есть несохраненные изменения</p> : null}
           </div>
           <div className="inline-links">
             {!isCreateMode ? (
