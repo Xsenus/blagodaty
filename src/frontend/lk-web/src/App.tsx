@@ -1575,6 +1575,7 @@ function ProfilePage() {
     Boolean(account?.user.phoneNumberConfirmed) &&
     normalizePhone(form.phoneNumber) !== '' &&
     normalizePhone(form.phoneNumber) === normalizePhone(account?.user.phoneNumber ?? '');
+  const enabledExternalAuthProviders = (account?.availableExternalAuthProviders ?? []).filter((provider) => provider.enabled);
 
   useEffect(() => {
     if (!pendingLink) {
@@ -1743,47 +1744,51 @@ function ProfilePage() {
             />
           </label>
 
-          <label>
-            <span>Имя</span>
-            <input
-              value={form.firstName}
-              onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))}
-              required
-            />
-          </label>
+          <div className="profile-field-row profile-field-row-three">
+            <label>
+              <span>Фамилия</span>
+              <input
+                value={form.lastName}
+                onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
+                required
+              />
+            </label>
 
-          <label>
-            <span>Фамилия</span>
-            <input
-              value={form.lastName}
-              onChange={(event) => setForm((current) => ({ ...current, lastName: event.target.value }))}
-              required
-            />
-          </label>
+            <label>
+              <span>Имя</span>
+              <input
+                value={form.firstName}
+                onChange={(event) => setForm((current) => ({ ...current, firstName: event.target.value }))}
+                required
+              />
+            </label>
 
-          <label>
-            <span>Отчество</span>
-            <input
-              value={form.patronymic ?? ''}
-              onChange={(event) => setForm((current) => ({ ...current, patronymic: event.target.value }))}
-            />
-          </label>
+            <label>
+              <span>Отчество</span>
+              <input
+                value={form.patronymic ?? ''}
+                onChange={(event) => setForm((current) => ({ ...current, patronymic: event.target.value }))}
+              />
+            </label>
+          </div>
 
-          <label>
-            <span>Город</span>
-            <input
-              value={form.city}
-              onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-            />
-          </label>
+          <div className="profile-field-row profile-field-row-two">
+            <label>
+              <span>Город</span>
+              <input
+                value={form.city}
+                onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
+              />
+            </label>
 
-          <label>
-            <span>Церковь</span>
-            <input
-              value={form.churchName}
-              onChange={(event) => setForm((current) => ({ ...current, churchName: event.target.value }))}
-            />
-          </label>
+            <label>
+              <span>Церковь</span>
+              <input
+                value={form.churchName}
+                onChange={(event) => setForm((current) => ({ ...current, churchName: event.target.value }))}
+              />
+            </label>
+          </div>
         </section>
 
         <section className="glass-card stack-form profile-panel">
@@ -1810,6 +1815,8 @@ function ProfilePage() {
             </small>
           </label>
 
+          {enabledExternalAuthProviders.length > 0 ? (
+          <>
           <div className="profile-linked-accounts">
             <div>
               <span className="mini-eyebrow">Способы входа</span>
@@ -1822,9 +1829,7 @@ function ProfilePage() {
             </p>
           </div>
 
-          {(account?.availableExternalAuthProviders ?? [])
-            .filter((provider) => provider.enabled)
-            .map((provider) => {
+          {enabledExternalAuthProviders.map((provider) => {
               const identity = findIdentity(account?.externalIdentities, provider.provider);
               const isLinking = linkingProvider === provider.provider;
               const isUnlinking = unlinkingProvider === provider.provider;
@@ -1878,6 +1883,8 @@ function ProfilePage() {
                 </article>
               );
             })}
+          </>
+          ) : null}
 
           {message ? <p className="form-success">{message}</p> : null}
           {error ? <p className="form-error">{error}</p> : null}
