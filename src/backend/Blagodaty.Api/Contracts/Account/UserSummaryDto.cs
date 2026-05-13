@@ -7,6 +7,7 @@ public sealed class UserSummaryDto
     public required string DisplayName { get; init; }
     public required string FirstName { get; init; }
     public required string LastName { get; init; }
+    public string? Patronymic { get; init; }
     public string? City { get; init; }
     public string? ChurchName { get; init; }
     public string? PhoneNumber { get; init; }

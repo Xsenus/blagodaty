@@ -1528,9 +1528,11 @@ function ProfilePage() {
     state: string;
     mode: 'oauth' | 'telegram';
   } | null>(null);
+  const [isPhoneVerificationOpen, setPhoneVerificationOpen] = useState(false);
   const [form, setForm] = useState<UpdateProfileRequest>({
     firstName: '',
     lastName: '',
+    patronymic: '',
     displayName: '',
     phoneNumber: '',
     city: '',
@@ -1545,6 +1547,7 @@ function ProfilePage() {
     setForm({
       firstName: account.user.firstName,
       lastName: account.user.lastName,
+      patronymic: account.user.patronymic ?? '',
       displayName: account.user.displayName,
       phoneNumber: account.user.phoneNumber ?? '',
       city: account.user.city ?? '',
@@ -1611,6 +1614,22 @@ function ProfilePage() {
       window.clearInterval(timer);
     };
   }, [auth, pendingLink]);
+
+  useEffect(() => {
+    if (!isPhoneVerificationOpen) {
+      return undefined;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setPhoneVerificationOpen(false);
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isPhoneVerificationOpen]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1697,16 +1716,17 @@ function ProfilePage() {
 
   return (
     <div className="page-stack">
-      <header className="page-hero glass-card compact-hero">
-        <div>
-          <p className="mini-eyebrow">Профиль</p>
-          <h2>Базовые данные участника</h2>
-          <p>Этот блок станет основой для персональных сценариев кабинета и для работы команды лагеря.</p>
-        </div>
-      </header>
+      <form className="profile-layout" onSubmit={handleSubmit}>
+        <section className="glass-card stack-form profile-panel">
+          <label>
+            <span>Отображаемое имя</span>
+            <input
+              value={form.displayName}
+              onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))}
+              required
+            />
+          </label>
 
-      <form className="glass-card stack-form" onSubmit={handleSubmit}>
-        <div className="form-grid">
           <label>
             <span>Имя</span>
             <input
@@ -1726,25 +1746,11 @@ function ProfilePage() {
           </label>
 
           <label>
-            <span>Отображаемое имя</span>
+            <span>Отчество</span>
             <input
-              value={form.displayName}
-              onChange={(event) => setForm((current) => ({ ...current, displayName: event.target.value }))}
-              required
+              value={form.patronymic ?? ''}
+              onChange={(event) => setForm((current) => ({ ...current, patronymic: event.target.value }))}
             />
-          </label>
-
-          <label>
-            <span>Телефон</span>
-            <input
-              value={form.phoneNumber}
-              onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
-            />
-            <small className={`form-muted${isProfilePhoneConfirmed ? ' form-success-inline' : ''}`}>
-              {isProfilePhoneConfirmed
-                ? 'Номер подтверждён и уже используется для уведомлений.'
-                : 'Если меняете номер, подтвердите его здесь же до отправки заявок.'}
-            </small>
           </label>
 
           <label>
@@ -1762,43 +1768,44 @@ function ProfilePage() {
               onChange={(event) => setForm((current) => ({ ...current, churchName: event.target.value }))}
             />
           </label>
-        </div>
+        </section>
 
-        <PhoneVerificationPanel
-          accessToken={auth.session?.accessToken ?? null}
-          phoneNumber={form.phoneNumber ?? ''}
-          isConfirmed={isProfilePhoneConfirmed}
-          onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
-          onAccountReload={auth.reloadAccount}
-          onVerified={async () => {
-            setMessage('Номер телефона подтверждён.');
-            setError(null);
-            toast.success('Телефон подтверждён', 'Профиль теперь использует подтверждённый номер.');
-          }}
-        />
+        <section className="glass-card stack-form profile-panel">
+          <label>
+            <span>Телефон</span>
+            <div className="profile-phone-row">
+              <input
+                value={form.phoneNumber}
+                onChange={(event) => setForm((current) => ({ ...current, phoneNumber: event.target.value }))}
+              />
+              {!isProfilePhoneConfirmed ? (
+                <button
+                  aria-label="Подтвердить телефон"
+                  className="profile-phone-verify"
+                  type="button"
+                  onClick={() => setPhoneVerificationOpen(true)}
+                >
+                  ✓
+                </button>
+              ) : null}
+            </div>
+            <small className={`form-muted${isProfilePhoneConfirmed ? ' form-success-inline' : ''}`}>
+              {isProfilePhoneConfirmed ? 'Номер подтверждён.' : 'Подтвердите номер через кнопку справа.'}
+            </small>
+          </label>
 
-        {message ? <p className="form-success">{message}</p> : null}
-        {error ? <p className="form-error">{error}</p> : null}
-
-        <button className="primary-button" type="submit" disabled={isSaving}>
-          {isSaving ? 'Сохраняем...' : 'Сохранить профиль'}
-        </button>
-      </form>
-
-      <section className="glass-card stack-form">
-        <div className="section-inline">
-          <div>
-            <p className="mini-eyebrow">Способы входа</p>
-            <h3>Привязанные аккаунты</h3>
+          <div className="profile-linked-accounts">
+            <div>
+              <span className="mini-eyebrow">Способы входа</span>
+              <strong>Привязанные аккаунты</strong>
+            </div>
+            <p className="form-muted">
+              {account?.hasPassword
+                ? 'Email и пароль активны. Дополнительные входы можно подключать здесь.'
+                : 'Не отвязывайте последний доступный способ входа.'}
+            </p>
           </div>
-          <p className="form-muted">
-            {account?.hasPassword
-              ? 'Email и пароль активны. Можно безопасно подключать и отвязывать соцсети.'
-              : 'У вас внешний вход без пароля. Не отвязывайте последний способ входа.'}
-          </p>
-        </div>
 
-        <div className="user-list">
           {(account?.availableExternalAuthProviders ?? [])
             .filter((provider) => provider.enabled)
             .map((provider) => {
@@ -1807,7 +1814,7 @@ function ProfilePage() {
               const isUnlinking = unlinkingProvider === provider.provider;
 
               return (
-                <article className="user-card" key={provider.provider}>
+                <article className="profile-provider-row" key={provider.provider}>
                   <div className="user-card-head">
                     <div>
                       <strong className="user-name">{provider.displayName}</strong>
@@ -1824,25 +1831,6 @@ function ProfilePage() {
                       <span className={`role-pill ${identity ? '' : 'muted-pill'}`}>
                         {identity ? 'Подключен' : 'Не подключен'}
                       </span>
-                    </div>
-                  </div>
-
-                  <div className="user-info-grid">
-                    <div>
-                      <span>Провайдер</span>
-                      <strong>{formatProviderLabel(provider.provider)}</strong>
-                    </div>
-                    <div>
-                      <span>Последнее использование</span>
-                      <strong>{identity?.lastUsedAtUtc ? formatDateTime(identity.lastUsedAtUtc) : 'Пока нет'}</strong>
-                    </div>
-                    <div>
-                      <span>Имя в системе</span>
-                      <strong>{identity?.displayName || 'Еще не подключено'}</strong>
-                    </div>
-                    <div>
-                      <span>Username</span>
-                      <strong>{identity?.providerUsername || '—'}</strong>
                     </div>
                   </div>
 
@@ -1874,8 +1862,48 @@ function ProfilePage() {
                 </article>
               );
             })}
+
+          {message ? <p className="form-success">{message}</p> : null}
+          {error ? <p className="form-error">{error}</p> : null}
+        </section>
+
+        <div className="profile-actions">
+          <button className="primary-button" type="submit" disabled={isSaving}>
+            {isSaving ? 'Сохраняем...' : 'Сохранить профиль'}
+          </button>
         </div>
-      </section>
+      </form>
+
+      {isPhoneVerificationOpen ? (
+        <div className="profile-modal-overlay" role="presentation" onMouseDown={() => setPhoneVerificationOpen(false)}>
+          <section
+            aria-label="Подтверждение телефона"
+            className="profile-modal"
+            role="dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="profile-modal-head">
+              <strong>Подтверждение телефона</strong>
+              <button aria-label="Закрыть" type="button" onClick={() => setPhoneVerificationOpen(false)}>
+                ×
+              </button>
+            </div>
+            <PhoneVerificationPanel
+              accessToken={auth.session?.accessToken ?? null}
+              phoneNumber={form.phoneNumber ?? ''}
+              isConfirmed={isProfilePhoneConfirmed}
+              onPhoneNumberChange={(value) => setForm((current) => ({ ...current, phoneNumber: value }))}
+              onAccountReload={auth.reloadAccount}
+              onVerified={async () => {
+                setMessage('Номер телефона подтверждён.');
+                setError(null);
+                setPhoneVerificationOpen(false);
+                toast.success('Телефон подтверждён', 'Профиль теперь использует подтверждённый номер.');
+              }}
+            />
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

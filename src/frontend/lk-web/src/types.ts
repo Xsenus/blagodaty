@@ -4,6 +4,7 @@ export type UserSummary = {
   displayName: string;
   firstName: string;
   lastName: string;
+  patronymic?: string | null;
   city?: string | null;
   churchName?: string | null;
   phoneNumber?: string | null;
@@ -240,6 +241,7 @@ export type SaveRegistrationRequest = {
 export type UpdateProfileRequest = {
   firstName: string;
   lastName: string;
+  patronymic?: string;
   displayName: string;
   phoneNumber?: string;
   city?: string;
@@ -290,6 +292,7 @@ export type AdminUser = {
   displayName: string;
   firstName: string;
   lastName: string;
+  patronymic?: string | null;
   city?: string | null;
   churchName?: string | null;
   phoneNumber?: string | null;

@@ -10,6 +10,9 @@ public sealed class UpdateProfileRequest
     [Required, MaxLength(80)]
     public string LastName { get; set; } = string.Empty;
 
+    [MaxLength(80)]
+    public string? Patronymic { get; set; }
+
     [Required, MaxLength(120)]
     public string DisplayName { get; set; } = string.Empty;
 

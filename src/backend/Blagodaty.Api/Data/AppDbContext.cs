@@ -43,6 +43,7 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
         {
             entity.Property(x => x.FirstName).HasMaxLength(80);
             entity.Property(x => x.LastName).HasMaxLength(80);
+            entity.Property(x => x.Patronymic).HasMaxLength(80);
             entity.Property(x => x.DisplayName).HasMaxLength(120);
             entity.Property(x => x.City).HasMaxLength(120);
             entity.Property(x => x.ChurchName).HasMaxLength(180);

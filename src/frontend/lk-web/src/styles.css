@@ -2230,10 +2230,19 @@ button:disabled {
     padding: 16px;
   }
 
+  .profile-actions {
+    justify-content: stretch;
+  }
+
+  .profile-actions .primary-button {
+    width: 100%;
+  }
+
   .dashboard-grid,
   .admin-stats-grid,
   .admin-nav-grid,
   .admin-filter-bar,
+  .profile-layout,
   .event-admin-layout,
   .event-tab-strip,
   .form-grid,
@@ -2368,6 +2377,125 @@ button:disabled {
 
 .form-success-inline {
   color: #4f7a5c;
+}
+
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.72fr);
+  gap: 18px;
+}
+
+.profile-panel {
+  align-content: start;
+}
+
+.profile-phone-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  gap: 10px;
+}
+
+.profile-phone-verify {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(216, 154, 104, 0.34);
+  border-radius: 14px;
+  background: rgba(248, 228, 191, 0.82);
+  color: var(--text-main);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-phone-verify:hover,
+.profile-phone-verify:focus-visible {
+  background: rgba(239, 190, 140, 0.7);
+}
+
+.profile-linked-accounts {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.profile-linked-accounts strong {
+  display: block;
+  color: var(--text-main);
+}
+
+.profile-provider-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.profile-provider-row .user-card-head,
+.profile-provider-row .action-row {
+  margin: 0;
+}
+
+.profile-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.profile-actions .primary-button {
+  min-width: 220px;
+}
+
+.profile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(32, 44, 56, 0.22);
+  backdrop-filter: blur(8px);
+}
+
+.profile-modal {
+  display: grid;
+  gap: 16px;
+  width: min(640px, 100%);
+  max-height: min(760px, calc(100vh - 36px));
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(255, 253, 248, 0.98);
+  box-shadow: 0 24px 64px rgba(47, 66, 88, 0.18);
+}
+
+.profile-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.profile-modal-head strong {
+  color: var(--text-main);
+  font-size: 1.08rem;
+}
+
+.profile-modal-head button {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--text-main);
+  cursor: pointer;
 }
 
 .admin-shell {

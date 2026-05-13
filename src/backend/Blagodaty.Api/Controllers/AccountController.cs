@@ -163,6 +163,7 @@ public sealed class AccountController : ControllerBase
 
         user.FirstName = request.FirstName.Trim();
         user.LastName = request.LastName.Trim();
+        user.Patronymic = string.IsNullOrWhiteSpace(request.Patronymic) ? null : request.Patronymic.Trim();
         user.DisplayName = request.DisplayName.Trim();
         var nextPhoneNumber = PhoneNumberHelper.Normalize(request.PhoneNumber);
         if (!string.Equals(user.PhoneNumber, nextPhoneNumber, StringComparison.Ordinal))
