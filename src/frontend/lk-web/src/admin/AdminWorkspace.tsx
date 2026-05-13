@@ -5,10 +5,13 @@ import {
   deleteAdminRegistration,
   getAdminEvents,
   getAdminExternalAuthSettings,
+  getAdminGoogleSheetsSyncSettings,
   getAdminOverview,
+  getAdminTelegramOverview,
   getAdminRegistrations,
   getAdminUsers,
   getExternalAuthStatus,
+  runAdminGoogleSheetsSync,
   getTelegramAuthStatus,
   startAdminExternalAuthProviderTest,
   updateAdminExternalAuthProvider,
@@ -20,9 +23,12 @@ import type {
   AdminEventSummary,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
+  AdminGoogleSheetsSyncSettings,
   AdminOverview,
+  AdminTelegramOverview,
   AdminUser,
   AppRole,
+  EventEditionStatus,
   PaginatedResponse,
   RegistrationStatus,
   UpdateExternalAuthProviderRequest,
@@ -136,6 +142,39 @@ function formatMoney(value?: number | null, currency = 'RUB') {
   }).format(value);
 }
 
+function formatDate(value?: string | null) {
+  if (!value) {
+    return 'Не указано';
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(new Date(value));
+}
+
+function getEventStatusLabel(status: EventEditionStatus) {
+  switch (status) {
+    case 'RegistrationOpen':
+      return 'Регистрация открыта';
+    case 'Published':
+      return 'Опубликовано';
+    case 'Draft':
+      return 'Черновик';
+    case 'RegistrationClosed':
+      return 'Регистрация закрыта';
+    case 'InProgress':
+      return 'Идет сейчас';
+    case 'Completed':
+      return 'Завершено';
+    case 'Archived':
+      return 'Архив';
+    default:
+      return status;
+  }
+}
+
 function createExternalAuthProviderDraft(provider: AdminExternalAuthProvider): UpdateExternalAuthProviderRequest {
   return {
     enabled: provider.enabled,
@@ -219,9 +258,9 @@ function getSectionMeta(section: AdminSection) {
       };
     default:
       return {
-        eyebrow: 'Администрирование',
-        title: 'Рабочая сводка лагеря',
-        description: 'Короткая панель контроля: заявки, участники, мероприятия, интеграции и быстрые действия.',
+        eyebrow: 'Дашборд',
+        title: 'Состояние системы',
+        description: 'Пользователи, заявки, интеграции и заполненность мероприятий.',
       };
   }
 }
@@ -243,6 +282,7 @@ export function AdminWorkspace() {
       accessLabel={auth.account?.user.displayName ?? 'Администратор'}
       description={meta.description}
       eyebrow={meta.eyebrow}
+      hideHeader={section === 'overview'}
       title={meta.title}
     >
       <AdminContent accessToken={accessToken} section={section} />
@@ -276,12 +316,14 @@ function AdminContent({ accessToken, section }: { accessToken: string | null; se
 }
 
 function OverviewSection({ accessToken }: { accessToken: string | null }) {
-  const navigate = useNavigate();
   const toast = useToast();
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [events, setEvents] = useState<AdminEventSummary[]>([]);
   const [authSettings, setAuthSettings] = useState<AdminExternalAuthSettings | null>(null);
+  const [googleSync, setGoogleSync] = useState<AdminGoogleSheetsSyncSettings | null>(null);
+  const [telegramOverview, setTelegramOverview] = useState<AdminTelegramOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncingSheets, setIsSyncingSheets] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -292,15 +334,19 @@ function OverviewSection({ accessToken }: { accessToken: string | null }) {
       setIsLoading(true);
       setError(null);
       try {
-        const [overviewResponse, eventsResponse, authResponse] = await Promise.all([
+        const [overviewResponse, eventsResponse, authResponse, sheetsResponse, telegramResponse] = await Promise.all([
           getAdminOverview(accessToken),
           getAdminEvents(accessToken),
           getAdminExternalAuthSettings(accessToken),
+          getAdminGoogleSheetsSyncSettings(accessToken),
+          getAdminTelegramOverview(accessToken),
         ]);
         if (cancelled) return;
         setOverview(overviewResponse);
         setEvents(eventsResponse.events);
         setAuthSettings(authResponse);
+        setGoogleSync(sheetsResponse);
+        setTelegramOverview(telegramResponse);
       } catch (loadError) {
         const message = loadError instanceof Error ? loadError.message : 'Не удалось загрузить сводку.';
         setError(message);
@@ -324,70 +370,170 @@ function OverviewSection({ accessToken }: { accessToken: string | null }) {
   const nearestClosing = [...events]
     .filter((event) => event.registrationClosesAtUtc)
     .sort((left, right) => new Date(left.registrationClosesAtUtc!).getTime() - new Date(right.registrationClosesAtUtc!).getTime())[0];
+  const readyProviders = authSettings?.providers.filter((provider) => provider.enabled && provider.ready) ?? [];
   const brokenProviders = authSettings?.providers.filter((provider) => provider.enabled && !provider.ready) ?? [];
+  const totalProviders = authSettings?.providers.length ?? 0;
+  const eventReports = [...events].sort((left, right) => {
+    const leftPriority = left.status === 'RegistrationOpen' ? 0 : 1;
+    const rightPriority = right.status === 'RegistrationOpen' ? 0 : 1;
+    return leftPriority - rightPriority || new Date(left.startsAtUtc).getTime() - new Date(right.startsAtUtc).getTime();
+  });
+
+  async function syncSheetsNow() {
+    if (!accessToken || !googleSync?.enabled) {
+      return;
+    }
+
+    setIsSyncingSheets(true);
+    try {
+      const result = await runAdminGoogleSheetsSync(accessToken);
+      setGoogleSync((current) =>
+        current
+          ? {
+              ...current,
+              lastSyncedAtUtc: result.syncedAtUtc ?? new Date().toISOString(),
+              lastError: result.synced ? null : result.message,
+            }
+          : current,
+      );
+      toast.success('Google Sheets обновлены', result.message);
+    } catch (syncError) {
+      const message = syncError instanceof Error ? syncError.message : 'Не удалось запустить синхронизацию.';
+      setGoogleSync((current) => (current ? { ...current, lastError: message } : current));
+      toast.error('Синхронизация не выполнена', message);
+    } finally {
+      setIsSyncingSheets(false);
+    }
+  }
 
   return (
-    <div className="admin-workspace-stack">
-      <section className="admin-kpi-grid">
+    <div className="admin-workspace-stack admin-dashboard">
+      <section className="admin-kpi-grid admin-dashboard-kpis">
         <StatCard label="Пользователи" value={overview.stats.totalUsers} hint="Всего аккаунтов" />
-        <StatCard label="Все заявки" value={overview.stats.totalRegistrations} hint="По активному лагерю" />
+        <StatCard label="Всего заявок" value={overview.stats.totalRegistrations} hint="По всем мероприятиям" />
         <StatCard label="Ждут внимания" value={overview.stats.submittedRegistrations} hint="Статус Отправлено" tone="warning" />
         <StatCard label="Подтверждены" value={overview.stats.confirmedRegistrations} hint="Занимают места" tone="success" />
-        <StatCard label="Открыта регистрация" value={openEvents.length} hint="Активные события" />
-        <StatCard label="Ближайшее закрытие" value={nearestClosing ? formatDateTime(nearestClosing.registrationClosesAtUtc) : 'Нет'} hint={nearestClosing?.title} />
+        <StatCard label="Открытых регистраций" value={openEvents.length} hint="Сейчас принимают заявки" />
+        <StatCard label="Ближайшее закрытие" value={nearestClosing ? formatDateTime(nearestClosing.registrationClosesAtUtc) : 'Нет'} hint={nearestClosing?.title ?? 'Окон регистрации нет'} />
       </section>
 
-      <section className="admin-two-column">
-        <article className="admin-panel">
-          <AdminSectionHeader eyebrow="Фокус" title="Что требует внимания" />
-          <div className="admin-attention-list">
-            <button type="button" onClick={() => navigate('/admin/registrations?status=Submitted')}>
+      <section className="admin-dashboard-grid">
+        <article className="admin-panel admin-dashboard-panel">
+          <AdminSectionHeader eyebrow="Интеграции" title="Синхронизация и каналы" />
+          <div className="admin-integration-grid">
+            <div className="admin-integration-card">
+              <div>
+                <strong>Google Sheets</strong>
+                <StatusBadge
+                  label={!googleSync?.enabled ? 'Выключено' : googleSync.lastError ? 'Ошибка' : googleSync.lastSyncedAtUtc ? 'Синхронизировано' : 'Ожидает запуска'}
+                  tone={!googleSync?.enabled ? 'muted' : googleSync.lastError ? 'danger' : 'success'}
+                />
+              </div>
+              <p>{googleSync?.lastError || (googleSync?.lastSyncedAtUtc ? `Последняя синхронизация: ${formatDateTime(googleSync.lastSyncedAtUtc)}` : 'Быстрая выгрузка заявок в документ Google.')}</p>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={!googleSync?.enabled || isSyncingSheets}
+                onClick={() => void syncSheetsNow()}
+              >
+                {isSyncingSheets ? 'Синхронизируем...' : 'Синхронизировать'}
+              </button>
+            </div>
+
+            <div className="admin-integration-card">
+              <div>
+                <strong>Telegram</strong>
+                <StatusBadge
+                  label={(telegramOverview?.summary.activeChats ?? 0) > 0 ? 'Работает' : 'Нет активных чатов'}
+                  tone={(telegramOverview?.summary.activeChats ?? 0) > 0 ? 'success' : 'warning'}
+                />
+              </div>
+              <p>
+                Активных чатов: {telegramOverview?.summary.activeChats ?? 0}, подписок: {telegramOverview?.summary.totalSubscriptions ?? 0}.
+              </p>
+            </div>
+
+            <div className="admin-integration-card">
+              <div>
+                <strong>Авторизация</strong>
+                <StatusBadge
+                  label={brokenProviders.length ? 'Есть ошибки' : `${readyProviders.length}/${totalProviders} готовы`}
+                  tone={brokenProviders.length ? 'warning' : 'success'}
+                />
+              </div>
+              <p>Google, VK, Yandex и Telegram: состояние входа и диагностика провайдеров.</p>
+              <div className="admin-provider-status-list">
+                {(authSettings?.providers ?? []).map((provider) => (
+                  <span key={provider.provider} className={provider.enabled && provider.ready ? 'is-ok' : provider.enabled ? 'is-warning' : ''}>
+                    {provider.displayName}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article className="admin-panel admin-dashboard-panel">
+          <AdminSectionHeader eyebrow="Фокус" title="Требует внимания" />
+          <div className="admin-health-list">
+            <div>
               <strong>{overview.stats.submittedRegistrations}</strong>
-              <span>отправленных заявок ждут решения</span>
-            </button>
-            <button type="button" onClick={() => navigate('/admin/events')}>
-              <strong>{openEvents.length}</strong>
-              <span>мероприятий сейчас принимают заявки</span>
-            </button>
-            <button type="button" onClick={() => navigate('/admin/auth')}>
+              <span>заявок ожидают решения</span>
+            </div>
+            <div>
               <strong>{brokenProviders.length}</strong>
-              <span>включенных auth-провайдеров требуют настройки</span>
-            </button>
-          </div>
-        </article>
-
-        <article className="admin-panel">
-          <AdminSectionHeader eyebrow="Быстро" title="Действия администратора" />
-          <div className="admin-quick-actions">
-            <button className="primary-button" type="button" onClick={() => navigate('/admin/events')}>
-              Создать мероприятие
-            </button>
-            <button className="secondary-button" type="button" onClick={() => navigate('/admin/registrations')}>
-              Открыть заявки
-            </button>
-            <button className="secondary-button" type="button" onClick={() => navigate('/admin/users')}>
-              Пользователи
-            </button>
-            <button className="secondary-button" type="button" onClick={() => navigate('/admin/gallery')}>
-              Загрузить медиа
-            </button>
-            <button className="secondary-button" type="button" onClick={() => navigate('/admin/backups')}>
-              Создать бэкап
-            </button>
+              <span>auth-провайдеров включены, но не готовы</span>
+            </div>
+            <div>
+              <strong>{googleSync?.lastError ? 1 : 0}</strong>
+              <span>ошибок Google Sheets</span>
+            </div>
+            <div>
+              <strong>{telegramOverview?.summary.recentCommandsCount ?? 0}</strong>
+              <span>последних Telegram-команд</span>
+            </div>
           </div>
         </article>
       </section>
 
-      <section className="admin-panel">
-        <AdminSectionHeader eyebrow="Роли" title="Команда и доступ" description="Краткий срез по текущим ролям." />
-        <div className="admin-role-summary-grid">
-          {overview.roles.map((role) => (
-            <article key={role.id}>
-              <strong>{role.title}</strong>
-              <span>{role.assignedUserCount}</span>
-              <p>{role.description}</p>
-            </article>
-          ))}
+      <section className="admin-panel admin-dashboard-panel">
+        <AdminSectionHeader eyebrow="Мероприятия" title="Отчеты по заполненности и заявкам" />
+        <div className="admin-event-report-list">
+          {eventReports.map((event) => {
+            const occupancyPercent = event.capacity ? Math.min(100, Math.round((event.confirmedRegistrations / event.capacity) * 100)) : null;
+            const otherRegistrations = Math.max(event.registrationsCount - event.submittedRegistrations - event.confirmedRegistrations, 0);
+
+            return (
+              <article className="admin-event-report" key={event.id}>
+                <div className="admin-event-report-head">
+                  <div>
+                    <strong>{event.title}</strong>
+                    <span>{formatDate(event.startsAtUtc)} - {formatDate(event.endsAtUtc)}</span>
+                  </div>
+                  <StatusBadge label={getEventStatusLabel(event.status)} tone={event.status === 'RegistrationOpen' ? 'success' : 'neutral'} />
+                </div>
+
+                <div className="admin-event-report-metrics">
+                  <div><span>Всего</span><strong>{event.registrationsCount}</strong></div>
+                  <div><span>Ждут</span><strong>{event.submittedRegistrations}</strong></div>
+                  <div><span>Подтверждены</span><strong>{event.confirmedRegistrations}</strong></div>
+                  <div><span>Прочие</span><strong>{otherRegistrations}</strong></div>
+                  <div><span>Осталось</span><strong>{event.remainingCapacity ?? 'Без лимита'}</strong></div>
+                </div>
+
+                <div className="admin-event-capacity">
+                  <div>
+                    <span>Заполняемость</span>
+                    <strong>{occupancyPercent == null ? 'Без лимита' : `${occupancyPercent}%`}</strong>
+                  </div>
+                  <div className="admin-event-capacity-track" aria-hidden="true">
+                    <span style={{ width: `${occupancyPercent ?? 0}%` }} />
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {!eventReports.length ? <EmptyState title="Мероприятий пока нет" description="После создания события здесь появится отчет по заявкам и местам." /> : null}
         </div>
       </section>
     </div>

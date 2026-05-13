@@ -3029,6 +3029,180 @@ button:disabled {
   font-size: 1.55rem;
 }
 
+.admin-dashboard {
+  gap: 16px;
+}
+
+.admin-dashboard-kpis {
+  grid-template-columns: repeat(6, minmax(140px, 1fr));
+}
+
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: 16px;
+}
+
+.admin-dashboard-panel {
+  align-content: start;
+}
+
+.admin-integration-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-integration-card,
+.admin-event-report,
+.admin-health-list > div {
+  border: 1px solid var(--admin-line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.admin-integration-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 14px;
+}
+
+.admin-integration-card > div:first-child,
+.admin-event-report-head,
+.admin-event-capacity > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.admin-integration-card strong,
+.admin-event-report strong,
+.admin-health-list strong {
+  color: var(--text-main);
+}
+
+.admin-integration-card p {
+  margin: 0;
+}
+
+.admin-integration-card .secondary-button {
+  justify-self: start;
+  min-height: 36px;
+  border-radius: 12px;
+}
+
+.admin-provider-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-provider-status-list span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--admin-line);
+  background: rgba(238, 240, 237, 0.86);
+  color: var(--admin-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.admin-provider-status-list span.is-ok {
+  border-color: rgba(47, 125, 85, 0.18);
+  background: rgba(231, 246, 236, 0.92);
+  color: #246744;
+}
+
+.admin-provider-status-list span.is-warning {
+  border-color: rgba(221, 163, 71, 0.24);
+  background: rgba(255, 247, 226, 0.96);
+  color: #8a5c12;
+}
+
+.admin-health-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-health-list > div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+}
+
+.admin-health-list strong {
+  font-size: 1.45rem;
+}
+
+.admin-health-list span {
+  color: var(--admin-muted);
+}
+
+.admin-event-report-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-event-report {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+}
+
+.admin-event-report-head span {
+  display: block;
+  margin-top: 3px;
+  color: var(--admin-muted);
+  font-size: 0.88rem;
+}
+
+.admin-event-report-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.admin-event-report-metrics > div {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(247, 250, 246, 0.82);
+}
+
+.admin-event-report-metrics span,
+.admin-event-capacity span {
+  color: var(--admin-muted);
+  font-size: 0.8rem;
+}
+
+.admin-event-capacity {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-event-capacity-track {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(74, 96, 124, 0.1);
+}
+
+.admin-event-capacity-track span {
+  display: block;
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #9ac7a5, #e5ad72);
+}
+
 .admin-status-badge {
   display: inline-flex;
   align-items: center;
@@ -3534,12 +3708,16 @@ button:disabled {
   .admin-topbar,
   .admin-section-heading,
   .admin-two-column,
+  .admin-dashboard-grid,
   .admin-drawer-head,
   .admin-drawer-footer {
     display: grid;
   }
 
   .admin-kpi-grid,
+  .admin-dashboard-kpis,
+  .admin-integration-grid,
+  .admin-event-report-metrics,
   .admin-data-toolbar,
   .admin-role-summary-grid,
   .admin-provider-grid,

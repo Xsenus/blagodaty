@@ -745,6 +745,10 @@ function getWorkspaceTitle(pathname: string) {
   }
 
   if (pathname.startsWith('/admin')) {
+    if (pathname === '/admin' || pathname === '/admin/') {
+      return 'Дашборд';
+    }
+
     return 'Администрирование';
   }
 
@@ -940,7 +944,7 @@ function ProtectedLayout() {
 
         {canOpenAdmin && isAdminMenuOpen ? (
           <nav className="sidebar-admin-nav" aria-label="Администрирование">
-            <NavLink to="/admin" end>Обзор</NavLink>
+            <NavLink to="/admin" end>Дашборд</NavLink>
             <div className="sidebar-admin-group">
               <span>Участники</span>
               <NavLink to="/admin/registrations">Заявки</NavLink>

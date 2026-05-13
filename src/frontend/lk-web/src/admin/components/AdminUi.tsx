@@ -12,13 +12,15 @@ type AdminShellProps = {
   description: string;
   eyebrow?: string;
   accessLabel: string;
+  hideHeader?: boolean;
   children: ReactNode;
 };
 
-export function AdminShell({ title, description, eyebrow, accessLabel, children }: AdminShellProps) {
+export function AdminShell({ title, description, eyebrow, accessLabel, hideHeader = false, children }: AdminShellProps) {
   return (
     <div className="admin-shell">
       <main className="admin-main">
+        {!hideHeader ? (
         <section className="admin-topbar">
           <div>
             <p className="mini-eyebrow">{eyebrow ?? 'Администрирование'}</p>
@@ -30,6 +32,7 @@ export function AdminShell({ title, description, eyebrow, accessLabel, children 
             <strong>{accessLabel}</strong>
           </div>
         </section>
+        ) : null}
         {children}
       </main>
     </div>
