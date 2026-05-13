@@ -538,6 +538,7 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(() => readCampUrlState().isRegistrationOpen);
   const [selectedGalleryIndex, setSelectedGalleryIndex] = useState<number | null>(null);
   const [galleryRotation, setGalleryRotation] = useState<GalleryRotationState>(() => createGalleryRotationState([]));
+  const [placeImageRotation, setPlaceImageRotation] = useState<GalleryRotationState>(() => createGalleryRotationState([]));
   const [isBackToTopVisible, setIsBackToTopVisible] = useState(false);
   const [isFloatingRegistrationVisible, setIsFloatingRegistrationVisible] = useState(false);
 
@@ -603,10 +604,14 @@ export default function App() {
   const galleryImages = useMemo(() => buildGalleryImages(eventImages), [details?.id, details?.mediaItems]);
   const gallerySourceKey = useMemo(() => getGallerySourceKey(galleryImages), [galleryImages]);
   const imageItems = useMemo(() => resolveGalleryVisibleItems(galleryRotation, galleryImages), [galleryImages, galleryRotation]);
+  const placeImageItems = useMemo(() => resolveGalleryVisibleItems(placeImageRotation, galleryImages), [galleryImages, placeImageRotation]);
   const videoItems = actualMedia.videos;
   const selectedGalleryImage = selectedGalleryIndex === null ? null : imageItems[selectedGalleryIndex] ?? null;
   const customHeroImage = isLegacyExternalPlaceImage(selectedEventSummary?.primaryImageUrl) ? null : selectedEventSummary?.primaryImageUrl;
   const heroImage = eventImages[0]?.url || customHeroImage || PLACE_IMAGES[0].url;
+  const placeVisualItems = placeImageItems.length ? placeImageItems : PLACE_IMAGES;
+  const placeBackgroundImage = placeVisualItems[0]?.url || heroImage;
+  const placePhotoItems = placeVisualItems.slice(1, GALLERY_IMAGE_LIMIT);
   const factDateParts = formatDateRangeParts(
     details?.startsAtUtc || selectedEventSummary?.startsAtUtc,
     details?.endsAtUtc || selectedEventSummary?.endsAtUtc,
@@ -682,6 +687,10 @@ export default function App() {
   }, [galleryImages, gallerySourceKey]);
 
   useEffect(() => {
+    setPlaceImageRotation(createGalleryRotationState(galleryImages));
+  }, [galleryImages, gallerySourceKey]);
+
+  useEffect(() => {
     if (selectedGalleryImage || galleryImages.length <= GALLERY_IMAGE_LIMIT) {
       return undefined;
     }
@@ -691,6 +700,18 @@ export default function App() {
     }, GALLERY_ROTATION_INTERVAL_MS);
 
     return () => window.clearInterval(galleryTimer);
+  }, [galleryImages, selectedGalleryImage]);
+
+  useEffect(() => {
+    if (selectedGalleryImage || galleryImages.length <= GALLERY_IMAGE_LIMIT) {
+      return undefined;
+    }
+
+    const placeTimer = window.setInterval(() => {
+      setPlaceImageRotation((current) => advanceGalleryRotationState(current, galleryImages));
+    }, GALLERY_ROTATION_INTERVAL_MS);
+
+    return () => window.clearInterval(placeTimer);
   }, [galleryImages, selectedGalleryImage]);
 
   function scrollToTop() {
@@ -893,7 +914,12 @@ export default function App() {
         ) : null}
 
         <section className="place-section container" id="place">
-          <div className="place-copy">
+          <div
+            className="place-copy"
+            style={{
+              backgroundImage: `linear-gradient(180deg, rgba(12, 25, 27, 0.12), rgba(12, 25, 27, 0.82)), url("${placeBackgroundImage}")`,
+            }}
+          >
             <div className="place-copy-overlay">
               <p className="section-kicker">Место</p>
               <h2>
@@ -911,7 +937,7 @@ export default function App() {
           </div>
 
           <div className="place-photos">
-            {PLACE_IMAGES.map((item, index) => (
+            {placePhotoItems.map((item, index) => (
               <img
                 className={index === 0 ? 'place-photo-main' : 'place-photo-side'}
                 src={item.url}
