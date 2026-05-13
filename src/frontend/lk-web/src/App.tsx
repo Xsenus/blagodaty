@@ -883,7 +883,6 @@ function ProtectedLayout() {
               >
                 <span>{(account?.user.displayName ?? 'У').slice(0, 1).toUpperCase()}</span>
                 <strong>{account?.user.displayName ?? 'Участник'}</strong>
-                <span className="topbar-user-caret" aria-hidden="true">⌄</span>
               </button>
               {isAccountMenuOpen ? (
                 <div className="topbar-user-menu" role="menu">
