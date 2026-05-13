@@ -1881,7 +1881,7 @@ function AdminPage() {
   const [registrationPageSize, setRegistrationPageSize] = useState(20);
   const debouncedUserSearch = useDebouncedValue(userSearch);
   const debouncedRegistrationSearch = useDebouncedValue(registrationSearch);
-  const adminSection = location.pathname.startsWith('/admin/events')
+  const adminSection: string = location.pathname.startsWith('/admin/events')
     ? 'events'
     : location.pathname.startsWith('/admin/gallery')
     ? 'gallery'
@@ -1895,11 +1895,9 @@ function AdminPage() {
     ? 'auth'
     : location.pathname.startsWith('/admin/roles')
       ? 'roles'
-      : location.pathname.startsWith('/admin/registrations')
-        ? 'registrations'
-        : location.pathname.startsWith('/admin/users') || location.pathname.startsWith('/admin/access')
-          ? 'users'
-          : 'overview';
+      : location.pathname.startsWith('/admin/users') || location.pathname.startsWith('/admin/access')
+        ? 'users'
+        : 'overview';
 
   useEffect(() => {
     if (!canOpenAdmin || !auth.session) {
@@ -3326,7 +3324,6 @@ export default function App() {
         <Route path="/admin/telegram" element={<AdminPage />} />
         <Route path="/admin/backups" element={<AdminPage />} />
         <Route path="/admin/users" element={<AdminPage />} />
-        <Route path="/admin/registrations" element={<Navigate replace to="/admin/events" />} />
         <Route path="/admin/roles" element={<AdminPage />} />
         <Route path="/admin/auth" element={<AdminPage />} />
       </Route>
