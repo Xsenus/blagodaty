@@ -774,10 +774,17 @@ function ProtectedLayout() {
   const location = useLocation();
   const canOpenAdmin = isAdmin(account?.user.roles);
   const [isAccountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [isAdminMenuOpen, setAdminMenuOpen] = useState(() => location.pathname.startsWith('/admin'));
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setAccountMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/admin')) {
+      setAdminMenuOpen(true);
+    }
   }, [location.pathname]);
 
   useEffect(() => {
@@ -834,11 +841,21 @@ function ProtectedLayout() {
               <span className="sidebar-link-badge">{account.unreadNotificationsCount}</span>
             ) : null}
           </NavLink>
+          {canOpenAdmin ? (
+            <button
+              className={`sidebar-admin-toggle${location.pathname.startsWith('/admin') ? ' active' : ''}`}
+              type="button"
+              aria-expanded={isAdminMenuOpen}
+              onClick={() => setAdminMenuOpen((value) => !value)}
+            >
+              <span className="sidebar-nav-icon">⌁</span>
+              <span>Администрирование</span>
+            </button>
+          ) : null}
         </nav>
 
-        {canOpenAdmin ? (
+        {canOpenAdmin && isAdminMenuOpen ? (
           <nav className="sidebar-admin-nav" aria-label="Администрирование">
-            <p>Администрирование</p>
             <NavLink to="/admin" end>Обзор</NavLink>
             <div className="sidebar-admin-group">
               <span>Участники</span>

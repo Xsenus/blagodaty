@@ -558,11 +558,13 @@ button:disabled {
   gap: 6px;
 }
 
-.sidebar-nav a {
+.sidebar-nav a,
+.sidebar-admin-toggle {
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
+  width: 100%;
   min-height: 40px;
   padding: 9px 11px;
   border-radius: var(--radius-md);
@@ -570,6 +572,8 @@ button:disabled {
   border: 1px solid transparent;
   background: transparent;
   font-weight: 700;
+  text-align: left;
+  cursor: pointer;
 }
 
 .sidebar-nav-icon {
@@ -602,7 +606,9 @@ button:disabled {
   font-weight: 700;
 }
 
-.sidebar-nav a.active {
+.sidebar-nav a.active,
+.sidebar-admin-toggle.active,
+.sidebar-admin-toggle:hover {
   background: rgba(248, 228, 191, 0.78);
   border-color: rgba(216, 154, 104, 0.26);
   color: #294057;
@@ -610,16 +616,17 @@ button:disabled {
 
 .sidebar-admin-nav {
   display: grid;
-  gap: 7px;
-  max-height: min(48vh, 440px);
-  padding: 12px;
-  border: 1px solid rgba(184, 160, 132, 0.16);
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.38);
+  align-content: start;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  margin-top: -8px;
+  padding: 0 0 6px 34px;
+  border-left: 1px solid rgba(184, 160, 132, 0.22);
+  background: transparent;
   overflow: auto;
 }
 
-.sidebar-admin-nav p,
 .sidebar-admin-group > span {
   margin: 0;
   color: var(--text-accent);
@@ -632,13 +639,13 @@ button:disabled {
 .sidebar-admin-group {
   display: grid;
   gap: 4px;
-  padding-top: 6px;
+  padding-top: 8px;
 }
 
 .sidebar-admin-nav a {
   display: flex;
   align-items: center;
-  min-height: 30px;
+  min-height: 32px;
   padding: 6px 8px;
   border-radius: 10px;
   color: var(--text-main);
@@ -2197,14 +2204,21 @@ button:disabled {
     min-width: max-content;
   }
 
+  .sidebar-admin-toggle {
+    min-width: max-content;
+  }
+
   .sidebar-admin-nav {
     display: flex;
     gap: 10px;
+    flex: 0 0 auto;
+    margin-top: 0;
+    padding: 0;
+    border-left: 0;
     max-height: none;
     overflow-x: auto;
   }
 
-  .sidebar-admin-nav p,
   .sidebar-admin-group > span {
     align-self: center;
     min-width: max-content;
