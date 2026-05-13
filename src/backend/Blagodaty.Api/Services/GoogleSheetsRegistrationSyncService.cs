@@ -178,6 +178,14 @@ public sealed class GoogleSheetsRegistrationSyncService
         var values = BuildRows(eventItem, registrations, paymentRows);
         await ClearSheetAsync(settings.SpreadsheetId!, sheetName, accessToken, cancellationToken);
         await UpdateSheetAsync(settings.SpreadsheetId!, sheetName, accessToken, values, cancellationToken);
+        await ApplySheetFormattingAsync(
+            settings.SpreadsheetId!,
+            sheetName,
+            accessToken,
+            values,
+            registrations,
+            paymentRows,
+            cancellationToken);
 
         settings = settings with
         {
@@ -185,7 +193,7 @@ public sealed class GoogleSheetsRegistrationSyncService
             LastError = null
         };
         await SaveSettingsAsync(settings, cancellationToken);
-        return Math.Max(values.Count - 1, 0);
+        return Math.Max(values.Count - 3, 0);
     }
 
     private static List<IReadOnlyList<object>> BuildRows(
@@ -204,7 +212,16 @@ public sealed class GoogleSheetsRegistrationSyncService
                 "Обновлено UTC",
                 DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
             },
-            Array.Empty<object>(),
+            new object[]
+            {
+                "Легенда",
+                "Подтверждено - зеленый",
+                "Отправлено - желтый",
+                "Отменено - серый",
+                "Оплачено - зеленый блок оплаты",
+                "Частично - желтый блок оплаты",
+                "Нет оплаты - красный блок оплаты"
+            },
             new object[]
             {
                 "№",
@@ -224,7 +241,7 @@ public sealed class GoogleSheetsRegistrationSyncService
                 "Размещение",
                 "Здоровье / аллергии",
                 "Пожелания",
-                "Оплатил",
+                "Кто оплатил",
                 "Сумма внесена",
                 "Дата оплаты",
                 "Остаток",
@@ -332,7 +349,11 @@ public sealed class GoogleSheetsRegistrationSyncService
             return new Dictionary<string, PaymentColumns>();
         }
 
-        var payerIndex = headers.TryGetValue("Оплатил", out var foundPayerIndex) ? foundPayerIndex : -1;
+        var payerIndex = headers.TryGetValue("Кто оплатил", out var foundPayerIndex)
+            ? foundPayerIndex
+            : headers.TryGetValue("Оплатил", out var legacyPayerIndex)
+                ? legacyPayerIndex
+                : -1;
         var amountPaidIndex = headers.TryGetValue("Сумма внесена", out var foundAmountPaidIndex) ? foundAmountPaidIndex : -1;
         var paidAtIndex = headers.TryGetValue("Дата оплаты", out var foundPaidAtIndex) ? foundPaidAtIndex : -1;
         var balanceIndex = headers.TryGetValue("Остаток", out var foundBalanceIndex) ? foundBalanceIndex : -1;
@@ -387,6 +408,233 @@ public sealed class GoogleSheetsRegistrationSyncService
         using var request = new HttpRequestMessage(
             HttpMethod.Put,
             $"https://sheets.googleapis.com/v4/spreadsheets/{Uri.EscapeDataString(spreadsheetId)}/values/{Uri.EscapeDataString(ToSheetRange(sheetName, "A1"))}?valueInputOption=RAW");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureGoogleSuccessAsync(response, cancellationToken);
+    }
+
+    private async Task ApplySheetFormattingAsync(
+        string spreadsheetId,
+        string sheetName,
+        string accessToken,
+        IReadOnlyCollection<IReadOnlyList<object>> values,
+        IReadOnlyList<CampRegistration> registrations,
+        IReadOnlyDictionary<string, PaymentColumns> paymentRows,
+        CancellationToken cancellationToken)
+    {
+        var sheetId = await GetSheetIdAsync(spreadsheetId, sheetName, accessToken, cancellationToken);
+        if (sheetId is null)
+        {
+            return;
+        }
+
+        const int columnsCount = 23;
+        var rowCount = Math.Max(values.Count, 4);
+        var requests = new List<object>
+        {
+            new
+            {
+                updateSheetProperties = new
+                {
+                    properties = new
+                    {
+                        sheetId,
+                        gridProperties = new
+                        {
+                            frozenRowCount = 3,
+                            frozenColumnCount = 3
+                        }
+                    },
+                    fields = "gridProperties.frozenRowCount,gridProperties.frozenColumnCount"
+                }
+            },
+            new
+            {
+                repeatCell = new
+                {
+                    range = GridRange(sheetId.Value, 0, 2, 0, columnsCount),
+                    cell = new
+                    {
+                        userEnteredFormat = new
+                        {
+                            backgroundColor = Rgb(0.93f, 0.96f, 0.92f),
+                            textFormat = new { bold = true },
+                            verticalAlignment = "MIDDLE"
+                        }
+                    },
+                    fields = "userEnteredFormat(backgroundColor,textFormat,verticalAlignment)"
+                }
+            },
+            new
+            {
+                repeatCell = new
+                {
+                    range = GridRange(sheetId.Value, 2, 3, 0, columnsCount),
+                    cell = new
+                    {
+                        userEnteredFormat = new
+                        {
+                            backgroundColor = Rgb(0.13f, 0.22f, 0.32f),
+                            horizontalAlignment = "CENTER",
+                            verticalAlignment = "MIDDLE",
+                            wrapStrategy = "WRAP",
+                            textFormat = new
+                            {
+                                foregroundColor = Rgb(1f, 1f, 1f),
+                                bold = true
+                            }
+                        }
+                    },
+                    fields = "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)"
+                }
+            },
+            new
+            {
+                repeatCell = new
+                {
+                    range = GridRange(sheetId.Value, 3, rowCount, 0, columnsCount),
+                    cell = new
+                    {
+                        userEnteredFormat = new
+                        {
+                            verticalAlignment = "MIDDLE",
+                            wrapStrategy = "WRAP"
+                        }
+                    },
+                    fields = "userEnteredFormat(verticalAlignment,wrapStrategy)"
+                }
+            },
+            new
+            {
+                repeatCell = new
+                {
+                    range = GridRange(sheetId.Value, 3, rowCount, 13, 14),
+                    cell = new
+                    {
+                        userEnteredFormat = new
+                        {
+                            numberFormat = new
+                            {
+                                type = "NUMBER",
+                                pattern = "#,##0"
+                            }
+                        }
+                    },
+                    fields = "userEnteredFormat.numberFormat"
+                }
+            },
+            new
+            {
+                repeatCell = new
+                {
+                    range = GridRange(sheetId.Value, 3, rowCount, 18, 21),
+                    cell = new
+                    {
+                        userEnteredFormat = new
+                        {
+                            numberFormat = new
+                            {
+                                type = "NUMBER",
+                                pattern = "#,##0"
+                            }
+                        }
+                    },
+                    fields = "userEnteredFormat.numberFormat"
+                }
+            },
+            new
+            {
+                setBasicFilter = new
+                {
+                    filter = new
+                    {
+                        range = GridRange(sheetId.Value, 2, rowCount, 0, columnsCount)
+                    }
+                }
+            },
+            new
+            {
+                autoResizeDimensions = new
+                {
+                    dimensions = new
+                    {
+                        sheetId,
+                        dimension = "COLUMNS",
+                        startIndex = 0,
+                        endIndex = columnsCount
+                    }
+                }
+            },
+            BuildSetColumnWidthRequest(sheetId.Value, 1, 2, 130),
+            BuildSetColumnWidthRequest(sheetId.Value, 3, 6, 150),
+            BuildSetColumnWidthRequest(sheetId.Value, 9, 12, 150),
+            BuildSetColumnWidthRequest(sheetId.Value, 12, 15, 130),
+            BuildSetColumnWidthRequest(sheetId.Value, 15, 17, 260),
+            BuildSetColumnWidthRequest(sheetId.Value, 17, 22, 140),
+            BuildSetColumnWidthRequest(sheetId.Value, 22, 23, 150)
+        };
+
+        AddDataRowFormattingRequests(requests, sheetId.Value, registrations, paymentRows);
+        await BatchUpdateSheetAsync(spreadsheetId, accessToken, requests, cancellationToken);
+    }
+
+    private async Task<int?> GetSheetIdAsync(
+        string spreadsheetId,
+        string sheetName,
+        string accessToken,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"https://sheets.googleapis.com/v4/spreadsheets/{Uri.EscapeDataString(spreadsheetId)}?fields=sheets(properties(sheetId,title))");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await _httpClient.SendAsync(request, cancellationToken);
+        await EnsureGoogleSuccessAsync(response, cancellationToken);
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken);
+        using var document = JsonDocument.Parse(body);
+        if (!document.RootElement.TryGetProperty("sheets", out var sheetsElement) ||
+            sheetsElement.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        foreach (var sheetElement in sheetsElement.EnumerateArray())
+        {
+            if (!sheetElement.TryGetProperty("properties", out var propertiesElement))
+            {
+                continue;
+            }
+
+            var title = propertiesElement.TryGetProperty("title", out var titleElement)
+                ? titleElement.GetString()
+                : null;
+            if (!string.Equals(title, sheetName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            return propertiesElement.TryGetProperty("sheetId", out var sheetIdElement)
+                ? sheetIdElement.GetInt32()
+                : null;
+        }
+
+        return null;
+    }
+
+    private async Task BatchUpdateSheetAsync(
+        string spreadsheetId,
+        string accessToken,
+        IReadOnlyCollection<object> requests,
+        CancellationToken cancellationToken)
+    {
+        var payload = JsonSerializer.Serialize(new { requests }, SerializerOptions);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"https://sheets.googleapis.com/v4/spreadsheets/{Uri.EscapeDataString(spreadsheetId)}:batchUpdate");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
 
@@ -609,6 +857,194 @@ public sealed class GoogleSheetsRegistrationSyncService
         return string.IsNullOrWhiteSpace(preservedBalance)
             ? totalAmount.Value
             : preservedBalance;
+    }
+
+    private static void AddDataRowFormattingRequests(
+        ICollection<object> requests,
+        int sheetId,
+        IReadOnlyList<CampRegistration> registrations,
+        IReadOnlyDictionary<string, PaymentColumns> paymentRows)
+    {
+        var rowIndex = 3;
+        foreach (var registration in registrations)
+        {
+            var participants = registration.Participants.Count > 0
+                ? registration.Participants.OrderBy(item => item.SortOrder).ToArray()
+                : [new CampRegistrationParticipant
+                    {
+                        FullName = registration.FullName,
+                        PhoneNumber = registration.PhoneNumber,
+                        BirthDate = registration.BirthDate == default ? null : registration.BirthDate,
+                        IsChild = registration.HasChildren,
+                        SortOrder = 0
+                    }];
+
+            foreach (var participant in participants)
+            {
+                var paymentKey = BuildPaymentKey(registration.Id, participant.FullName);
+                paymentRows.TryGetValue(paymentKey, out var payment);
+                var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
+                var balance = CalculateBalance(registration.SelectedPriceOption?.Amount, amountPaid, payment?.Balance);
+
+                requests.Add(BuildRowColorRequest(
+                    sheetId,
+                    rowIndex,
+                    GetStatusBackgroundColor(registration.Status)));
+                requests.Add(BuildCellColorRequest(
+                    sheetId,
+                    rowIndex,
+                    2,
+                    GetStatusAccentColor(registration.Status),
+                    true));
+                requests.Add(BuildPaymentColorRequest(
+                    sheetId,
+                    rowIndex,
+                    GetPaymentBackgroundColor(registration.Status, amountPaid, balance)));
+                rowIndex++;
+            }
+        }
+    }
+
+    private static object BuildRowColorRequest(int sheetId, int rowIndex, object color)
+    {
+        return new
+        {
+            repeatCell = new
+            {
+                range = GridRange(sheetId, rowIndex, rowIndex + 1, 0, 23),
+                cell = new
+                {
+                    userEnteredFormat = new
+                    {
+                        backgroundColor = color
+                    }
+                },
+                fields = "userEnteredFormat.backgroundColor"
+            }
+        };
+    }
+
+    private static object BuildCellColorRequest(int sheetId, int rowIndex, int columnIndex, object color, bool bold)
+    {
+        return new
+        {
+            repeatCell = new
+            {
+                range = GridRange(sheetId, rowIndex, rowIndex + 1, columnIndex, columnIndex + 1),
+                cell = new
+                {
+                    userEnteredFormat = new
+                    {
+                        backgroundColor = color,
+                        horizontalAlignment = "CENTER",
+                        textFormat = new { bold }
+                    }
+                },
+                fields = "userEnteredFormat(backgroundColor,horizontalAlignment,textFormat)"
+            }
+        };
+    }
+
+    private static object BuildPaymentColorRequest(int sheetId, int rowIndex, object color)
+    {
+        return new
+        {
+            repeatCell = new
+            {
+                range = GridRange(sheetId, rowIndex, rowIndex + 1, 17, 22),
+                cell = new
+                {
+                    userEnteredFormat = new
+                    {
+                        backgroundColor = color
+                    }
+                },
+                fields = "userEnteredFormat.backgroundColor"
+            }
+        };
+    }
+
+    private static object BuildSetColumnWidthRequest(int sheetId, int startColumnIndex, int endColumnIndex, int pixelSize)
+    {
+        return new
+        {
+            updateDimensionProperties = new
+            {
+                range = new
+                {
+                    sheetId,
+                    dimension = "COLUMNS",
+                    startIndex = startColumnIndex,
+                    endIndex = endColumnIndex
+                },
+                properties = new
+                {
+                    pixelSize
+                },
+                fields = "pixelSize"
+            }
+        };
+    }
+
+    private static object GridRange(int sheetId, int startRowIndex, int endRowIndex, int startColumnIndex, int endColumnIndex)
+    {
+        return new
+        {
+            sheetId,
+            startRowIndex,
+            endRowIndex,
+            startColumnIndex,
+            endColumnIndex
+        };
+    }
+
+    private static object Rgb(float red, float green, float blue)
+    {
+        return new
+        {
+            red,
+            green,
+            blue
+        };
+    }
+
+    private static object GetStatusBackgroundColor(RegistrationStatus status) => status switch
+    {
+        RegistrationStatus.Confirmed => Rgb(0.93f, 0.98f, 0.94f),
+        RegistrationStatus.Submitted => Rgb(1f, 0.98f, 0.9f),
+        RegistrationStatus.Cancelled => Rgb(0.95f, 0.95f, 0.95f),
+        RegistrationStatus.Draft => Rgb(0.93f, 0.96f, 1f),
+        _ => Rgb(1f, 1f, 1f)
+    };
+
+    private static object GetStatusAccentColor(RegistrationStatus status) => status switch
+    {
+        RegistrationStatus.Confirmed => Rgb(0.65f, 0.86f, 0.68f),
+        RegistrationStatus.Submitted => Rgb(1f, 0.88f, 0.48f),
+        RegistrationStatus.Cancelled => Rgb(0.82f, 0.82f, 0.82f),
+        RegistrationStatus.Draft => Rgb(0.7f, 0.82f, 1f),
+        _ => Rgb(0.9f, 0.9f, 0.9f)
+    };
+
+    private static object GetPaymentBackgroundColor(RegistrationStatus status, decimal? amountPaid, object balance)
+    {
+        var parsedBalance = balance is decimal decimalBalance
+            ? decimalBalance
+            : TryParsePaymentAmount(balance?.ToString());
+
+        if (amountPaid.HasValue && parsedBalance == 0m)
+        {
+            return Rgb(0.78f, 0.92f, 0.8f);
+        }
+
+        if (amountPaid.HasValue)
+        {
+            return Rgb(1f, 0.93f, 0.72f);
+        }
+
+        return status == RegistrationStatus.Confirmed
+            ? Rgb(0.99f, 0.86f, 0.82f)
+            : Rgb(0.97f, 0.97f, 0.97f);
     }
 
     private static string ToSheetRange(string sheetName, string range)

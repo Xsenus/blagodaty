@@ -154,6 +154,20 @@ using (var scope = app.Services.CreateScope())
     await AppDbSeeder.SeedAsync(scope.ServiceProvider);
 }
 
+if (args.Contains("--sync-google-sheets", StringComparer.OrdinalIgnoreCase))
+{
+    using var syncScope = app.Services.CreateScope();
+    var syncService = syncScope.ServiceProvider.GetRequiredService<GoogleSheetsRegistrationSyncService>();
+    var syncResult = await syncService.SyncLatestEventAsync();
+    Console.WriteLine(syncResult.Message);
+    if (syncResult.RowsWritten is not null)
+    {
+        Console.WriteLine($"Rows written: {syncResult.RowsWritten}");
+    }
+
+    Environment.Exit(syncResult.Synced ? 0 : 1);
+}
+
 app.UseHttpsRedirection();
 app.UseStaticFiles(new StaticFileOptions
 {
