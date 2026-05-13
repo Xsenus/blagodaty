@@ -2041,7 +2041,7 @@ function ProfilePage() {
 
         <div className="profile-actions">
           <button className="primary-button" type="submit" disabled={isSaving}>
-            {isSaving ? 'Сохраняем...' : 'Сохранить профиль'}
+            {isSaving ? 'Сохраняем...' : 'Сохранить'}
           </button>
         </div>
       </form>
