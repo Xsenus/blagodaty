@@ -78,6 +78,7 @@ export function PhoneVerificationPanel({
   const [debugCode, setDebugCode] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isCodeStepOpen, setIsCodeStepOpen] = useState(false);
   const [cooldownUntilMs, setCooldownUntilMs] = useState<number | null>(null);
   const [cooldownTick, setCooldownTick] = useState(() => Date.now());
   const normalizedPhone = normalizePhone(phoneNumber);
@@ -111,6 +112,7 @@ export function PhoneVerificationPanel({
       setExpiresAtUtc(null);
       setDebugCode(null);
       setCooldownUntilMs(null);
+      setIsCodeStepOpen(false);
     }
 
     previousPhoneRef.current = normalizedPhone;
@@ -135,6 +137,7 @@ export function PhoneVerificationPanel({
       setExpiresAtUtc(response.alreadyVerified ? null : response.expiresAtUtc);
       setDebugCode(response.alreadyVerified ? null : response.debugCode ?? null);
       setMessage(response.message ?? 'Код подтверждения создан.');
+      setIsCodeStepOpen(!response.alreadyVerified);
       setCooldownTick(Date.now());
       setCooldownUntilMs(
         response.alreadyVerified || response.resendCooldownSeconds <= 0
@@ -152,6 +155,7 @@ export function PhoneVerificationPanel({
       if (cooldownSeconds) {
         setCooldownTick(Date.now());
         setCooldownUntilMs(Date.now() + cooldownSeconds * 1000);
+        setIsCodeStepOpen(true);
       }
 
       setError(nextMessage);
@@ -179,6 +183,7 @@ export function PhoneVerificationPanel({
       setCode('');
       setDebugCode(null);
       setCooldownUntilMs(null);
+      setIsCodeStepOpen(false);
       setMessage('Телефон подтверждён.');
       await onAccountReload();
       await onVerified?.();
@@ -217,13 +222,17 @@ export function PhoneVerificationPanel({
         </p>
       ) : null}
 
+      {isCodeStepOpen ? (
       <div className="phone-verification-row">
         <label>
           <span>Код подтверждения</span>
           <input
+            className="phone-verification-code-input"
             value={code}
             onChange={(event) => setCode(event.target.value)}
             placeholder="Введите код"
+            inputMode="numeric"
+            autoComplete="one-time-code"
           />
           {expiresAtUtc ? <small className="form-muted">Код действует до {formatDateTime(expiresAtUtc)}.</small> : null}
         </label>
@@ -237,6 +246,7 @@ export function PhoneVerificationPanel({
           {isVerifying ? 'Проверяем...' : 'Подтвердить номер'}
         </button>
       </div>
+      ) : null}
 
       {debugCode ? <p className="form-success">Тестовый режим: код {debugCode}</p> : null}
       {message ? <p className="form-success">{message}</p> : null}
