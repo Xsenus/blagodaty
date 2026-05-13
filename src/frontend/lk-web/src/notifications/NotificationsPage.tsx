@@ -7,6 +7,7 @@ import {
   markAllAccountNotificationsAsRead,
 } from '../lib/api';
 import { useToast } from '../ui/ToastProvider';
+import { StatusBadge } from '../ui/status';
 import type { AccountNotification, AccountNotificationsResponse, NotificationSeverity } from '../types';
 
 function formatDateTime(value: string) {
@@ -315,9 +316,10 @@ export function NotificationsPage() {
                 </div>
 
                 <div className="role-pills">
-                  <span className={`role-pill${notification.isRead ? ' muted-pill' : ''}`}>
-                    {notification.isRead ? 'Прочитано' : formatSeverity(notification.severity)}
-                  </span>
+                  <StatusBadge
+                    status={notification.isRead ? 'read' : 'unread'}
+                    label={notification.isRead ? 'Прочитано' : formatSeverity(notification.severity)}
+                  />
                 </div>
               </div>
 

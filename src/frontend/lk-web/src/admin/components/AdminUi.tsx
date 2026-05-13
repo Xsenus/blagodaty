@@ -250,6 +250,14 @@ export function Pagination({
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }) {
+  const pages = Array.from({ length: totalPages }, (_, index) => index + 1)
+    .filter((pageNumber) =>
+      totalPages <= 7 ||
+      pageNumber === 1 ||
+      pageNumber === totalPages ||
+      Math.abs(pageNumber - page) <= 1,
+    );
+
   return (
     <div className="admin-pagination">
       <span>
@@ -266,6 +274,25 @@ export function Pagination({
         <button className="secondary-button" type="button" disabled={isLoading || page <= 1} onClick={() => onPageChange(page - 1)}>
           Назад
         </button>
+        <div className="admin-pagination-pages" aria-label="Страницы">
+          {pages.map((pageNumber, index) => {
+            const previousPage = pages[index - 1];
+            const hasGap = previousPage && pageNumber - previousPage > 1;
+            return (
+              <span key={pageNumber} className="admin-pagination-page-wrap">
+                {hasGap ? <span className="admin-pagination-ellipsis">...</span> : null}
+                <button
+                  className={`admin-pagination-page${pageNumber === page ? ' active' : ''}`}
+                  type="button"
+                  disabled={isLoading || pageNumber === page}
+                  onClick={() => onPageChange(pageNumber)}
+                >
+                  {pageNumber}
+                </button>
+              </span>
+            );
+          })}
+        </div>
         <button className="secondary-button" type="button" disabled={isLoading || page >= totalPages} onClick={() => onPageChange(page + 1)}>
           Вперед
         </button>

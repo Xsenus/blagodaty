@@ -35,6 +35,7 @@ import { CampRegistrationFlowPage } from './camp/CampRegistrationPage';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
 import { normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPanel';
+import { StatusBadge as UiStatusBadge } from './ui/status';
 import type {
   AccountRegistrationSummary,
   AdminExternalAuthProvider,
@@ -1273,8 +1274,8 @@ function DashboardPage() {
         <h3>{actionCard.title}</h3>
         <p>{actionCard.description}</p>
         <div className="role-pills">
-          {nextRegistration ? <span className="role-pill">{formatStatus(nextRegistration.status)}</span> : null}
-          <span className="role-pill">{isPhoneConfirmed ? 'Телефон подтверждён' : 'Телефон не подтверждён'}</span>
+          {nextRegistration ? <UiStatusBadge status={nextRegistration.status} /> : null}
+          <UiStatusBadge status={isPhoneConfirmed ? 'active' : 'pending'} label={isPhoneConfirmed ? 'Телефон подтверждён' : 'Телефон не подтверждён'} />
           {draftCount ? <span className="role-pill">Черновиков: {draftCount}</span> : null}
           {submittedCount ? <span className="role-pill">Отправлены: {submittedCount}</span> : null}
           {confirmedCount ? <span className="role-pill">Подтверждены: {confirmedCount}</span> : null}
@@ -1379,7 +1380,7 @@ function DashboardPage() {
                   </div>
 
                   <div className="role-pills">
-                    <span className="role-pill">{formatStatus(registration.status)}</span>
+                    <UiStatusBadge status={registration.status} />
                     <span className="role-pill muted-pill">
                       {registration.isRegistrationOpen ? 'Регистрация открыта' : 'Регистрация закрыта'}
                     </span>
