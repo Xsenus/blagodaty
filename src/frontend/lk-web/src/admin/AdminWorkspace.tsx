@@ -3,6 +3,7 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import {
   deleteAdminRegistration,
+  deleteAdminUser,
   getAdminEvents,
   getAdminExternalAuthSettings,
   getAdminGoogleSheetsSyncSettings,
@@ -13,13 +14,17 @@ import {
   getExternalAuthStatus,
   runAdminGoogleSheetsSync,
   getTelegramAuthStatus,
+  linkAdminRegistrationToUser,
+  mergeAdminUsers,
   startAdminExternalAuthProviderTest,
+  updateAdminUser,
   updateAdminExternalAuthProvider,
   updateAdminRegistrationPayment,
   updateAdminRegistrationStatus,
   updateUserRoles,
 } from '../lib/api';
 import { useToast } from '../ui/ToastProvider';
+import { formatPhoneForInput, normalizePhone } from '../ui/PhoneVerificationPanel';
 import type {
   AdminEventSummary,
   AdminExternalAuthProvider,
@@ -33,6 +38,7 @@ import type {
   EventEditionStatus,
   PaginatedResponse,
   RegistrationStatus,
+  UpdateAdminUserRequest,
   UpdateExternalAuthProviderRequest,
 } from '../types';
 import { AdminBackupsSection } from './AdminBackupsSection';
@@ -312,7 +318,7 @@ export function AdminWorkspace() {
       accessLabel={auth.account?.user.displayName ?? 'Администратор'}
       description={meta.description}
       eyebrow={meta.eyebrow}
-      hideHeader={section === 'overview' || section === 'registrations'}
+      hideHeader={section === 'overview' || section === 'registrations' || section === 'users'}
       title={meta.title}
     >
       <AdminContent accessToken={accessToken} section={section} />
@@ -1006,6 +1012,7 @@ function RegistrationDetails({
 function UsersSection({ accessToken }: { accessToken: string | null }) {
   const toast = useToast();
   const location = useLocation();
+  const auth = useAuth();
   const queryRole = new URLSearchParams(location.search).get('role') as AppRole | null;
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [usersPage, setUsersPage] = useState<PaginatedResponse<AdminUser> | null>(null);
@@ -1017,7 +1024,20 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
   const [pageSize, setPageSize] = useState(20);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [roleDraft, setRoleDraft] = useState<AppRole[]>([]);
+  const [profileDraft, setProfileDraft] = useState<UpdateAdminUserRequest>({
+    firstName: '',
+    lastName: '',
+    patronymic: '',
+    displayName: '',
+    phoneNumber: '',
+    city: '',
+    churchName: '',
+  });
+  const [linkRegistrationId, setLinkRegistrationId] = useState('');
+  const [mergeTargetUserId, setMergeTargetUserId] = useState('');
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; user: AdminUser } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1033,7 +1053,29 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
 
   useEffect(() => {
     setRoleDraft(orderRoles([...(selectedUser?.roles ?? [])]));
+    setProfileDraft({
+      firstName: selectedUser?.firstName ?? '',
+      lastName: selectedUser?.lastName ?? '',
+      patronymic: selectedUser?.patronymic ?? '',
+      displayName: selectedUser?.displayName ?? '',
+      phoneNumber: formatPhoneForInput(selectedUser?.phoneNumber),
+      city: selectedUser?.city ?? '',
+      churchName: selectedUser?.churchName ?? '',
+    });
+    setLinkRegistrationId('');
+    setMergeTargetUserId('');
   }, [selectedUser]);
+
+  useEffect(() => {
+    if (!contextMenu) return undefined;
+    const close = () => setContextMenu(null);
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', close);
+    };
+  }, [contextMenu]);
 
   async function loadOverview() {
     if (!accessToken) return;
@@ -1079,11 +1121,101 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
     }
   }
 
+  function updateUserInList(updated: AdminUser) {
+    setSelectedUser((current) => current?.id === updated.id ? updated : current);
+    setUsersPage((current) => current ? {
+      ...current,
+      items: current.items.map((item) => item.id === updated.id ? updated : item),
+    } : current);
+  }
+
+  async function saveProfile() {
+    if (!accessToken || !selectedUser) return;
+    setSavingUserId(selectedUser.id);
+    try {
+      const updated = await updateAdminUser(accessToken, selectedUser.id, {
+        ...profileDraft,
+        phoneNumber: normalizePhone(profileDraft.phoneNumber),
+      });
+      updateUserInList(updated);
+      toast.success('Пользователь обновлен', updated.displayName);
+    } catch (saveError) {
+      const message = saveError instanceof Error ? saveError.message : 'Не удалось сохранить пользователя.';
+      toast.error('Пользователь не сохранен', message);
+    } finally {
+      setSavingUserId(null);
+    }
+  }
+
+  async function removeUser(user: AdminUser) {
+    if (!accessToken) return;
+    setSavingUserId(user.id);
+    try {
+      await deleteAdminUser(accessToken, user.id);
+      setUsersPage((current) => current ? {
+        ...current,
+        totalItems: Math.max(current.totalItems - 1, 0),
+        items: current.items.filter((item) => item.id !== user.id),
+      } : current);
+      if (selectedUser?.id === user.id) setSelectedUser(null);
+      setDeleteTarget(null);
+      await loadOverview();
+      toast.success('Пользователь удален', user.displayName);
+    } catch (deleteError) {
+      const message = deleteError instanceof Error ? deleteError.message : 'Не удалось удалить пользователя.';
+      toast.error('Пользователь не удален', message);
+    } finally {
+      setSavingUserId(null);
+    }
+  }
+
+  async function linkRegistration() {
+    if (!accessToken || !selectedUser || !linkRegistrationId.trim()) return;
+    setSavingUserId(selectedUser.id);
+    try {
+      const updated = await linkAdminRegistrationToUser(accessToken, linkRegistrationId.trim(), selectedUser.id);
+      updateUserInList(updated);
+      setLinkRegistrationId('');
+      toast.success('Заявка привязана', `Заявка теперь относится к ${updated.displayName}.`);
+    } catch (linkError) {
+      const message = linkError instanceof Error ? linkError.message : 'Не удалось привязать заявку.';
+      toast.error('Заявка не привязана', message);
+    } finally {
+      setSavingUserId(null);
+    }
+  }
+
+  async function mergeUser() {
+    if (!accessToken || !selectedUser || !mergeTargetUserId.trim()) return;
+    const confirmed = window.confirm('Объединить пользователя с целевым аккаунтом? Заявки и внешние входы будут перенесены, исходный аккаунт удалится.');
+    if (!confirmed) return;
+
+    setSavingUserId(selectedUser.id);
+    try {
+      const updatedTarget = await mergeAdminUsers(accessToken, selectedUser.id, mergeTargetUserId.trim());
+      setUsersPage((current) => current ? {
+        ...current,
+        totalItems: Math.max(current.totalItems - 1, 0),
+        items: current.items
+          .filter((item) => item.id !== selectedUser.id)
+          .map((item) => item.id === updatedTarget.id ? updatedTarget : item),
+      } : current);
+      setSelectedUser(updatedTarget);
+      setMergeTargetUserId('');
+      await loadOverview();
+      toast.success('Пользователи объединены', `Данные перенесены в ${updatedTarget.displayName}.`);
+    } catch (mergeError) {
+      const message = mergeError instanceof Error ? mergeError.message : 'Не удалось объединить пользователей.';
+      toast.error('Пользователи не объединены', message);
+    } finally {
+      setSavingUserId(null);
+    }
+  }
+
   const users = usersPage?.items ?? [];
 
   return (
     <div className="admin-workspace-stack">
-      <AdminSectionHeader eyebrow="Аккаунты" title="Управление пользователями" description="Роли редактируются в боковой панели, список остается компактным." />
       <DataToolbar>
         <label><span>Поиск</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Имя, email, город, церковь" /></label>
         <label>
@@ -1095,25 +1227,31 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
             <option value="Admin">Администраторы</option>
           </select>
         </label>
-        <button className="secondary-button" type="button" onClick={() => { setSearch(''); setRoleFilter('all'); setPage(1); }}>Сбросить</button>
+        <button className="admin-reset-icon-button" type="button" aria-label="Сбросить фильтры" title="Сбросить фильтры" onClick={() => { setSearch(''); setRoleFilter('all'); setPage(1); }}>↺</button>
       </DataToolbar>
 
-      {usersPage ? <Pagination page={usersPage.page} pageSize={usersPage.pageSize} totalItems={usersPage.totalItems} totalPages={usersPage.totalPages} isLoading={isLoading} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} /> : null}
       {error ? <ErrorState message={error} /> : null}
       {isLoading && !usersPage ? <LoadingState title="Загружаем пользователей" /> : null}
 
       <div className="admin-table-wrap">
         <table className="admin-table">
-          <thead><tr><th>Пользователь</th><th>Роли</th><th>Город / церковь</th><th>Заявка</th><th>Последний вход</th><th>Действия</th></tr></thead>
+          <thead><tr><th>Пользователь</th><th>Роли</th><th>Город / церковь</th><th>Заявка</th><th>Последний вход</th></tr></thead>
           <tbody>
             {users.map((user) => (
-              <tr key={user.id} className={user.roles.includes('Admin') ? 'admin-row-highlight' : undefined}>
+              <tr
+                key={user.id}
+                className={user.roles.includes('Admin') ? 'admin-row-highlight' : undefined}
+                onDoubleClick={() => setSelectedUser(user)}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  setContextMenu({ x: event.clientX, y: event.clientY, user });
+                }}
+              >
                 <td><strong>{user.displayName}</strong><span>{user.email}</span></td>
                 <td><div className="admin-chip-row">{user.roles.map((role) => <StatusBadge key={role} label={formatRole(role)} tone={role === 'Admin' ? 'success' : 'neutral'} />)}</div></td>
                 <td><strong>{user.city || 'Не указан'}</strong><span>{user.churchName || 'Церковь не указана'}</span></td>
                 <td><StatusBadge label={formatStatus(user.registrationStatus)} tone={statusTone(user.registrationStatus)} /></td>
                 <td>{formatDateTime(user.lastLoginAtUtc)}</td>
-                <td><button className="secondary-button" type="button" onClick={() => setSelectedUser(user)}>Открыть</button></td>
               </tr>
             ))}
           </tbody>
@@ -1129,7 +1267,35 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
         </div>
       </div>
 
+      {usersPage ? <Pagination page={usersPage.page} pageSize={usersPage.pageSize} totalItems={usersPage.totalItems} totalPages={usersPage.totalPages} isLoading={isLoading} onPageChange={setPage} onPageSizeChange={(size) => { setPageSize(size); setPage(1); }} /> : null}
+
       {!isLoading && usersPage && !users.length ? <EmptyState title="Пользователи не найдены" description="Попробуйте другой поиск или фильтр." /> : null}
+
+      {contextMenu ? (
+        <div className="admin-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(event) => event.stopPropagation()}>
+          <div>
+            <button type="button" onClick={() => { setSelectedUser(contextMenu.user); setContextMenu(null); }}>Открыть</button>
+            <button type="button" onClick={() => { setSelectedUser(contextMenu.user); setContextMenu(null); }}>Редактировать</button>
+          </div>
+          <div>
+            <button type="button" onClick={() => { setSelectedUser(contextMenu.user); setContextMenu(null); setLinkRegistrationId(contextMenu.user.registrationId ?? ''); }}>Привязать заявку</button>
+            <button type="button" onClick={() => { setSelectedUser(contextMenu.user); setContextMenu(null); }}>Объединить</button>
+          </div>
+          <div>
+            <button
+              className="danger"
+              type="button"
+              disabled={contextMenu.user.id === auth.account?.user.id}
+              onClick={() => {
+                setDeleteTarget(contextMenu.user);
+                setContextMenu(null);
+              }}
+            >
+              Удалить
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <Drawer
         open={Boolean(selectedUser)}
@@ -1139,7 +1305,8 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
         footer={
           selectedUser ? (
             <>
-              <button className="secondary-button" type="button" disabled={!selectedUser || rolesEqual(roleDraft, selectedUser.roles)} onClick={() => setRoleDraft(orderRoles([...selectedUser.roles]))}>Сбросить</button>
+              <button className="secondary-button" type="button" disabled={savingUserId === selectedUser.id} onClick={() => setDeleteTarget(selectedUser)}>Удалить</button>
+              <button className="secondary-button" type="button" disabled={!selectedUser || rolesEqual(roleDraft, selectedUser.roles)} onClick={() => setRoleDraft(orderRoles([...selectedUser.roles]))}>Сбросить роли</button>
               <button className="primary-button" type="button" disabled={savingUserId === selectedUser.id || rolesEqual(roleDraft, selectedUser.roles)} onClick={saveRoles}>{savingUserId === selectedUser.id ? 'Сохраняем...' : 'Сохранить роли'}</button>
             </>
           ) : null
@@ -1148,12 +1315,18 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
         {selectedUser ? (
           <div className="admin-detail-stack">
             <FormSection title="Профиль">
-              <div className="admin-detail-grid">
-                <div><span>Имя</span><strong>{selectedUser.displayName}</strong></div>
-                <div><span>Email</span><strong>{selectedUser.email}</strong></div>
-                <div><span>Город</span><strong>{selectedUser.city || 'Не указан'}</strong></div>
-                <div><span>Церковь</span><strong>{selectedUser.churchName || 'Не указана'}</strong></div>
+              <div className="admin-form-grid">
+                <label><span>Отображаемое имя</span><input value={profileDraft.displayName} onChange={(event) => setProfileDraft((current) => ({ ...current, displayName: event.target.value }))} /></label>
+                <label><span>Телефон</span><input value={profileDraft.phoneNumber ?? ''} onChange={(event) => setProfileDraft((current) => ({ ...current, phoneNumber: formatPhoneForInput(event.target.value) }))} inputMode="tel" placeholder="+7 (000) 000 00 00" /></label>
+                <label><span>Фамилия</span><input value={profileDraft.lastName} onChange={(event) => setProfileDraft((current) => ({ ...current, lastName: event.target.value }))} /></label>
+                <label><span>Имя</span><input value={profileDraft.firstName} onChange={(event) => setProfileDraft((current) => ({ ...current, firstName: event.target.value }))} /></label>
+                <label><span>Отчество</span><input value={profileDraft.patronymic ?? ''} onChange={(event) => setProfileDraft((current) => ({ ...current, patronymic: event.target.value }))} /></label>
+                <label><span>Город</span><input value={profileDraft.city ?? ''} onChange={(event) => setProfileDraft((current) => ({ ...current, city: event.target.value }))} /></label>
+                <label><span>Церковь</span><input value={profileDraft.churchName ?? ''} onChange={(event) => setProfileDraft((current) => ({ ...current, churchName: event.target.value }))} /></label>
               </div>
+              <button className="secondary-button" type="button" disabled={savingUserId === selectedUser.id} onClick={saveProfile}>
+                {savingUserId === selectedUser.id ? 'Сохраняем...' : 'Сохранить профиль'}
+              </button>
             </FormSection>
             <FormSection title="Роли" description="Изменения применятся после сохранения.">
               <div className="admin-role-toggle-grid">
@@ -1179,12 +1352,38 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
                 {selectedUser.externalIdentities.length ? selectedUser.externalIdentities.map((identity) => <StatusBadge key={identity.provider} label={identity.provider} />) : <span className="form-muted">Нет внешних входов</span>}
               </div>
             </FormSection>
+            <FormSection title="Привязка и объединение" description="Для точных действий используйте ID заявки или ID целевого пользователя. ID можно взять из таблиц админки или адреса API.">
+              <div className="admin-form-grid">
+                <label>
+                  <span>ID заявки</span>
+                  <input value={linkRegistrationId} onChange={(event) => setLinkRegistrationId(event.target.value)} placeholder="00000000-0000-0000-0000-000000000000" />
+                </label>
+                <div className="admin-inline-action">
+                  <button className="secondary-button" type="button" disabled={savingUserId === selectedUser.id || !linkRegistrationId.trim()} onClick={linkRegistration}>Привязать к этому пользователю</button>
+                </div>
+                <label>
+                  <span>ID пользователя для объединения</span>
+                  <input value={mergeTargetUserId} onChange={(event) => setMergeTargetUserId(event.target.value)} placeholder="Целевой пользователь" />
+                </label>
+                <div className="admin-inline-action">
+                  <button className="secondary-button" type="button" disabled={savingUserId === selectedUser.id || !mergeTargetUserId.trim()} onClick={mergeUser}>Объединить в целевого пользователя</button>
+                </div>
+              </div>
+            </FormSection>
             <FormSection title="Заявка пользователя">
               <RegistrationDetails registration={selectedUser} statusDraft={selectedUser.registrationStatus ?? 'Draft'} onStatusDraftChange={() => undefined} />
             </FormSection>
           </div>
         ) : null}
       </Drawer>
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Удалить пользователя?"
+        description={deleteTarget ? `Аккаунт ${deleteTarget.displayName} будет удален. Связанные данные удалятся или будут перенесены только через объединение.` : undefined}
+        confirmLabel={savingUserId === deleteTarget?.id ? 'Удаляем...' : 'Удалить'}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget ? void removeUser(deleteTarget) : undefined}
+      />
     </div>
   );
 }

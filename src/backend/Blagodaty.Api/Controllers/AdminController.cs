@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Blagodaty.Api.Controllers;
 
@@ -286,6 +287,193 @@ public sealed class AdminController : ControllerBase
             eventEditionId: activeCampEditionId,
             orderedUserIds: [refreshedUser.Id]);
 
+        return Ok(mappedUser.Single());
+    }
+
+    [HttpPut("users/{userId:guid}")]
+    public async Task<ActionResult<AdminUserDto>> UpdateUser(Guid userId, [FromBody] UpdateAdminUserRequest request)
+    {
+        var user = await _userManager.Users.FirstOrDefaultAsync(item => item.Id == userId);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        user.FirstName = request.FirstName?.Trim() ?? string.Empty;
+        user.LastName = request.LastName?.Trim() ?? string.Empty;
+        user.Patronymic = string.IsNullOrWhiteSpace(request.Patronymic) ? null : request.Patronymic.Trim();
+        user.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+            ? BuildDisplayName(request.FirstName, request.LastName, user.Email)
+            : request.DisplayName.Trim();
+        user.PhoneNumber = string.IsNullOrWhiteSpace(request.PhoneNumber) ? null : request.PhoneNumber.Trim();
+        user.City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim();
+        user.ChurchName = string.IsNullOrWhiteSpace(request.ChurchName) ? null : request.ChurchName.Trim();
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            return BuildIdentityProblem(result);
+        }
+
+        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
+        var mappedUser = await MapAdminUsersAsync([user], eventEditionId: activeCampEditionId, orderedUserIds: [user.Id]);
+        return Ok(mappedUser.Single());
+    }
+
+    [HttpDelete("users/{userId:guid}")]
+    public async Task<IActionResult> DeleteUser(Guid userId)
+    {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId == userId)
+        {
+            return BadRequest(new { message = "Нельзя удалить текущий аккаунт администратора." });
+        }
+
+        var user = await _userManager.Users.FirstOrDefaultAsync(item => item.Id == userId);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        if (await _userManager.IsInRoleAsync(user, AppRoles.Admin))
+        {
+            var adminUsers = await _userManager.GetUsersInRoleAsync(AppRoles.Admin);
+            if (adminUsers.Count <= 1)
+            {
+                return BadRequest(new { message = "Нельзя удалить последнего администратора системы." });
+            }
+        }
+
+        var eventIdsToSync = await _dbContext.CampRegistrations
+            .AsNoTracking()
+            .Where(registration => registration.UserId == userId && registration.EventEditionId != null)
+            .Select(registration => registration.EventEditionId)
+            .Distinct()
+            .ToListAsync();
+
+        var result = await _userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+        {
+            return BadRequest(new { message = string.Join(" ", result.Errors.Select(error => error.Description)) });
+        }
+
+        foreach (var eventEditionId in eventIdsToSync)
+        {
+            await _googleSheetsSyncService.TrySyncRegistrationEventAsync(eventEditionId, HttpContext.RequestAborted);
+        }
+        return NoContent();
+    }
+
+    [HttpPut("registrations/{registrationId:guid}/user")]
+    public async Task<ActionResult<AdminUserDto>> LinkRegistrationToUser(Guid registrationId, [FromBody] LinkRegistrationToUserRequest request)
+    {
+        var registration = await _dbContext.CampRegistrations.FirstOrDefaultAsync(item => item.Id == registrationId);
+        if (registration is null)
+        {
+            return NotFound();
+        }
+
+        var targetUser = await _dbContext.Users.FirstOrDefaultAsync(item => item.Id == request.UserId);
+        if (targetUser is null)
+        {
+            return BadRequest(new { message = "Пользователь для привязки не найден." });
+        }
+
+        var previousUserId = registration.UserId;
+        registration.UserId = targetUser.Id;
+        registration.UpdatedAtUtc = _timeProvider.GetUtcNow().UtcDateTime;
+        await AddRegistrationHistoryAsync(
+            registration.Id,
+            "User",
+            previousUserId.ToString(),
+            targetUser.Id.ToString(),
+            registration.UpdatedAtUtc,
+            HttpContext.RequestAborted);
+
+        await _dbContext.SaveChangesAsync();
+        await _googleSheetsSyncService.TrySyncRegistrationEventAsync(registration.EventEditionId, HttpContext.RequestAborted);
+
+        var mappedUser = await MapAdminUsersAsync([targetUser], new Dictionary<Guid, RegistrationListItem>
+        {
+            [targetUser.Id] = await SelectRegistrationListItems(_dbContext.CampRegistrations.AsNoTracking().Where(item => item.Id == registration.Id)).SingleAsync()
+        }, orderedUserIds: [targetUser.Id]);
+        return Ok(mappedUser.Single());
+    }
+
+    [HttpPost("users/{sourceUserId:guid}/merge")]
+    public async Task<ActionResult<AdminUserDto>> MergeUsers(Guid sourceUserId, [FromBody] MergeUsersRequest request)
+    {
+        if (sourceUserId == request.TargetUserId)
+        {
+            return BadRequest(new { message = "Выберите другого пользователя для объединения." });
+        }
+
+        var currentUserId = GetCurrentUserId();
+        if (sourceUserId == currentUserId)
+        {
+            return BadRequest(new { message = "Нельзя объединить текущий аккаунт администратора в другой аккаунт." });
+        }
+
+        var sourceUser = await _userManager.Users.FirstOrDefaultAsync(item => item.Id == sourceUserId);
+        var targetUser = await _userManager.Users.FirstOrDefaultAsync(item => item.Id == request.TargetUserId);
+        if (sourceUser is null || targetUser is null)
+        {
+            return BadRequest(new { message = "Исходный или целевой пользователь не найден." });
+        }
+
+        if (await _userManager.IsInRoleAsync(sourceUser, AppRoles.Admin))
+        {
+            var adminUsers = await _userManager.GetUsersInRoleAsync(AppRoles.Admin);
+            if (adminUsers.Count <= 1)
+            {
+                return BadRequest(new { message = "Нельзя объединить последнего администратора в другой аккаунт." });
+            }
+        }
+
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        var sourceRegistrations = await _dbContext.CampRegistrations
+            .Where(registration => registration.UserId == sourceUserId)
+            .ToListAsync();
+        var eventIdsToSync = sourceRegistrations
+            .Select(registration => registration.EventEditionId)
+            .Where(eventEditionId => eventEditionId != null)
+            .Distinct()
+            .ToArray();
+        foreach (var registration in sourceRegistrations)
+        {
+            registration.UserId = targetUser.Id;
+            registration.UpdatedAtUtc = now;
+            await AddRegistrationHistoryAsync(
+                registration.Id,
+                "UserMerge",
+                sourceUser.Id.ToString(),
+                targetUser.Id.ToString(),
+                now,
+                HttpContext.RequestAborted);
+        }
+
+        await _dbContext.UserExternalIdentities
+            .Where(identity => identity.UserId == sourceUserId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(identity => identity.UserId, targetUser.Id));
+        await _dbContext.UserNotifications
+            .Where(notification => notification.UserId == sourceUserId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(notification => notification.UserId, targetUser.Id));
+
+        await _dbContext.SaveChangesAsync();
+
+        var deleteResult = await _userManager.DeleteAsync(sourceUser);
+        if (!deleteResult.Succeeded)
+        {
+            return BuildIdentityProblem(deleteResult);
+        }
+
+        foreach (var eventEditionId in eventIdsToSync)
+        {
+            await _googleSheetsSyncService.TrySyncRegistrationEventAsync(eventEditionId, HttpContext.RequestAborted);
+        }
+
+        var activeCampEditionId = await _eventCatalogService.GetActiveCampEditionIdAsync(HttpContext.RequestAborted);
+        var mappedUser = await MapAdminUsersAsync([targetUser], eventEditionId: activeCampEditionId, orderedUserIds: [targetUser.Id]);
         return Ok(mappedUser.Single());
     }
 
@@ -574,6 +762,7 @@ public sealed class AdminController : ControllerBase
                     DisplayName = user.DisplayName,
                     FirstName = user.FirstName,
                     LastName = user.LastName,
+                    Patronymic = user.Patronymic,
                     City = registration?.City ?? user.City,
                     ChurchName = registration?.ChurchName ?? user.ChurchName,
                     PhoneNumber = user.PhoneNumber,
@@ -761,6 +950,20 @@ public sealed class AdminController : ControllerBase
             NewValue = newValue,
             CreatedAtUtc = createdAtUtc
         });
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(value, out var userId) ? userId : null;
+    }
+
+    private static string BuildDisplayName(string? firstName, string? lastName, string? fallback)
+    {
+        var parts = new[] { firstName?.Trim(), lastName?.Trim() }
+            .Where(part => !string.IsNullOrWhiteSpace(part));
+        var displayName = string.Join(' ', parts);
+        return string.IsNullOrWhiteSpace(displayName) ? fallback ?? "Пользователь" : displayName;
     }
 
     private static AdminPagedResponse<AdminUserDto> CreatePagedResponse(

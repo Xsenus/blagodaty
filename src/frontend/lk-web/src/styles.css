@@ -3436,6 +3436,27 @@ button:disabled {
   font-size: 0.82rem;
 }
 
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.admin-form-grid label {
+  display: grid;
+  gap: 7px;
+}
+
+.admin-form-grid label:first-child,
+.admin-form-grid label:nth-child(5) {
+  grid-column: 1 / -1;
+}
+
+.admin-inline-action {
+  display: flex;
+  align-items: end;
+}
+
 .admin-context-menu {
   position: fixed;
   z-index: 120;

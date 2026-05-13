@@ -342,6 +342,16 @@ export type AdminUser = {
   externalIdentities: ExternalIdentity[];
 };
 
+export type UpdateAdminUserRequest = {
+  firstName: string;
+  lastName: string;
+  patronymic?: string | null;
+  displayName: string;
+  phoneNumber?: string | null;
+  city?: string | null;
+  churchName?: string | null;
+};
+
 export type AdminOverview = {
   stats: AdminStats;
   roles: AdminRoleDefinition[];

@@ -34,6 +34,7 @@ import type {
   CreateAdminTelegramSubscriptionRequest,
   UpsertAdminEventRequest,
   UpdateAdminDatabaseBackupSettingsRequest,
+  UpdateAdminUserRequest,
   UpdateAdminGoogleSheetsSyncSettingsRequest,
   UpdateAdminTelegramSubscriptionRequest,
   UpdateAdminSiteSettingsRequest,
@@ -413,6 +414,49 @@ export function updateUserRoles(accessToken: string, userId: string, roles: stri
     {
       method: 'PUT',
       body: JSON.stringify({ roles }),
+    },
+    accessToken,
+  );
+}
+
+export function updateAdminUser(accessToken: string, userId: string, payload: UpdateAdminUserRequest) {
+  return request<AdminUser>(
+    `/api/admin/users/${userId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    accessToken,
+  );
+}
+
+export function deleteAdminUser(accessToken: string, userId: string) {
+  return request<void>(
+    `/api/admin/users/${userId}`,
+    {
+      method: 'DELETE',
+    },
+    accessToken,
+  );
+}
+
+export function linkAdminRegistrationToUser(accessToken: string, registrationId: string, userId: string) {
+  return request<AdminUser>(
+    `/api/admin/registrations/${registrationId}/user`,
+    {
+      method: 'PUT',
+      body: JSON.stringify({ userId }),
+    },
+    accessToken,
+  );
+}
+
+export function mergeAdminUsers(accessToken: string, sourceUserId: string, targetUserId: string) {
+  return request<AdminUser>(
+    `/api/admin/users/${sourceUserId}/merge`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ targetUserId }),
     },
     accessToken,
   );

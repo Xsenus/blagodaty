@@ -55,6 +55,7 @@ public static class AccountMapper
             DisplayName = user.DisplayName,
             FirstName = user.FirstName,
             LastName = user.LastName,
+            Patronymic = user.Patronymic,
             City = user.City,
             ChurchName = user.ChurchName,
             PhoneNumber = user.PhoneNumber,
