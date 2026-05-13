@@ -308,6 +308,45 @@ function getProgramScheduleCopy(item: PublicEventScheduleItem) {
   };
 }
 
+function getContactLinkKind(link: PublicSiteContactPerson['links'][number]) {
+  const value = `${link.preset} ${link.label} ${link.url}`.toLowerCase();
+  if (value.includes('telegram') || value.includes('t.me')) {
+    return 'telegram';
+  }
+
+  if (value.includes('phone') || value.includes('телефон') || link.url.toLowerCase().startsWith('tel:')) {
+    return 'phone';
+  }
+
+  return 'link';
+}
+
+function ContactLinkIcon({ link }: { link: PublicSiteContactPerson['links'][number] }) {
+  const kind = getContactLinkKind(link);
+
+  if (kind === 'telegram') {
+    return (
+      <svg className="contact-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M21.8 4.4 18.6 19c-.2 1-.8 1.2-1.6.8l-4.7-3.5-2.3 2.2c-.3.3-.5.5-1 .5l.4-4.8 8.7-7.9c.4-.3-.1-.5-.6-.2L6.8 12.9 2.2 11.5c-1-.3-1-1 .2-1.4L20.4 3c.8-.3 1.6.2 1.4 1.4Z" />
+      </svg>
+    );
+  }
+
+  if (kind === 'phone') {
+    return (
+      <svg className="contact-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M6.6 10.8c1.5 2.9 3.7 5.1 6.6 6.6l2.2-2.2c.3-.3.8-.4 1.2-.3 1.3.4 2.7.6 4.1.6.7 0 1.3.6 1.3 1.3v3.5c0 .7-.6 1.3-1.3 1.3C10.6 21.6 2.4 13.4 2.4 3.3 2.4 2.6 3 2 3.7 2h3.5c.7 0 1.3.6 1.3 1.3 0 1.4.2 2.8.6 4.1.1.4 0 .9-.3 1.2l-2.2 2.2Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="contact-link-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M13.5 4.5h6v6h-2V8l-7.1 7.1-1.5-1.5L16 6.5h-2.5v-2ZM5 6h6v2H7v9h9v-4h2v6H5V6Z" />
+    </svg>
+  );
+}
+
 function isLegacyExternalPlaceImage(url?: string | null) {
   return Boolean(url && (url.includes('photo.2gis.com') || url.includes('share.api.2gis.ru')));
 }
@@ -896,8 +935,9 @@ export default function App() {
                   </div>
                   <div className="footer-contact-links">
                     {person.links.map((link) => (
-                      <a className="social-link" href={link.url} key={link.id} target="_blank" rel="noreferrer">
-                        {link.label}
+                      <a className="social-link contact-link" href={link.url} key={link.id} target="_blank" rel="noreferrer">
+                        <ContactLinkIcon link={link} />
+                        <span>{link.label}</span>
                       </a>
                     ))}
                   </div>
