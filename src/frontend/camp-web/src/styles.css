@@ -1345,6 +1345,7 @@ img {
 .modal-main {
   position: relative;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 32px 38px;
@@ -3921,6 +3922,100 @@ input[type="radio"] {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+}
+
+@media (max-width: 860px) {
+  .date-picker-popover {
+    position: fixed;
+    inset: auto 18px max(18px, env(safe-area-inset-bottom));
+    z-index: 90;
+    width: auto;
+    max-height: min(70dvh, 520px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .date-picker-popover::before {
+    display: none;
+  }
+
+  .date-picker-selects select {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .car-choice-group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .car-choice-title {
+    grid-column: 1 / -1;
+    white-space: normal;
+  }
+
+  .radio-card {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .activities-legend {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    padding-bottom: 0;
+  }
+
+  .activity-legend-item {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+    min-width: min(145px, 100%);
+  }
+
+  .label-with-help {
+    flex-wrap: wrap;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .field-help-wrap {
+    display: contents;
+  }
+
+  .field-help {
+    flex: 0 0 auto;
+  }
+
+  .field-help-popover {
+    position: static;
+    display: none;
+    flex: 1 0 100%;
+    width: 100%;
+    max-width: none;
+    max-height: none;
+    margin-top: 8px;
+    padding: 11px 12px;
+    opacity: 1;
+    pointer-events: auto;
+    text-align: center;
+    transform: none;
+  }
+
+  .field-help-popover::before {
+    display: none;
+  }
+
+  .field-help-wrap:hover .field-help-popover,
+  .field-help:focus-visible + .field-help-popover,
+  .field-help-wrap.active .field-help-popover {
+    display: block;
+    transform: none;
+  }
+
+  .date-picker-popover {
+    inset: auto 12px max(12px, env(safe-area-inset-bottom));
+    max-height: min(74dvh, 540px);
   }
 }
 
