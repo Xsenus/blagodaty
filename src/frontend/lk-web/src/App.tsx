@@ -12,9 +12,7 @@ import { useAuth } from './auth/AuthProvider';
 import { campBaseUrl } from './lib/config';
 import {
   getAdminExternalAuthSettings,
-  getAdminEvents,
   getAdminOverview,
-  getAdminRegistrations,
   getAdminUsers,
   getExternalAuthStatus,
   getPublicExternalAuthProviders,
@@ -25,7 +23,6 @@ import {
   startTelegramAuth,
   unlinkExternalIdentity,
   updateAdminExternalAuthProvider,
-  updateAdminRegistrationStatus,
   updateUserRoles,
 } from './lib/api';
 import { AdminEventsSection } from './admin/AdminEventsSection';
@@ -39,11 +36,9 @@ import { useToast } from './ui/ToastProvider';
 import { normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPanel';
 import type {
   AccountRegistrationSummary,
-  AccommodationPreference,
   AdminExternalAuthProvider,
   AdminExternalAuthSettings,
   AdminEventDetails,
-  AdminEventSummary,
   AdminOverview,
   AdminRoleDefinition,
   AdminUser,
@@ -145,12 +140,6 @@ const contentBlockLabels: Record<EventContentBlockType, string> = {
   Faq: '\u0412\u043e\u043f\u0440\u043e\u0441\u044b \u0438 \u043e\u0442\u0432\u0435\u0442\u044b',
 };
 
-const accommodationPreferenceLabels: Record<AccommodationPreference, string> = {
-  Tent: '\u041f\u0430\u043b\u0430\u0442\u043a\u0430',
-  Cabin: '\u0414\u043e\u043c\u0438\u043a (\u0441\u0442\u0430\u0440\u044b\u0439 \u0432\u0430\u0440\u0438\u0430\u043d\u0442)',
-  Either: '\u041d\u0443\u0436\u043d\u044b \u0434\u043e\u043f. \u0443\u0441\u043b\u043e\u0432\u0438\u044f',
-};
-
 function formatEventKind(kind: EventKind) {
   return eventKindLabels[kind] ?? kind;
 }
@@ -228,32 +217,6 @@ function formatMoney(value?: number | null, currency = 'RUB') {
     currency,
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function formatOptional(value?: string | null, fallback = '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e') {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : fallback;
-}
-
-function formatYesNo(value?: boolean | null) {
-  if (value === undefined || value === null) {
-    return '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e';
-  }
-
-  return value ? '\u0414\u0430' : '\u041d\u0435\u0442';
-}
-
-function formatDateOnly(value?: string | null) {
-  if (!value) {
-    return '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u0430';
-  }
-
-  const [year, month, day] = value.split('-');
-  return year && month && day ? `${day}.${month}.${year}` : value;
-}
-
-function formatAccommodationPreference(value?: AccommodationPreference | null) {
-  return value ? accommodationPreferenceLabels[value] ?? value : '\u041d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u043e';
 }
 
 function normalizeRedirectPath(value?: string | null) {
@@ -1849,18 +1812,13 @@ function AdminPage() {
   const canOpenAdmin = isAdmin(auth.account?.user.roles);
   const [overview, setOverview] = useState<AdminOverview | null>(null);
   const [authSettings, setAuthSettings] = useState<AdminExternalAuthSettings | null>(null);
-  const [adminEvents, setAdminEvents] = useState<AdminEventSummary[]>([]);
   const [usersPage, setUsersPage] = useState<PaginatedResponse<AdminUser> | null>(null);
-  const [registrationsPage, setRegistrationsPage] = useState<PaginatedResponse<AdminUser> | null>(null);
   const [providerDrafts, setProviderDrafts] = useState<Record<string, UpdateExternalAuthProviderRequest>>({});
   const [roleDrafts, setRoleDrafts] = useState<Record<string, AppRole[]>>({});
-  const [registrationStatusDrafts, setRegistrationStatusDrafts] = useState<Record<string, RegistrationStatus>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [isUsersLoading, setIsUsersLoading] = useState(false);
-  const [isRegistrationsLoading, setIsRegistrationsLoading] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
-  const [savingRegistrationId, setSavingRegistrationId] = useState<string | null>(null);
   const [savingProvider, setSavingProvider] = useState<string | null>(null);
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
   const [pendingProviderTest, setPendingProviderTest] = useState<{
@@ -1874,13 +1832,7 @@ function AdminPage() {
   const [userRoleFilter, setUserRoleFilter] = useState<'all' | AppRole>('all');
   const [userPage, setUserPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(20);
-  const [registrationSearch, setRegistrationSearch] = useState('');
-  const [registrationStatusFilter, setRegistrationStatusFilter] = useState<'all' | RegistrationStatus>('all');
-  const [registrationEventFilter, setRegistrationEventFilter] = useState<'all' | string>('all');
-  const [registrationPage, setRegistrationPage] = useState(1);
-  const [registrationPageSize, setRegistrationPageSize] = useState(20);
   const debouncedUserSearch = useDebouncedValue(userSearch);
-  const debouncedRegistrationSearch = useDebouncedValue(registrationSearch);
   const adminSection: string = location.pathname.startsWith('/admin/events')
     ? 'events'
     : location.pathname.startsWith('/admin/gallery')
@@ -1923,24 +1875,6 @@ function AdminPage() {
 
     void loadUsersPage();
   }, [adminSection, auth.session?.accessToken, canOpenAdmin, debouncedUserSearch, userPage, userPageSize, userRoleFilter]);
-
-  useEffect(() => {
-    if (!canOpenAdmin || !auth.session || adminSection !== 'registrations') {
-      return;
-    }
-
-    void loadAdminEventsList();
-    void loadRegistrationsPage();
-  }, [
-    adminSection,
-    auth.session?.accessToken,
-    canOpenAdmin,
-    debouncedRegistrationSearch,
-    registrationEventFilter,
-    registrationPage,
-    registrationPageSize,
-    registrationStatusFilter,
-  ]);
 
   async function loadOverview(silent = false) {
     if (!auth.session) {
@@ -1996,19 +1930,6 @@ function AdminPage() {
     }
   }
 
-  async function loadAdminEventsList() {
-    if (!auth.session) {
-      return;
-    }
-
-    try {
-      const response = await getAdminEvents(auth.session.accessToken);
-      setAdminEvents(response.events);
-    } catch {
-      // keep registrations usable even if the filter list fails to refresh
-    }
-  }
-
   async function loadUsersPage() {
     if (!auth.session) {
       return;
@@ -2036,34 +1957,6 @@ function AdminPage() {
     }
   }
 
-  async function loadRegistrationsPage() {
-    if (!auth.session) {
-      return;
-    }
-
-    setIsRegistrationsLoading(true);
-    setError(null);
-
-    try {
-      const loadedRegistrations = await getAdminRegistrations(auth.session.accessToken, {
-        page: registrationPage,
-        pageSize: registrationPageSize,
-        search: debouncedRegistrationSearch,
-        status: registrationStatusFilter,
-        eventEditionId: registrationEventFilter,
-      });
-
-      setRegistrationsPage(loadedRegistrations);
-      syncRegistrationStatusDrafts(loadedRegistrations.items);
-    } catch (loadError) {
-      const nextError = loadError instanceof Error ? loadError.message : '\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0441\u043f\u0438\u0441\u043e\u043a \u0430\u043d\u043a\u0435\u0442.';
-      setError(nextError);
-      toast.error('\u041d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u0437\u0430\u0433\u0440\u0443\u0437\u0438\u0442\u044c \u0430\u043d\u043a\u0435\u0442\u044b', nextError);
-    } finally {
-      setIsRegistrationsLoading(false);
-    }
-  }
-
   function syncRoleDrafts(users: AdminUser[]) {
     if (!users.length) {
       return;
@@ -2072,21 +1965,6 @@ function AdminPage() {
     setRoleDrafts((current) => ({
       ...current,
       ...Object.fromEntries(users.map((user) => [user.id, orderRoles([...user.roles])])) as Record<string, AppRole[]>,
-    }));
-  }
-
-  function syncRegistrationStatusDrafts(users: AdminUser[]) {
-    if (!users.length) {
-      return;
-    }
-
-    setRegistrationStatusDrafts((current) => ({
-      ...current,
-      ...Object.fromEntries(
-        users
-          .filter((user) => user.registrationId && user.registrationStatus)
-          .map((user) => [user.registrationId as string, user.registrationStatus as RegistrationStatus]),
-      ) as Record<string, RegistrationStatus>,
     }));
   }
 
@@ -2100,14 +1978,6 @@ function AdminPage() {
           items: currentPage.items.map((item) => (item.id === updatedUser.id ? updatedUser : item)),
         }
       : currentPage;
-  }
-
-  function getDraftRegistrationStatus(user: AdminUser) {
-    if (!user.registrationId) {
-      return user.registrationStatus ?? 'Draft';
-    }
-
-    return registrationStatusDrafts[user.registrationId] ?? user.registrationStatus ?? 'Draft';
   }
 
   useEffect(() => {
@@ -2222,7 +2092,6 @@ function AdminPage() {
     try {
       const updatedUser = await updateUserRoles(auth.session.accessToken, user.id, getDraftRoles(user));
       setUsersPage((current) => replacePagedUser(current, updatedUser));
-      setRegistrationsPage((current) => replacePagedUser(current, updatedUser));
       setRoleDrafts((current) => ({
         ...current,
         [updatedUser.id]: orderRoles([...updatedUser.roles]),
@@ -2241,48 +2110,6 @@ function AdminPage() {
       toast.error('Не удалось сохранить роли', nextError);
     } finally {
       setSavingUserId(null);
-    }
-  }
-
-  async function saveRegistrationStatus(user: AdminUser) {
-    if (!auth.session || !user.registrationId) {
-      return;
-    }
-
-    setMessage(null);
-    setError(null);
-    setSavingRegistrationId(user.registrationId);
-
-    try {
-      const updatedUser = await updateAdminRegistrationStatus(
-        auth.session.accessToken,
-        user.registrationId,
-        getDraftRegistrationStatus(user),
-      );
-
-      setUsersPage((current) => replacePagedUser(current, updatedUser));
-      setRegistrationsPage((current) => replacePagedUser(current, updatedUser));
-      if (updatedUser.registrationId && updatedUser.registrationStatus) {
-        setRegistrationStatusDrafts((current) => ({
-          ...current,
-          [updatedUser.registrationId as string]: updatedUser.registrationStatus as RegistrationStatus,
-        }));
-      }
-
-      await loadOverview(true);
-      const successMessage = `Статус заявки пользователя ${updatedUser.displayName} обновлён.`;
-      setMessage(successMessage);
-      toast.success('Статус заявки обновлён', successMessage);
-
-      if (auth.account?.user.id === updatedUser.id) {
-        await auth.reloadAccount();
-      }
-    } catch (saveError) {
-      const nextError = saveError instanceof Error ? saveError.message : 'Не удалось обновить статус заявки.';
-      setError(nextError);
-      toast.error('Не удалось сохранить статус заявки', nextError);
-    } finally {
-      setSavingRegistrationId(null);
     }
   }
 
@@ -2362,7 +2189,6 @@ function AdminPage() {
   }
 
   const filteredUsers = usersPage?.items ?? [];
-  const filteredRegistrations = registrationsPage?.items ?? [];
 
   if (!canOpenAdmin) {
     return <Navigate replace to="/dashboard" />;
@@ -2603,316 +2429,6 @@ function AdminPage() {
                   </article>
                 );
               })}
-            </div>
-          </section>
-
-          <section className="glass-card stack-form" hidden={adminSection !== 'registrations'}>
-            <div className="section-inline">
-              <div>
-                <p className="mini-eyebrow">Заявки</p>
-                <h3>Анкеты и статусы участия</h3>
-              </div>
-              <p className="form-muted">
-                Здесь собраны только те пользователи, у которых уже есть анкета или статус участия.
-              </p>
-            </div>
-
-            <div className="admin-filter-bar">
-              <label>
-                <span>Поиск</span>
-                <input
-                  value={registrationSearch}
-                  onChange={(event) => {
-                    setRegistrationSearch(event.target.value);
-                    setRegistrationPage(1);
-                  }}
-                  placeholder="Имя, email, город или церковь"
-                />
-              </label>
-
-              <label>
-                <span>Статус</span>
-                <select
-                  value={registrationStatusFilter}
-                  onChange={(event) => {
-                    setRegistrationStatusFilter(event.target.value as 'all' | RegistrationStatus);
-                    setRegistrationPage(1);
-                  }}
-                >
-                  <option value="all">Все статусы</option>
-                  <option value="Draft">Черновик</option>
-                  <option value="Submitted">Отправлено</option>
-                  <option value="Confirmed">Подтверждено</option>
-                  <option value="Cancelled">Отменено</option>
-                </select>
-              </label>
-
-              <label>
-                <span>Мероприятие</span>
-                <select
-                  value={registrationEventFilter}
-                  onChange={(event) => {
-                    setRegistrationEventFilter(event.target.value);
-                    setRegistrationPage(1);
-                  }}
-                >
-                  <option value="all">Все мероприятия</option>
-                  {adminEvents.map((eventItem) => (
-                    <option key={eventItem.id} value={eventItem.id}>
-                      {eventItem.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-
-            <div className="role-pills">
-              <span className="role-pill">Анкет найдено: {registrationsPage?.totalItems ?? 0}</span>
-              <span className="role-pill muted-pill">На этой странице: {filteredRegistrations.length}</span>
-            </div>
-
-            {registrationsPage ? (
-              <PaginationBar
-                page={registrationsPage.page}
-                pageSize={registrationsPage.pageSize}
-                totalItems={registrationsPage.totalItems}
-                totalPages={registrationsPage.totalPages}
-                isLoading={isRegistrationsLoading}
-                onPageChange={setRegistrationPage}
-                onPageSizeChange={(nextPageSize) => {
-                  setRegistrationPageSize(nextPageSize);
-                  setRegistrationPage(1);
-                }}
-              />
-            ) : null}
-
-            <div className="user-list">
-              {isRegistrationsLoading && !registrationsPage ? (
-                <article className="user-card admin-empty-state">
-                  <strong className="user-name">Загружаем анкеты</strong>
-                  <p className="form-muted">Собираем страницу заявок и готовим фильтры.</p>
-                </article>
-              ) : null}
-
-              {filteredRegistrations.map((user) => {
-                const draftRegistrationStatus = getDraftRegistrationStatus(user);
-                const isSavingThisRegistration = savingRegistrationId === user.registrationId;
-                const isRegistrationDirty = Boolean(
-                  user.registrationId &&
-                  user.registrationStatus &&
-                  draftRegistrationStatus !== user.registrationStatus,
-                );
-                const registrationParticipants = user.registrationParticipants ?? [];
-                const registrationPrice = user.registrationSelectedPriceOptionTitle
-                  ? `${user.registrationSelectedPriceOptionTitle} • ${formatMoney(
-                      user.registrationSelectedPriceOptionAmount,
-                      user.registrationSelectedPriceOptionCurrency || 'RUB',
-                    )}`
-                  : '\u041d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d';
-
-                return (
-                <article className="user-card" key={`registration-${user.registrationId ?? user.id}`}>
-                  <div className="user-card-head">
-                    <div>
-                      <strong className="user-name">{user.displayName}</strong>
-                      <p className="user-meta">
-                        {user.email}
-                        {user.registrationEventTitle ? ` • ${user.registrationEventTitle}` : ''}
-                      </p>
-                    </div>
-
-                    <div className="role-pills">
-                      <span className="role-pill">{formatStatus(draftRegistrationStatus)}</span>
-                    </div>
-                  </div>
-
-                  <div className="user-info-grid">
-                    <div>
-                      <span>Город</span>
-                      <strong>{user.city || 'Не указан'}</strong>
-                    </div>
-                    <div>
-                      <span>Церковь</span>
-                      <strong>{user.churchName || 'Не указана'}</strong>
-                    </div>
-                    <div>
-                      <span>Роли</span>
-                      <strong>{formatRoleList(user.roles)}</strong>
-                    </div>
-                    <div>
-                      <span>Последний вход</span>
-                      <strong>{formatDateTime(user.lastLoginAtUtc)}</strong>
-                    </div>
-                  </div>
-
-                  {user.registrationId ? (
-                    <details className="registration-details">
-                      <summary>
-                        <span>Полная анкета</span>
-                        <small>Обновлена: {formatDateTime(user.registrationUpdatedAtUtc)}</small>
-                      </summary>
-
-                      <div className="registration-detail-grid">
-                        <div>
-                          <span>Мероприятие</span>
-                          <strong>{formatOptional(user.registrationEventTitle, 'Не указано')}</strong>
-                        </div>
-                        <div>
-                          <span>Статус</span>
-                          <strong>{formatStatus(draftRegistrationStatus)}</strong>
-                        </div>
-                        <div>
-                          <span>Тариф</span>
-                          <strong>{registrationPrice}</strong>
-                        </div>
-                        <div>
-                          <span>Email заявки</span>
-                          <strong>{formatOptional(user.registrationContactEmail)}</strong>
-                        </div>
-                        <div>
-                          <span>ФИО основного участника</span>
-                          <strong>{formatOptional(user.registrationFullName)}</strong>
-                        </div>
-                        <div>
-                          <span>Дата рождения</span>
-                          <strong>{formatDateOnly(user.registrationBirthDate)}</strong>
-                        </div>
-                        <div>
-                          <span>Телефон</span>
-                          <strong>{formatOptional(user.registrationPhoneNumber)}</strong>
-                        </div>
-                        <div>
-                          <span>Телефон подтверждён</span>
-                          <strong>{formatYesNo(user.registrationPhoneNumberConfirmed)}</strong>
-                        </div>
-                        <div>
-                          <span>Город</span>
-                          <strong>{formatOptional(user.city)}</strong>
-                        </div>
-                        <div>
-                          <span>Церковь</span>
-                          <strong>{formatOptional(user.churchName)}</strong>
-                        </div>
-                        <div>
-                          <span>Размещение</span>
-                          <strong>{formatAccommodationPreference(user.registrationAccommodationPreference)}</strong>
-                        </div>
-                        <div>
-                          <span>Автомобиль</span>
-                          <strong>{formatYesNo(user.registrationHasCar)}</strong>
-                        </div>
-                        <div>
-                          <span>Есть участник 16-17 лет</span>
-                          <strong>{formatYesNo(user.registrationHasChildren)}</strong>
-                        </div>
-                        <div>
-                          <span>Доверенное лицо</span>
-                          <strong>{formatOptional(user.registrationEmergencyContactName)}</strong>
-                        </div>
-                        <div>
-                          <span>Телефон доверенного лица</span>
-                          <strong>{formatOptional(user.registrationEmergencyContactPhone)}</strong>
-                        </div>
-                        <div>
-                          <span>Согласие на обработку</span>
-                          <strong>{formatYesNo(user.registrationConsentAccepted)}</strong>
-                        </div>
-                        <div>
-                          <span>Создана</span>
-                          <strong>{formatDateTime(user.registrationCreatedAtUtc)}</strong>
-                        </div>
-                        <div>
-                          <span>Отправлена</span>
-                          <strong>{formatDateTime(user.registrationSubmittedAtUtc)}</strong>
-                        </div>
-                      </div>
-
-                      <div className="registration-detail-section">
-                        <div className="section-inline compact-inline">
-                          <strong>Участники</strong>
-                          <span className="role-pill muted-pill">
-                            Всего: {user.registrationParticipantsCount ?? registrationParticipants.length}
-                          </span>
-                        </div>
-                        <div className="registration-participant-list">
-                          {registrationParticipants.length ? (
-                            registrationParticipants.map((participant) => (
-                              <div key={`${user.registrationId}-${participant.sortOrder}`}>
-                                <strong>{participant.fullName}</strong>
-                                <span>
-                                  {participant.isChild ? '16-17 лет' : 'Взрослый'}
-                                  {participant.birthDate ? ` • ${formatDateOnly(participant.birthDate)}` : ''}
-                                </span>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="form-muted">Участники не указаны.</p>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="registration-notes-grid">
-                        <div>
-                          <span>Здоровье и ограничения</span>
-                          <p>{formatOptional(user.registrationHealthNotes, 'Нет данных')}</p>
-                        </div>
-                        <div>
-                          <span>Аллергии</span>
-                          <p>{formatOptional(user.registrationAllergyNotes, 'Нет данных')}</p>
-                        </div>
-                        <div>
-                          <span>Особые условия</span>
-                          <p>{formatOptional(user.registrationSpecialNeeds, 'Нет данных')}</p>
-                        </div>
-                        <div>
-                          <span>Комментарий</span>
-                          <p>{formatOptional(user.registrationMotivation, 'Нет данных')}</p>
-                        </div>
-                      </div>
-                    </details>
-                  ) : null}
-
-                  {user.registrationId ? (
-                    <div className="action-row">
-                      <label style={{ minWidth: 220 }}>
-                        <span>Статус заявки</span>
-                        <select
-                          value={draftRegistrationStatus}
-                          onChange={(event) =>
-                            setRegistrationStatusDrafts((current) => ({
-                              ...current,
-                              [user.registrationId as string]: event.target.value as RegistrationStatus,
-                            }))
-                          }
-                          disabled={isSavingThisRegistration}
-                        >
-                          <option value="Draft">Черновик</option>
-                          <option value="Submitted">Отправлено</option>
-                          <option value="Confirmed">Подтверждено</option>
-                          <option value="Cancelled">Отменено</option>
-                        </select>
-                      </label>
-
-                      <button
-                        className="primary-button"
-                        type="button"
-                        onClick={async () => saveRegistrationStatus(user)}
-                        disabled={isSavingThisRegistration || !isRegistrationDirty}
-                      >
-                        {isSavingThisRegistration ? 'Сохраняем...' : 'Сохранить статус'}
-                      </button>
-                    </div>
-                  ) : null}
-                </article>
-                );
-              })}
-
-              {!filteredRegistrations.length && !isRegistrationsLoading ? (
-                <article className="user-card admin-empty-state">
-                  <strong className="user-name">Подходящих анкет не найдено</strong>
-                  <p className="form-muted">Попробуйте изменить строку поиска или выбрать другой статус.</p>
-                </article>
-              ) : null}
             </div>
           </section>
 
