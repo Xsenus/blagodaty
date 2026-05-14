@@ -1516,6 +1516,34 @@ button:disabled {
   object-fit: cover;
 }
 
+.preloaded-image {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  overflow: hidden;
+  border-radius: inherit;
+  background: rgba(239, 246, 238, 0.78);
+}
+
+.preloaded-image .image-preloader {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.preloaded-image img {
+  position: relative;
+  z-index: 2;
+  opacity: 1;
+  transition: opacity 360ms ease;
+}
+
+.preloaded-image.is-loading img {
+  opacity: 0;
+}
+
 .gallery-file-placeholder {
   display: grid;
   gap: 8px;

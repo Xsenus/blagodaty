@@ -709,6 +709,7 @@ export default function App() {
   const placeVisualItems = placeImageItems.length ? placeImageItems : PLACE_IMAGES;
   const placeBackgroundImage = placeVisualItems[0]?.url || heroImage;
   const placePhotoItems = placeVisualItems.slice(1, GALLERY_IMAGE_LIMIT);
+  const [isHeroImageLoaded, setHeroImageLoaded] = useState(false);
   const factDateParts = formatDateRangeParts(
     details?.startsAtUtc || selectedEventSummary?.startsAtUtc,
     details?.endsAtUtc || selectedEventSummary?.endsAtUtc,
@@ -719,6 +720,24 @@ export default function App() {
     : fallbackThingsToBring;
   const thingsToBringColumns = splitIntoColumns(activeThingsToBring, 2);
   const activeImportantNotices = importantNotices.length ? importantNotices : fallbackImportantNotices;
+
+  useEffect(() => {
+    if (!heroImage) {
+      setHeroImageLoaded(true);
+      return;
+    }
+
+    setHeroImageLoaded(false);
+    const image = new Image();
+    image.onload = () => setHeroImageLoaded(true);
+    image.onerror = () => setHeroImageLoaded(true);
+    image.src = heroImage;
+
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, [heroImage]);
 
   function selectEvent(slug: string, options?: { historyMode?: 'push' | 'replace'; isRegistrationOpen?: boolean }) {
     const nextModalOpen = options?.isRegistrationOpen ?? isModalOpen;
@@ -940,7 +959,11 @@ export default function App() {
       </header>
 
       <main className="camp-main" id="top">
-        <section className="hero-panel" style={{ backgroundImage: `linear-gradient(90deg, rgba(18, 29, 35, 0.78), rgba(18, 29, 35, 0.22)), url("${heroImage}")` }}>
+        <section
+          className={`hero-panel${isHeroImageLoaded ? ' is-image-loaded' : ' is-image-loading'}`}
+          style={{ backgroundImage: `linear-gradient(90deg, rgba(18, 29, 35, 0.78), rgba(18, 29, 35, 0.22)), url("${heroImage}")` }}
+        >
+          {!isHeroImageLoaded ? <ChurchPreloader compact visualOnly label="Загружаем главное фото" className="hero-image-preloader" /> : null}
           <div className="container hero-inner">
             <p className="section-kicker">{selectedEventSummary?.seasonLabel || 'Лето 2026'}</p>
             <h1>{selectedEventSummary?.title || 'Blagodaty Camp'}</h1>
@@ -1145,7 +1168,7 @@ export default function App() {
                 >
                   ‹
                 </button>
-                <img src={selectedGalleryImage.url} alt={selectedGalleryImage.title || 'Фото места'} />
+                <CrossfadeImage className="photo-viewer-image" src={selectedGalleryImage.url} alt={selectedGalleryImage.title || 'Фото места'} loading="eager" />
                 <button
                   className="photo-viewer-nav photo-viewer-next"
                   type="button"

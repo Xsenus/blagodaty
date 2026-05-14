@@ -6,6 +6,7 @@ import {
   uploadAdminGalleryAssets,
 } from '../lib/api';
 import { useToast } from '../ui/ToastProvider';
+import { PreloadedImage } from '../ui/PreloadedImage';
 import type { AdminGalleryAsset, PaginatedResponse } from '../types';
 
 type AdminGallerySectionProps = {
@@ -361,7 +362,7 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
                 <article className="gallery-card" key={asset.id}>
                   <div className="gallery-preview">
                     {asset.kind === 'Image' ? (
-                      <img src={absoluteUrl} alt={asset.name} loading="lazy" />
+                      <PreloadedImage src={absoluteUrl} alt={asset.name} loading="lazy" />
                     ) : asset.kind === 'Video' ? (
                       <video controls preload="metadata">
                         <source src={absoluteUrl} type={asset.contentType} />

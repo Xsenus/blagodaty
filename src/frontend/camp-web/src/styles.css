@@ -749,12 +749,15 @@ img {
   box-shadow: var(--shadow-strong);
 }
 
-.photo-viewer-panel > img {
-  display: block;
+.photo-viewer-image {
   flex: 1 1 auto;
   width: 100%;
   min-height: 0;
-  height: auto;
+  height: 100%;
+  background: #111c22;
+}
+
+.photo-viewer-image .image-crossfade-layer {
   object-fit: contain;
   background: #111c22;
 }
@@ -2546,6 +2549,7 @@ body {
 }
 
 .hero-panel {
+  position: relative;
   min-height: 640px;
   display: grid;
   align-items: center;
@@ -2555,6 +2559,18 @@ body {
   background-position: center;
   color: #f8fbf7;
   box-shadow: var(--shadow-strong);
+}
+
+.hero-image-preloader {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.hero-panel .hero-inner {
+  position: relative;
+  z-index: 2;
 }
 
 .hero-inner {
