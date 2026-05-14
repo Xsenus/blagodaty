@@ -862,6 +862,18 @@ public sealed class GoogleSheetsRegistrationSyncService
     {
         if (!registration.IsPaid)
         {
+            if (registration.PaymentUpdatedByUserId.HasValue)
+            {
+                return new PaymentExportColumns(
+                    string.Empty,
+                    string.Empty,
+                    string.Empty,
+                    registration.SelectedPriceOption is null
+                        ? string.Empty
+                        : registration.SelectedPriceOption.Amount,
+                    "Оплата отменена в LK");
+            }
+
             var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
             return new PaymentExportColumns(
                 payment?.Payer ?? string.Empty,
@@ -888,6 +900,15 @@ public sealed class GoogleSheetsRegistrationSyncService
         if (registration.IsPaid)
         {
             return (registration.SelectedPriceOption?.Amount ?? 0m, 0m);
+        }
+
+        if (registration.PaymentUpdatedByUserId.HasValue)
+        {
+            return (
+                null,
+                registration.SelectedPriceOption is null
+                    ? string.Empty
+                    : registration.SelectedPriceOption.Amount);
         }
 
         var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
