@@ -269,8 +269,7 @@ public sealed class GoogleSheetsRegistrationSyncService
                 var participantPhoneNumber = GetParticipantPhoneNumber(participant, registration);
                 var paymentKey = BuildPaymentKey(registration.Id, participant.FullName);
                 paymentRows.TryGetValue(paymentKey, out var payment);
-                var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
-                var balance = CalculateBalance(registration.SelectedPriceOption?.Amount, amountPaid, payment?.Balance);
+                var exportedPayment = BuildExportPaymentColumns(registration, payment);
 
                 rows.Add(new object[]
                 {
@@ -293,11 +292,11 @@ public sealed class GoogleSheetsRegistrationSyncService
                     FormatAccommodation(registration.AccommodationPreference),
                     BuildMedicalNotes(registration),
                     registration.Motivation ?? string.Empty,
-                    payment?.Payer ?? string.Empty,
-                    payment?.AmountPaid ?? string.Empty,
-                    payment?.PaidAt ?? string.Empty,
-                    balance,
-                    payment?.Comment ?? string.Empty,
+                    exportedPayment.Payer,
+                    exportedPayment.AmountPaid,
+                    exportedPayment.PaidAt,
+                    exportedPayment.Balance,
+                    exportedPayment.Comment,
                     registration.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
                 });
             }
@@ -859,6 +858,42 @@ public sealed class GoogleSheetsRegistrationSyncService
             : preservedBalance;
     }
 
+    private static PaymentExportColumns BuildExportPaymentColumns(CampRegistration registration, PaymentColumns? payment)
+    {
+        if (!registration.IsPaid)
+        {
+            var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
+            return new PaymentExportColumns(
+                payment?.Payer ?? string.Empty,
+                payment?.AmountPaid ?? string.Empty,
+                payment?.PaidAt ?? string.Empty,
+                CalculateBalance(registration.SelectedPriceOption?.Amount, amountPaid, payment?.Balance),
+                payment?.Comment ?? string.Empty);
+        }
+
+        var totalAmount = registration.SelectedPriceOption?.Amount ?? 0m;
+        var paidAt = registration.PaidAtUtc?.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)
+            ?? registration.UpdatedAtUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+
+        return new PaymentExportColumns(
+            string.IsNullOrWhiteSpace(payment?.Payer) ? "LK" : payment.Payer,
+            totalAmount.ToString(CultureInfo.InvariantCulture),
+            paidAt,
+            0m,
+            string.IsNullOrWhiteSpace(payment?.Comment) ? "Оплата отмечена в LK" : payment.Comment);
+    }
+
+    private static (decimal? AmountPaid, object Balance) GetEffectivePaymentState(CampRegistration registration, PaymentColumns? payment)
+    {
+        if (registration.IsPaid)
+        {
+            return (registration.SelectedPriceOption?.Amount ?? 0m, 0m);
+        }
+
+        var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
+        return (amountPaid, CalculateBalance(registration.SelectedPriceOption?.Amount, amountPaid, payment?.Balance));
+    }
+
     private static void AddDataRowFormattingRequests(
         ICollection<object> requests,
         int sheetId,
@@ -883,8 +918,7 @@ public sealed class GoogleSheetsRegistrationSyncService
             {
                 var paymentKey = BuildPaymentKey(registration.Id, participant.FullName);
                 paymentRows.TryGetValue(paymentKey, out var payment);
-                var amountPaid = TryParsePaymentAmount(payment?.AmountPaid);
-                var balance = CalculateBalance(registration.SelectedPriceOption?.Amount, amountPaid, payment?.Balance);
+                var paymentState = GetEffectivePaymentState(registration, payment);
 
                 requests.Add(BuildRowColorRequest(
                     sheetId,
@@ -899,11 +933,18 @@ public sealed class GoogleSheetsRegistrationSyncService
                 requests.Add(BuildPaymentColorRequest(
                     sheetId,
                     rowIndex,
-                    GetPaymentBackgroundColor(registration.Status, amountPaid, balance)));
+                    GetPaymentBackgroundColor(registration.Status, paymentState.AmountPaid, paymentState.Balance)));
                 rowIndex++;
             }
         }
     }
+
+    private sealed record PaymentExportColumns(
+        string Payer,
+        string AmountPaid,
+        string PaidAt,
+        object Balance,
+        string Comment);
 
     private static object BuildRowColorRequest(int sheetId, int rowIndex, object color)
     {

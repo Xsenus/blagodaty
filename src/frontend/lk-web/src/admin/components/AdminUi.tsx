@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ChurchPreloader } from '../../ui/ChurchPreloader';
 
 export type AdminNavItem = {
@@ -102,6 +102,93 @@ export function ErrorState({ message }: { message: string }) {
 
 export function DataToolbar({ children }: { children: ReactNode }) {
   return <div className="admin-data-toolbar">{children}</div>;
+}
+
+type SelectBoxOption<T extends string | number> = {
+  value: T;
+  label: string;
+};
+
+export function SelectBox<T extends string | number>({
+  value,
+  options,
+  onChange,
+  disabled = false,
+  ariaLabel,
+  className,
+}: {
+  value: T;
+  options: SelectBoxOption<T>[];
+  onChange: (value: T) => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption = options.find((option) => String(option.value) === String(value)) ?? options[0];
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className={`ui-select${className ? ` ${className}` : ''}`} ref={rootRef}>
+      <button
+        type="button"
+        className="ui-select-trigger"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={ariaLabel}
+        disabled={disabled}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selectedOption?.label}</span>
+      </button>
+      {open ? (
+        <div className="ui-select-menu" role="listbox" aria-label={ariaLabel}>
+          {options.map((option) => {
+            const selected = String(option.value) === String(value);
+            return (
+              <button
+                key={String(option.value)}
+                type="button"
+                className={`ui-select-option${selected ? ' is-selected' : ''}`}
+                role="option"
+                aria-selected={selected}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function Drawer({
@@ -219,6 +306,10 @@ export function Pagination({
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }) {
+  const pageSizeOptions = [10, 15, 25, 50, 100].map((size) => ({
+    value: size,
+    label: String(size),
+  }));
   const pages = Array.from({ length: totalPages }, (_, index) => index + 1)
     .filter((pageNumber) =>
       totalPages <= 7 ||
@@ -232,13 +323,14 @@ export function Pagination({
       <span>
         Страница {page} из {Math.max(totalPages, 1)} · {totalItems} записей
       </span>
-      <select value={pageSize} disabled={isLoading} onChange={(event) => onPageSizeChange(Number(event.target.value))}>
-        {[10, 20, 50, 100].map((size) => (
-          <option value={size} key={size}>
-            {size} на странице
-          </option>
-        ))}
-      </select>
+      <SelectBox
+        value={pageSize}
+        options={pageSizeOptions}
+        disabled={isLoading}
+        ariaLabel="Количество записей на странице"
+        className="admin-page-size-select"
+        onChange={onPageSizeChange}
+      />
       <div>
         <button className="secondary-button" type="button" disabled={isLoading || page <= 1} onClick={() => onPageChange(page - 1)}>
           Назад

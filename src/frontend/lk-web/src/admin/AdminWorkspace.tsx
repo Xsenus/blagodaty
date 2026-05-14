@@ -57,6 +57,7 @@ import {
   FormSection,
   LoadingState,
   Pagination,
+  SelectBox,
   StatCard,
   StatusBadge,
 } from './components/AdminUi';
@@ -597,7 +598,7 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
   );
   const [eventId, setEventId] = useState('all');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(25);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedRegistration, setSelectedRegistration] = useState<AdminUser | null>(null);
   const [statusDraft, setStatusDraft] = useState<RegistrationStatus>('Submitted');
@@ -751,6 +752,17 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
   }
 
   const registrations = registrationsPage?.items ?? [];
+  const statusOptions: Array<{ value: 'all' | RegistrationStatus; label: string }> = [
+    { value: 'all', label: 'Все статусы' },
+    { value: 'Submitted', label: 'Отправлено' },
+    { value: 'Confirmed', label: 'Подтверждено' },
+    { value: 'Cancelled', label: 'Отменено' },
+    { value: 'Draft', label: 'Черновики' },
+  ];
+  const eventOptions = [
+    { value: 'all', label: 'Все мероприятия' },
+    ...events.map((event) => ({ value: event.id, label: event.title })),
+  ];
 
   return (
     <div className="admin-workspace-stack">
@@ -761,22 +773,27 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
         </label>
         <label>
           <span>Статус</span>
-          <select value={status} onChange={(event) => { setStatus(event.target.value as 'all' | RegistrationStatus); setPage(1); }}>
-            <option value="all">Все статусы</option>
-            <option value="Submitted">Отправлено</option>
-            <option value="Confirmed">Подтверждено</option>
-            <option value="Cancelled">Отменено</option>
-            <option value="Draft">Черновики</option>
-          </select>
+          <SelectBox
+            value={status}
+            options={statusOptions}
+            ariaLabel="Фильтр по статусу"
+            onChange={(nextStatus) => {
+              setStatus(nextStatus);
+              setPage(1);
+            }}
+          />
         </label>
         <label>
           <span>Мероприятие</span>
-          <select value={eventId} onChange={(event) => { setEventId(event.target.value); setPage(1); }}>
-            <option value="all">Все мероприятия</option>
-            {events.map((event) => (
-              <option value={event.id} key={event.id}>{event.title}</option>
-            ))}
-          </select>
+          <SelectBox
+            value={eventId}
+            options={eventOptions}
+            ariaLabel="Фильтр по мероприятию"
+            onChange={(nextEventId) => {
+              setEventId(nextEventId);
+              setPage(1);
+            }}
+          />
         </label>
         <button
           aria-label="Сбросить фильтры"
@@ -801,9 +818,9 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
                 <th>Участник</th>
                 <th>Контакты</th>
                 <th>Мероприятие</th>
-                <th>Статус</th>
-                <th>Тариф</th>
-                <th>Обновлено</th>
+                <th className="admin-table-center">Статус</th>
+                <th className="admin-table-center">Тариф</th>
+                <th className="admin-table-center">Обновлено</th>
               </tr>
             </thead>
             <tbody>
@@ -830,8 +847,8 @@ function RegistrationsSection({ accessToken }: { accessToken: string | null }) {
                     <strong>{registration.registrationEventTitle || 'Не указано'}</strong>
                     <span>{registration.city || registration.churchName || 'Без города'}</span>
                   </td>
-                  <td><StatusBadge label={formatStatus(registration.registrationStatus)} tone={statusTone(registration.registrationStatus)} /></td>
-                  <td>
+                  <td className="admin-table-center"><StatusBadge label={formatStatus(registration.registrationStatus)} tone={statusTone(registration.registrationStatus)} /></td>
+                  <td className="admin-table-tariff-cell">
                     <strong>{registration.registrationSelectedPriceOptionTitle || 'Не выбран'}</strong>
                     <span>{formatMoney(registration.registrationSelectedPriceOptionAmount, registration.registrationSelectedPriceOptionCurrency ?? 'RUB')}</span>
                     <StatusBadge label={registration.registrationIsPaid ? 'Оплачено' : 'Не оплачено'} tone={registration.registrationIsPaid ? 'success' : 'muted'} />
@@ -1030,7 +1047,7 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
     queryRole && queryRole in roleLabels ? queryRole : 'all',
   );
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(25);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
   const [roleDraft, setRoleDraft] = useState<AppRole[]>([]);
   const [profileDraft, setProfileDraft] = useState<UpdateAdminUserRequest>({
