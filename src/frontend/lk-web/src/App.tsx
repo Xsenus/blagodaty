@@ -35,6 +35,7 @@ import { AdminWorkspace } from './admin/AdminWorkspace';
 import { CampRegistrationFlowPage } from './camp/CampRegistrationPage';
 import { NotificationsPage } from './notifications/NotificationsPage';
 import { useToast } from './ui/ToastProvider';
+import { ChurchPreloader } from './ui/ChurchPreloader';
 import { formatPhoneForInput, normalizePhone, PhoneVerificationPanel } from './ui/PhoneVerificationPanel';
 import { StatusBadge as UiStatusBadge } from './ui/status';
 import type {
@@ -766,13 +767,11 @@ function formatNotificationPreviewDate(value: string) {
 
 function AppLoader() {
   return (
-    <div className="screen-shell center-screen">
-      <div className="glass-card loader-card">
-        <p className="mini-eyebrow">Blagodaty LK</p>
-        <h1>Подготавливаем кабинет</h1>
-        <p>Проверяем сессию, права доступа и собираем ваш рабочий экран.</p>
-      </div>
-    </div>
+    <ChurchPreloader
+      fullscreen
+      label="Подготавливаем кабинет"
+      description="Проверяем сессию, права доступа и собираем ваш рабочий экран."
+    />
   );
 }
 
