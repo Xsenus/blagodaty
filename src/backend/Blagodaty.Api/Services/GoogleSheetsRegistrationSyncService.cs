@@ -553,26 +553,35 @@ public sealed class GoogleSheetsRegistrationSyncService
                     }
                 }
             },
-            new
-            {
-                autoResizeDimensions = new
-                {
-                    dimensions = new
-                    {
-                        sheetId,
-                        dimension = "COLUMNS",
-                        startIndex = 0,
-                        endIndex = columnsCount
-                    }
-                }
-            },
-            BuildSetColumnWidthRequest(sheetId.Value, 1, 2, 130),
-            BuildSetColumnWidthRequest(sheetId.Value, 3, 6, 150),
-            BuildSetColumnWidthRequest(sheetId.Value, 9, 12, 150),
-            BuildSetColumnWidthRequest(sheetId.Value, 12, 15, 130),
-            BuildSetColumnWidthRequest(sheetId.Value, 15, 17, 260),
-            BuildSetColumnWidthRequest(sheetId.Value, 17, 22, 140),
-            BuildSetColumnWidthRequest(sheetId.Value, 22, 23, 150)
+            BuildCellAlignmentRequest(sheetId.Value, 0, rowCount, 0, columnsCount, "MIDDLE", "WRAP"),
+            BuildCellHorizontalAlignmentRequest(sheetId.Value, 3, rowCount, 0, 3, "CENTER"),
+            BuildCellHorizontalAlignmentRequest(sheetId.Value, 3, rowCount, 5, 9, "CENTER"),
+            BuildCellHorizontalAlignmentRequest(sheetId.Value, 3, rowCount, 12, 15, "CENTER"),
+            BuildCellHorizontalAlignmentRequest(sheetId.Value, 3, rowCount, 17, 23, "CENTER"),
+            BuildHeaderBandRequest(sheetId.Value, 2, 3, 2, 3, Rgb(0.23f, 0.45f, 0.34f)),
+            BuildHeaderBandRequest(sheetId.Value, 2, 3, 12, 14, Rgb(0.72f, 0.45f, 0.22f)),
+            BuildHeaderBandRequest(sheetId.Value, 2, 3, 17, 22, Rgb(0.24f, 0.46f, 0.42f)),
+            BuildSetRowHeightRequest(sheetId.Value, 2, 3, 44),
+            BuildSetRowHeightRequest(sheetId.Value, 3, rowCount, 48),
+            BuildSetColumnWidthRequest(sheetId.Value, 0, 1, 54),
+            BuildSetColumnWidthRequest(sheetId.Value, 1, 2, 136),
+            BuildSetColumnWidthRequest(sheetId.Value, 2, 3, 126),
+            BuildSetColumnWidthRequest(sheetId.Value, 3, 5, 178),
+            BuildSetColumnWidthRequest(sheetId.Value, 5, 6, 118),
+            BuildSetColumnWidthRequest(sheetId.Value, 6, 7, 82),
+            BuildSetColumnWidthRequest(sheetId.Value, 7, 9, 148),
+            BuildSetColumnWidthRequest(sheetId.Value, 9, 10, 230),
+            BuildSetColumnWidthRequest(sheetId.Value, 10, 12, 152),
+            BuildSetColumnWidthRequest(sheetId.Value, 12, 13, 176),
+            BuildSetColumnWidthRequest(sheetId.Value, 13, 14, 112),
+            BuildSetColumnWidthRequest(sheetId.Value, 14, 15, 132),
+            BuildSetColumnWidthRequest(sheetId.Value, 15, 17, 300),
+            BuildSetColumnWidthRequest(sheetId.Value, 17, 18, 150),
+            BuildSetColumnWidthRequest(sheetId.Value, 18, 19, 120),
+            BuildSetColumnWidthRequest(sheetId.Value, 19, 20, 148),
+            BuildSetColumnWidthRequest(sheetId.Value, 20, 21, 112),
+            BuildSetColumnWidthRequest(sheetId.Value, 21, 22, 220),
+            BuildSetColumnWidthRequest(sheetId.Value, 22, 23, 160)
         };
 
         AddDataRowFormattingRequests(requests, sheetId.Value, registrations, paymentRows);
@@ -1018,10 +1027,104 @@ public sealed class GoogleSheetsRegistrationSyncService
                 {
                     userEnteredFormat = new
                     {
-                        backgroundColor = color
+                        backgroundColor = color,
+                        horizontalAlignment = "CENTER",
+                        verticalAlignment = "MIDDLE",
+                        textFormat = new
+                        {
+                            bold = true
+                        }
                     }
                 },
-                fields = "userEnteredFormat.backgroundColor"
+                fields = "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,textFormat)"
+            }
+        };
+    }
+
+    private static object BuildHeaderBandRequest(int sheetId, int startRowIndex, int endRowIndex, int startColumnIndex, int endColumnIndex, object color)
+    {
+        return new
+        {
+            repeatCell = new
+            {
+                range = GridRange(sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex),
+                cell = new
+                {
+                    userEnteredFormat = new
+                    {
+                        backgroundColor = color,
+                        horizontalAlignment = "CENTER",
+                        verticalAlignment = "MIDDLE",
+                        wrapStrategy = "WRAP",
+                        textFormat = new
+                        {
+                            foregroundColor = Rgb(1f, 1f, 1f),
+                            bold = true
+                        }
+                    }
+                },
+                fields = "userEnteredFormat(backgroundColor,horizontalAlignment,verticalAlignment,wrapStrategy,textFormat)"
+            }
+        };
+    }
+
+    private static object BuildCellAlignmentRequest(int sheetId, int startRowIndex, int endRowIndex, int startColumnIndex, int endColumnIndex, string verticalAlignment, string wrapStrategy)
+    {
+        return new
+        {
+            repeatCell = new
+            {
+                range = GridRange(sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex),
+                cell = new
+                {
+                    userEnteredFormat = new
+                    {
+                        verticalAlignment,
+                        wrapStrategy
+                    }
+                },
+                fields = "userEnteredFormat(verticalAlignment,wrapStrategy)"
+            }
+        };
+    }
+
+    private static object BuildCellHorizontalAlignmentRequest(int sheetId, int startRowIndex, int endRowIndex, int startColumnIndex, int endColumnIndex, string horizontalAlignment)
+    {
+        return new
+        {
+            repeatCell = new
+            {
+                range = GridRange(sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex),
+                cell = new
+                {
+                    userEnteredFormat = new
+                    {
+                        horizontalAlignment
+                    }
+                },
+                fields = "userEnteredFormat.horizontalAlignment"
+            }
+        };
+    }
+
+    private static object BuildSetRowHeightRequest(int sheetId, int startRowIndex, int endRowIndex, int pixelSize)
+    {
+        return new
+        {
+            updateDimensionProperties = new
+            {
+                range = new
+                {
+                    sheetId,
+                    dimension = "ROWS",
+                    startIndex = startRowIndex,
+                    endIndex = endRowIndex
+                },
+                properties = new
+                {
+                    pixelSize
+                },
+                fields = "pixelSize"
             }
         };
     }
