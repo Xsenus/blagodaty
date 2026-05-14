@@ -1,0 +1,687 @@
+.church-preloader {
+  --preloader-scale: 1;
+  position: relative;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(219, 203, 176, 0.72);
+  background: linear-gradient(180deg, #dbe8f0 0%, #f8ead3 52%, #efe2cf 100%);
+  box-shadow: 0 24px 70px rgba(47, 57, 72, 0.12);
+}
+
+.church-preloader.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  min-height: 100vh;
+  border: 0;
+  border-radius: 0;
+}
+
+.church-preloader.is-compact {
+  --preloader-scale: 0.46;
+  min-height: 220px;
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.church-preloader.is-visual-only {
+  min-height: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(219, 232, 240, 0.72), rgba(248, 234, 211, 0.82));
+}
+
+.church-preloader.is-visual-only.is-compact {
+  --preloader-scale: 0.24;
+}
+
+.church-preloader .preloader-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.88), transparent 25%),
+    radial-gradient(ellipse at 18% 35%, rgba(255, 255, 255, 0.46), transparent 18%),
+    radial-gradient(ellipse at 78% 27%, rgba(255, 255, 255, 0.42), transparent 18%),
+    radial-gradient(ellipse at 50% 78%, rgba(255, 255, 255, 0.38), transparent 28%);
+  animation: churchCloudsMove 12s ease-in-out infinite alternate;
+}
+
+.church-preloader .sun-rays {
+  position: absolute;
+  top: -24%;
+  left: 50%;
+  width: calc(430px * var(--preloader-scale));
+  height: calc(560px * var(--preloader-scale));
+  transform: translateX(-50%);
+  background: conic-gradient(from 190deg at 50% 0%, transparent 0deg, transparent 18deg, rgba(255, 245, 212, 0.88) 24deg, transparent 31deg, transparent 52deg, rgba(255, 235, 178, 0.72) 58deg, transparent 68deg, transparent 96deg, rgba(255, 255, 255, 0.7) 104deg, transparent 116deg, transparent 360deg);
+  clip-path: polygon(42% 0, 58% 0, 100% 100%, 0 100%);
+  opacity: 0;
+  filter: blur(1px);
+  animation: churchRays 8s ease-in-out infinite;
+}
+
+.church-preloader .soft-sun {
+  position: absolute;
+  top: 14%;
+  right: 36%;
+  width: calc(28px * var(--preloader-scale));
+  height: calc(28px * var(--preloader-scale));
+  border-radius: 999px;
+  background: #fff8dc;
+  box-shadow: 0 0 26px rgba(255, 236, 165, 0.95), 0 0 70px rgba(211, 156, 52, 0.42);
+  opacity: 0;
+  animation: churchSunAppear 8s ease-in-out infinite;
+}
+
+.church-preloader .loader-orbit,
+.church-preloader .loader-dot {
+  position: absolute;
+  width: min(calc(440px * var(--preloader-scale)), 78vw);
+  aspect-ratio: 1;
+  border-radius: 999px;
+}
+
+.church-preloader .loader-orbit {
+  border: 1.5px solid rgba(255, 255, 255, 0.64);
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.35);
+  animation: churchOrbitPulse 8s ease-in-out infinite;
+}
+
+.church-preloader .loader-orbit::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 2px solid transparent;
+  border-top-color: rgba(192, 142, 50, 0.88);
+  border-right-color: rgba(192, 142, 50, 0.28);
+  animation: churchOrbitSpin 2.8s linear infinite;
+}
+
+.church-preloader .loader-dot {
+  animation: churchOrbitSpin 2.8s linear infinite;
+}
+
+.church-preloader .loader-dot::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: #fff7cf;
+  box-shadow: 0 0 20px rgba(255, 245, 186, 0.95);
+}
+
+.church-preloader .sparkles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.96) 0 2px, transparent 3px),
+    radial-gradient(circle, rgba(218, 174, 82, 0.82) 0 1px, transparent 2px),
+    radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 1px, transparent 2px);
+  background-size: 160px 160px, 220px 220px, 120px 120px;
+  background-position: 20px 40px, 80px 20px, 120px 100px;
+  opacity: 0;
+  animation: churchSparkle 8s ease-in-out infinite;
+}
+
+.church-preloader .church-scene {
+  position: relative;
+  z-index: 5;
+  width: calc(330px * var(--preloader-scale));
+  height: calc(330px * var(--preloader-scale));
+  transform: translateY(calc(38px * var(--preloader-scale)));
+}
+
+.church-preloader .ground-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 13%;
+  width: 100%;
+  height: 10%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(91, 67, 37, 0.16);
+  filter: blur(9px);
+  opacity: 0;
+  animation: churchFadeIn 8s ease-in-out infinite;
+}
+
+.church-preloader .foundation-blocks {
+  position: absolute;
+  left: 50%;
+  bottom: 20%;
+  display: flex;
+  height: 9%;
+  transform: translateX(-50%);
+  gap: calc(5px * var(--preloader-scale));
+}
+
+.church-preloader .foundation-blocks span {
+  width: calc(52px * var(--preloader-scale));
+  height: calc(26px * var(--preloader-scale));
+  border: 1px solid rgba(149, 113, 57, 0.32);
+  border-radius: 5px;
+  background: linear-gradient(#f8f0df, #d8c4a3);
+  opacity: 0;
+  transform: translateY(22px);
+  animation: churchFoundationBuild 8s ease-in-out infinite;
+}
+
+.church-preloader .foundation-blocks span:nth-child(2) { animation-delay: 0.12s; }
+.church-preloader .foundation-blocks span:nth-child(3) { animation-delay: 0.24s; }
+.church-preloader .foundation-blocks span:nth-child(4) { animation-delay: 0.36s; }
+.church-preloader .foundation-blocks span:nth-child(5) { animation-delay: 0.48s; }
+
+.church-preloader .church-base {
+  position: absolute;
+  left: 50%;
+  bottom: 26%;
+  width: 70%;
+  height: 36%;
+  transform: translateX(-50%) scaleY(0);
+  transform-origin: bottom;
+  border: 2px solid rgba(172, 131, 61, 0.48);
+  border-bottom: 0;
+  border-radius: 18px 18px 6px 6px;
+  background: linear-gradient(120deg, #fffaf0, #ead6b5);
+  box-shadow: 0 16px 28px rgba(86, 61, 30, 0.16), inset 0 0 22px rgba(255, 255, 255, 0.8);
+  animation: churchWallsBuild 8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.church-preloader .church-base::before,
+.church-preloader .church-base::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 25%;
+  height: 75%;
+  border: 2px solid rgba(172, 131, 61, 0.42);
+  border-bottom: 0;
+  background: linear-gradient(120deg, #fff8e8, #e6cda7);
+}
+
+.church-preloader .church-base::before {
+  left: -18%;
+  border-radius: 16px 8px 0 5px;
+  transform: skewY(-5deg);
+}
+
+.church-preloader .church-base::after {
+  right: -18%;
+  border-radius: 8px 16px 5px 0;
+  transform: skewY(5deg);
+}
+
+.church-preloader .roof {
+  position: absolute;
+  bottom: 60%;
+  width: 42%;
+  height: 20%;
+  background: linear-gradient(140deg, #313039, #5b5660 60%, #211f25);
+  border: 2px solid rgba(243, 212, 151, 0.45);
+  opacity: 0;
+  animation: churchRoofDrop 8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.church-preloader .roof-left {
+  left: 14%;
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}
+
+.church-preloader .roof-right {
+  right: 14%;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+
+.church-preloader .tower {
+  position: absolute;
+  left: 50%;
+  bottom: 66%;
+  width: 22%;
+  height: 29%;
+  transform: translateX(-50%) scaleY(0);
+  transform-origin: bottom;
+  border: 2px solid rgba(172, 131, 61, 0.48);
+  border-radius: 18px 18px 4px 4px;
+  background: linear-gradient(120deg, #fff9ed, #dfc39b);
+  animation: churchTowerBuild 8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.church-preloader .tower-roof {
+  position: absolute;
+  left: 50%;
+  bottom: 93%;
+  width: 24%;
+  height: 24%;
+  transform: translateX(-50%) translateY(-20px) scale(0.85);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: linear-gradient(135deg, #2c2c34, #605a63 60%, #1e1d22);
+  border: 2px solid rgba(243, 212, 151, 0.5);
+  opacity: 0;
+  animation: churchTowerRoofDrop 8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.church-preloader .cross {
+  position: absolute;
+  left: 50%;
+  bottom: 115%;
+  width: 13%;
+  height: 16%;
+  transform: translateX(-50%) translateY(-24px) scale(0.82);
+  opacity: 0;
+  animation: churchCrossAppear 8s ease-in-out infinite;
+}
+
+.church-preloader .cross-vertical,
+.church-preloader .cross-horizontal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: block;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: linear-gradient(#fff1bb, #b9862a);
+  box-shadow: 0 0 14px rgba(255, 222, 133, 0.78);
+}
+
+.church-preloader .cross-vertical { width: 12%; height: 88%; }
+.church-preloader .cross-horizontal { top: 42%; width: 68%; height: 8%; }
+
+.church-preloader .door {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 23%;
+  height: 59%;
+  transform: translateX(-50%);
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(90deg, #6f4928, #9a6736 55%, #53331c);
+}
+
+.church-preloader .door-arch {
+  position: absolute;
+  left: 50%;
+  bottom: 49%;
+  width: 30%;
+  height: 34%;
+  transform: translateX(-50%);
+  border-top: 3px solid rgba(177, 130, 47, 0.42);
+  border-radius: 60px 60px 0 0;
+}
+
+.church-preloader .round-window {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  width: 15%;
+  height: 29%;
+  transform: translateX(-50%);
+  border: 3px solid rgba(175, 126, 43, 0.58);
+  border-radius: 999px;
+  background: radial-gradient(circle, #3f3330 0 38%, #f9e7b7 39% 46%, #564135 47%);
+}
+
+.church-preloader .side-window,
+.church-preloader .tower-window {
+  position: absolute;
+  border: 2px solid rgba(175, 126, 43, 0.5);
+  border-radius: 20px 20px 4px 4px;
+  background: linear-gradient(#fff0b8, #594338);
+}
+
+.church-preloader .side-window {
+  top: 41%;
+  width: 10%;
+  height: 37%;
+}
+
+.church-preloader .side-window-left { left: 14%; }
+.church-preloader .side-window-right { right: 14%; }
+
+.church-preloader .tower-window {
+  left: 50%;
+  top: 32%;
+  width: 32%;
+  height: 44%;
+  transform: translateX(-50%);
+}
+
+.church-preloader .angel {
+  position: absolute;
+  z-index: 8;
+  left: 50%;
+  top: 10%;
+  width: calc(230px * var(--preloader-scale));
+  height: calc(245px * var(--preloader-scale));
+  transform: translate(-50%, -135px) scale(0.72);
+  opacity: 0;
+  pointer-events: none;
+  animation: churchAngelDescend 8s ease-in-out infinite;
+}
+
+.church-preloader .angel-aura {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.98), rgba(255, 235, 176, 0.38) 42%, transparent 72%);
+  filter: blur(18px);
+  transform: scale(1.12);
+  animation: churchAuraPulse 2.8s ease-in-out infinite;
+}
+
+.church-preloader .angel-halo {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  top: 5%;
+  width: 27%;
+  height: 9%;
+  transform: translateX(-50%);
+  border: 3px solid rgba(255, 230, 153, 0.96);
+  border-radius: 999px;
+  box-shadow: 0 0 16px rgba(255, 240, 180, 0.95), 0 0 34px rgba(232, 179, 73, 0.5);
+}
+
+.church-preloader .angel-head {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 18%;
+  width: 19%;
+  height: 21%;
+  transform: translateX(-50%);
+  border-radius: 48% 48% 46% 46%;
+  background: linear-gradient(180deg, #fff2d8 0%, #e9bc83 100%);
+}
+
+.church-preloader .angel-eye,
+.church-preloader .angel-nose,
+.church-preloader .angel-mouth {
+  position: absolute;
+  display: block;
+}
+
+.church-preloader .angel-eye {
+  top: 46%;
+  width: 16%;
+  height: 4%;
+  border-radius: 999px;
+  background: rgba(98, 67, 47, 0.58);
+}
+
+.church-preloader .angel-eye-left { left: 24%; transform: rotate(8deg); }
+.church-preloader .angel-eye-right { right: 24%; transform: rotate(-8deg); }
+
+.church-preloader .angel-nose {
+  left: 50%;
+  top: 52%;
+  width: 5%;
+  height: 13%;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(154, 105, 70, 0.32);
+}
+
+.church-preloader .angel-mouth {
+  left: 50%;
+  top: 75%;
+  width: 25%;
+  height: 10%;
+  transform: translateX(-50%);
+  border-bottom: 2px solid rgba(123, 75, 62, 0.42);
+  border-radius: 0 0 999px 999px;
+}
+
+.church-preloader .angel-hair {
+  position: absolute;
+  z-index: 5;
+  top: 16%;
+  width: 18%;
+  height: 32%;
+  background: linear-gradient(180deg, #f7d99a 0%, #c9903f 88%);
+  filter: drop-shadow(0 0 10px rgba(255, 232, 174, 0.45));
+}
+
+.church-preloader .angel-hair-left {
+  left: 33%;
+  border-radius: 40px 12px 38px 46px;
+  transform: rotate(10deg);
+  clip-path: polygon(34% 0, 100% 10%, 88% 100%, 0 72%);
+}
+
+.church-preloader .angel-hair-right {
+  right: 33%;
+  border-radius: 12px 40px 46px 38px;
+  transform: rotate(-10deg);
+  clip-path: polygon(0 10%, 66% 0, 100% 72%, 12% 100%);
+}
+
+.church-preloader .angel-neck {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 36%;
+  width: 8%;
+  height: 8%;
+  transform: translateX(-50%);
+  border-radius: 0 0 10px 10px;
+  background: linear-gradient(180deg, #e8ba82, #f5d3a3);
+}
+
+.church-preloader .angel-body {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  top: 40%;
+  width: 33%;
+  height: 50%;
+  transform: translateX(-50%);
+  border-radius: 36px 36px 58px 58px;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.92), transparent 35%), linear-gradient(145deg, #fffdf5 0%, #f4e2bf 52%, #fff6dc 100%);
+  box-shadow: inset 0 0 18px rgba(181, 136, 58, 0.15), 0 14px 26px rgba(114, 89, 45, 0.16), 0 0 28px rgba(255, 242, 197, 0.55);
+  overflow: hidden;
+}
+
+.church-preloader .angel-collar,
+.church-preloader .angel-sash,
+.church-preloader .robe-fold {
+  position: absolute;
+  display: block;
+}
+
+.church-preloader .angel-collar {
+  left: 50%;
+  top: 4px;
+  width: 66%;
+  height: 23%;
+  transform: translateX(-50%);
+  border-bottom: 2px solid rgba(184, 133, 50, 0.46);
+  border-radius: 0 0 44px 44px;
+}
+
+.church-preloader .angel-sash {
+  left: 50%;
+  top: 40%;
+  width: 103%;
+  height: 7%;
+  transform: translateX(-50%) rotate(-7deg);
+  border-radius: 999px;
+  background: linear-gradient(90deg, #b88933, #f0cb77, #b88933);
+}
+
+.church-preloader .robe-fold {
+  top: 15%;
+  width: 2px;
+  height: 88%;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(185, 135, 52, 0.08), rgba(143, 103, 48, 0.24), transparent);
+}
+
+.church-preloader .robe-fold-1 { left: 32%; transform: rotate(5deg); }
+.church-preloader .robe-fold-2 { left: 51%; }
+.church-preloader .robe-fold-3 { right: 32%; transform: rotate(-5deg); }
+
+.church-preloader .angel-arm {
+  position: absolute;
+  z-index: 5;
+  top: 49%;
+  width: 30%;
+  height: 6%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fffdf5, #f2ddbb);
+}
+
+.church-preloader .angel-arm-left {
+  left: 17%;
+  transform: rotate(28deg);
+  transform-origin: right center;
+}
+
+.church-preloader .angel-arm-right {
+  right: 17%;
+  transform: rotate(-28deg);
+  transform-origin: left center;
+}
+
+.church-preloader .angel-hand {
+  position: absolute;
+  top: 50%;
+  width: 23%;
+  height: 86%;
+  transform: translateY(-50%);
+  border-radius: 999px 999px 70% 70%;
+  background: #f0c796;
+}
+
+.church-preloader .angel-arm-left .angel-hand { left: -11%; }
+.church-preloader .angel-arm-right .angel-hand { right: -11%; }
+
+.church-preloader .angel-wing {
+  position: absolute;
+  z-index: 2;
+  top: 23%;
+  width: 49%;
+  height: 56%;
+  background: radial-gradient(ellipse at 50% 18%, rgba(255, 255, 255, 0.98), rgba(255, 244, 217, 0.7) 48%, rgba(233, 197, 132, 0.42) 100%);
+  box-shadow: 0 0 24px rgba(255, 255, 255, 0.78), inset 0 0 20px rgba(255, 255, 255, 0.52);
+  overflow: hidden;
+}
+
+.church-preloader .angel-wing span {
+  position: absolute;
+  height: 13%;
+  border-radius: 999px 999px 999px 0;
+  background: linear-gradient(90deg, rgba(255,255,255,0.95), rgba(238, 210, 159, 0.45));
+}
+
+.church-preloader .angel-wing-left {
+  left: 0;
+  clip-path: polygon(100% 0, 18% 2%, 0 22%, 7% 54%, 28% 82%, 78% 100%, 92% 64%);
+  border-radius: 95% 18% 70% 64%;
+  transform-origin: 96% 22%;
+  animation: churchWingLeft 2.4s ease-in-out infinite;
+}
+
+.church-preloader .angel-wing-right {
+  right: 0;
+  clip-path: polygon(0 0, 82% 2%, 100% 22%, 93% 54%, 72% 82%, 22% 100%, 8% 64%);
+  border-radius: 18% 95% 64% 70%;
+  transform-origin: 4% 22%;
+  animation: churchWingRight 2.4s ease-in-out infinite;
+}
+
+.church-preloader .angel-wing-left span:nth-child(1) { width: 68%; left: 16%; top: 20%; transform: rotate(-10deg); }
+.church-preloader .angel-wing-left span:nth-child(2) { width: 82%; left: 4%; top: 41%; transform: rotate(-2deg); }
+.church-preloader .angel-wing-left span:nth-child(3) { width: 73%; left: 9%; top: 61%; transform: rotate(8deg); }
+.church-preloader .angel-wing-left span:nth-child(4) { width: 55%; left: 21%; top: 81%; transform: rotate(18deg); }
+.church-preloader .angel-wing-right span:nth-child(1) { width: 68%; right: 16%; top: 20%; transform: rotate(10deg) scaleX(-1); }
+.church-preloader .angel-wing-right span:nth-child(2) { width: 82%; right: 4%; top: 41%; transform: rotate(2deg) scaleX(-1); }
+.church-preloader .angel-wing-right span:nth-child(3) { width: 73%; right: 9%; top: 61%; transform: rotate(-8deg) scaleX(-1); }
+.church-preloader .angel-wing-right span:nth-child(4) { width: 55%; right: 21%; top: 81%; transform: rotate(-18deg) scaleX(-1); }
+
+.church-preloader .progress-wrap {
+  position: absolute;
+  left: 50%;
+  bottom: 10%;
+  z-index: 10;
+  width: min(260px, 58vw);
+  height: 4px;
+  transform: translateX(-50%);
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.68);
+  box-shadow: inset 0 0 8px rgba(133, 91, 34, 0.12);
+}
+
+.church-preloader .progress-line {
+  height: 100%;
+  width: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #a97826, #e3ba63, #fff1b8);
+  transform-origin: left;
+  animation: churchProgress 8s linear infinite;
+}
+
+.church-preloader-copy {
+  position: absolute;
+  left: 50%;
+  bottom: calc(10% + 24px);
+  z-index: 11;
+  display: grid;
+  gap: 4px;
+  width: min(420px, calc(100% - 36px));
+  transform: translateX(-50%);
+  color: var(--color-text, #334761);
+  text-align: center;
+}
+
+.church-preloader-copy strong {
+  font-size: 1rem;
+}
+
+.church-preloader-copy span {
+  color: var(--color-text-muted, #667c95);
+  font-size: 0.92rem;
+}
+
+.church-preloader.is-compact .church-preloader-copy {
+  bottom: 16px;
+}
+
+@keyframes churchCloudsMove { from { transform: translateX(-10px); } to { transform: translateX(12px) translateY(-8px); } }
+@keyframes churchFoundationBuild { 0%, 4% { opacity: 0; transform: translateY(22px); } 10%, 82% { opacity: 1; transform: translateY(0); } 94%, 100% { opacity: 0; transform: translateY(18px); } }
+@keyframes churchWallsBuild { 0%, 14% { transform: translateX(-50%) scaleY(0); opacity: 0; } 27%, 82% { transform: translateX(-50%) scaleY(1); opacity: 1; } 94%, 100% { transform: translateX(-50%) scaleY(0.08); opacity: 0; } }
+@keyframes churchRoofDrop { 0%, 28% { opacity: 0; transform: translateY(-38px) scale(0.92); } 40%, 82% { opacity: 1; transform: translateY(0) scale(1); } 94%, 100% { opacity: 0; transform: translateY(22px) scale(0.9); } }
+@keyframes churchTowerBuild { 0%, 36% { transform: translateX(-50%) scaleY(0); opacity: 0; } 49%, 82% { transform: translateX(-50%) scaleY(1); opacity: 1; } 94%, 100% { transform: translateX(-50%) scaleY(0.05); opacity: 0; } }
+@keyframes churchTowerRoofDrop { 0%, 46% { opacity: 0; transform: translateX(-50%) translateY(-26px) scale(0.8); } 56%, 82% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } 94%, 100% { opacity: 0; transform: translateX(-50%) translateY(18px) scale(0.86); } }
+@keyframes churchCrossAppear { 0%, 54% { opacity: 0; transform: translateX(-50%) translateY(-20px) scale(0.72); } 63%, 82% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); } 94%, 100% { opacity: 0; transform: translateX(-50%) translateY(18px) scale(0.8); } }
+@keyframes churchFadeIn { 0%, 6% { opacity: 0; } 12%, 88% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes churchRays { 0%, 58% { opacity: 0; transform: translateX(-50%) translateY(-30px) scale(0.9); } 68%, 86% { opacity: 0.95; transform: translateX(-50%) translateY(0) scale(1); } 100% { opacity: 0; transform: translateX(-50%) translateY(18px) scale(0.96); } }
+@keyframes churchSunAppear { 0%, 55% { opacity: 0; transform: translateY(-16px) scale(0.6); } 65%, 88% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(10px) scale(0.7); } }
+@keyframes churchSparkle { 0%, 50% { opacity: 0; transform: translateY(10px); } 67%, 88% { opacity: 0.85; transform: translateY(0); } 100% { opacity: 0; transform: translateY(-8px); } }
+@keyframes churchAngelDescend { 0%, 68% { opacity: 0; transform: translate(-50%, -110px) scale(0.74); } 78% { opacity: 1; transform: translate(-50%, -22px) scale(0.94); } 88% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, 34px) scale(0.96); } }
+@keyframes churchWingLeft { 0%, 100% { transform: rotate(4deg); } 50% { transform: rotate(-6deg); } }
+@keyframes churchWingRight { 0%, 100% { transform: rotate(-4deg); } 50% { transform: rotate(6deg); } }
+@keyframes churchOrbitSpin { to { transform: rotate(360deg); } }
+@keyframes churchOrbitPulse { 0%, 100% { opacity: 0.64; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.02); } }
+@keyframes churchAuraPulse { 0%, 100% { opacity: 0.72; transform: scale(1.08); } 50% { opacity: 1; transform: scale(1.18); } }
+@keyframes churchProgress { 0% { transform: scaleX(0); } 90% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .church-preloader *,
+  .church-preloader *::before,
+  .church-preloader *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

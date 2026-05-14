@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { ApiError, getPublicEvent, getPublicEvents, saveEventRegistration } from '../lib/api';
 import { campBaseUrl } from '../lib/config';
 import { useToast } from '../ui/ToastProvider';
+import { ChurchPreloader } from '../ui/ChurchPreloader';
 import { formatPhoneForInput, normalizePhone, PhoneVerificationPanel } from '../ui/PhoneVerificationPanel';
 import type {
   AccommodationPreference,
@@ -1062,7 +1063,12 @@ export function CampRegistrationFlowPage() {
 
       {selectedEvent ? <section className="glass-card stack-form" hidden>
         {isLoadingEvents || isLoadingRegistration ? (
-          <p className="form-muted">Загружаем выбранное мероприятие и вашу текущую заявку...</p>
+          <ChurchPreloader
+            compact
+            label="Загружаем мероприятие"
+            description="Подтягиваем событие, тарифы и вашу текущую заявку."
+            className="registration-loading-preloader"
+          />
         ) : selectedEvent ? (
           <>
             <div className="user-info-grid">

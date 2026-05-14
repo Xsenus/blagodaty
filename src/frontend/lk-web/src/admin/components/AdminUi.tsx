@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
+import { ChurchPreloader } from '../../ui/ChurchPreloader';
 
 export type AdminNavItem = {
   to: string;
@@ -77,12 +78,7 @@ export function StatusBadge({ label, tone = 'neutral' }: { label: string; tone?:
 }
 
 export function LoadingState({ title = 'Загружаем данные', description = 'Подождите немного.' }: { title?: string; description?: string }) {
-  return (
-    <article className="admin-state-card">
-      <strong>{title}</strong>
-      <p>{description}</p>
-    </article>
-  );
+  return <ChurchPreloader compact label={title} description={description} className="admin-loading-preloader" />;
 }
 
 export function EmptyState({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {

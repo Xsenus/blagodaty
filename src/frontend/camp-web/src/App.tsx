@@ -4,6 +4,7 @@ import { getPublicEvent, getPublicEvents, getPublicSiteSettings } from './lib/ap
 import { lkBaseUrl } from './lib/config';
 import { RegistrationModal } from './components/RegistrationModal';
 import { NearbyActivitiesMap } from './components/NearbyActivitiesMap';
+import { ChurchPreloader } from './components/ChurchPreloader';
 import type {
   PublicEventContentBlock,
   PublicEventDetails,
@@ -214,6 +215,7 @@ type CrossfadeImageProps = {
 function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = false }: CrossfadeImageProps) {
   const [displayedSrc, setDisplayedSrc] = useState(src);
   const [previousSrc, setPreviousSrc] = useState<string | null>(null);
+  const [isCurrentLoaded, setIsCurrentLoaded] = useState(false);
 
   useEffect(() => {
     if (src === displayedSrc) {
@@ -222,13 +224,21 @@ function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = fa
 
     setPreviousSrc(displayedSrc);
     setDisplayedSrc(src);
+    setIsCurrentLoaded(false);
   }, [displayedSrc, src]);
 
   const imageAlt = decorative ? '' : alt;
-  const wrapperClassName = className ? `image-crossfade ${className}` : 'image-crossfade';
+  const wrapperClassName = [
+    'image-crossfade',
+    isCurrentLoaded ? 'is-loaded' : 'is-loading',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
     <span className={wrapperClassName} aria-hidden={decorative || undefined}>
+      {!isCurrentLoaded ? <ChurchPreloader compact visualOnly label="Загружаем фото" className="image-preloader" /> : null}
       {previousSrc ? (
         <img className="image-crossfade-layer image-crossfade-previous" src={previousSrc} alt="" aria-hidden="true" decoding="async" />
       ) : null}
@@ -239,6 +249,8 @@ function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = fa
         key={displayedSrc}
         loading={loading}
         decoding="async"
+        onLoad={() => setIsCurrentLoaded(true)}
+        onError={() => setIsCurrentLoaded(true)}
         onAnimationEnd={previousSrc ? () => setPreviousSrc(null) : undefined}
       />
     </span>
@@ -878,6 +890,18 @@ export default function App() {
       setSelectedGalleryIndex(null);
     }
   }, [imageItems.length, selectedGalleryIndex]);
+
+  const isInitialPageLoading = !eventsQuery.data && (eventsQuery.isLoading || siteSettingsQuery.isLoading);
+
+  if (isInitialPageLoading) {
+    return (
+      <ChurchPreloader
+        fullscreen
+        label="Загружаем Blagodaty Camp"
+        description="Готовим страницу, мероприятия и фотографии."
+      />
+    );
+  }
 
   return (
     <div className="camp-page">
