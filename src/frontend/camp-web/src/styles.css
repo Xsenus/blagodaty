@@ -589,6 +589,10 @@ img {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.media-section.is-viewing-photo {
+  z-index: 100;
+}
+
 .media-card,
 .video-card {
   display: grid;

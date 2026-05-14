@@ -1127,7 +1127,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="section-block container" id="media">
+        <section className={`section-block container media-section${selectedGalleryImage ? ' is-viewing-photo' : ''}`} id="media">
           <div className="section-heading">
             <h2>Территория и окрестности</h2>
           </div>
