@@ -13,6 +13,7 @@ import type {
   UpdateAdminSiteSettingsRequest,
 } from '../types';
 import { useToast } from '../ui/ToastProvider';
+import { SelectBox } from './components/AdminUi';
 
 type AdminSiteSettingsSectionProps = {
   accessToken: string | null;
@@ -488,23 +489,18 @@ export function AdminSiteSettingsSection({ accessToken, isActive }: AdminSiteSet
                 <div className="event-inline-grid">
                   <label>
                     <span>Тип ссылки</span>
-                    <select
+                    <SelectBox
                       value={item.preset}
-                      onChange={(event) => {
-                        const nextPreset = event.target.value;
+                      ariaLabel="Тип ссылки"
+                      options={presetOptions.map((option) => ({ value: option.id, label: option.label }))}
+                      onChange={(nextPreset) => {
                         const nextOption = getPresetOption(nextPreset);
                         updateDraftLink(index, {
                           preset: nextPreset,
                           label: item.label === presetOption.label ? nextOption.label : item.label,
                         });
                       }}
-                    >
-                      {presetOptions.map((option) => (
-                        <option value={option.id} key={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                    />
                   </label>
 
                   <label>
@@ -736,23 +732,18 @@ export function AdminSiteSettingsSection({ accessToken, isActive }: AdminSiteSet
                       <div className="event-inline-grid">
                         <label>
                           <span>Тип</span>
-                          <select
+                          <SelectBox
                             value={link.preset}
-                            onChange={(event) => {
-                              const nextPreset = event.target.value;
+                            ariaLabel="Тип ссылки контакта"
+                            options={presetOptions.map((option) => ({ value: option.id, label: option.label }))}
+                            onChange={(nextPreset) => {
                               const nextOption = getPresetOption(nextPreset);
                               updateContactLink(personIndex, linkIndex, {
                                 preset: nextPreset,
                                 label: link.label === presetOption.label ? nextOption.label : link.label,
                               });
                             }}
-                          >
-                            {presetOptions.map((option) => (
-                              <option value={option.id} key={option.id}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                          />
                         </label>
 
                         <label>

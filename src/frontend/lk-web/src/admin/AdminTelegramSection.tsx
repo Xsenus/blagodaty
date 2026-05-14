@@ -14,6 +14,7 @@ import type {
   TelegramChatSubscriptionType,
 } from '../types';
 import { useToast } from '../ui/ToastProvider';
+import { SelectBox } from './components/AdminUi';
 
 type AdminTelegramSectionProps = {
   accessToken: string | null;
@@ -299,35 +300,38 @@ export function AdminTelegramSection({ accessToken, isActive }: AdminTelegramSec
         <div className="form-grid telegram-admin-form">
           <label>
             <span>Чат</span>
-            <select value={selectedChatId} onChange={(event) => setSelectedChatId(event.target.value)}>
-              {chatOptions.map((chat) => (
-                <option key={chat.id} value={chat.id}>
-                  {String(chat.title || chat.username || chat.chatId)}
-                </option>
-              ))}
-            </select>
+            <SelectBox
+              value={selectedChatId}
+              ariaLabel="Чат"
+              options={chatOptions.map((chat) => ({
+                value: chat.id,
+                label: String(chat.title || chat.username || chat.chatId),
+              }))}
+              onChange={setSelectedChatId}
+            />
           </label>
 
           <label>
             <span>Событие</span>
-            <select value={selectedEventId} onChange={(event) => setSelectedEventId(event.target.value)}>
-              {eventOptions.map((eventItem) => (
-                <option key={eventItem.id} value={eventItem.id}>
-                  {eventItem.title} ({eventItem.slug})
-                </option>
-              ))}
-            </select>
+            <SelectBox
+              value={selectedEventId}
+              ariaLabel="Событие"
+              options={eventOptions.map((eventItem) => ({
+                value: eventItem.id,
+                label: `${eventItem.title} (${eventItem.slug})`,
+              }))}
+              onChange={setSelectedEventId}
+            />
           </label>
 
           <label>
             <span>Тип уведомления</span>
-            <select value={selectedType} onChange={(event) => setSelectedType(event.target.value as TelegramChatSubscriptionType)}>
-              {subscriptionTypeOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+            <SelectBox
+              value={selectedType}
+              ariaLabel="Тип уведомления"
+              options={subscriptionTypeOptions}
+              onChange={setSelectedType}
+            />
           </label>
 
           <label>

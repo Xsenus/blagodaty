@@ -26,6 +26,7 @@ import type {
   UpsertAdminEventRequest,
   UpsertAdminEventScheduleItemRequest,
 } from '../types';
+import { SelectBox } from './components/AdminUi';
 
 type AdminEventsSectionProps = {
   accessToken: string | null;
@@ -779,17 +780,18 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
 
           <label>
             <span>Статус</span>
-            <select
+            <SelectBox
               value={eventStatusFilter}
-              onChange={(event) => setEventStatusFilter(event.target.value as 'all' | EventEditionStatus)}
-            >
-              <option value="all">Все</option>
-              {Object.keys(eventStatusLabels).map((status) => (
-                <option value={status} key={status}>
-                  {formatEventStatus(status as EventEditionStatus)}
-                </option>
-              ))}
-            </select>
+              ariaLabel="Статус мероприятия"
+              options={[
+                { value: 'all', label: 'Все' },
+                ...Object.keys(eventStatusLabels).map((status) => ({
+                  value: status as EventEditionStatus,
+                  label: formatEventStatus(status as EventEditionStatus),
+                })),
+              ]}
+              onChange={setEventStatusFilter}
+            />
           </label>
         </div>
 
@@ -1008,24 +1010,28 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
 
             <label>
               <span>Тип</span>
-              <select value={draft.kind} onChange={(event) => updateDraft({ kind: event.target.value as EventKind })}>
-                {Object.keys(eventKindLabels).map((kind) => (
-                  <option value={kind} key={kind}>
-                    {formatEventKind(kind as EventKind)}
-                  </option>
-                ))}
-              </select>
+              <SelectBox
+                value={draft.kind}
+                ariaLabel="Тип мероприятия"
+                options={Object.keys(eventKindLabels).map((kind) => ({
+                  value: kind as EventKind,
+                  label: formatEventKind(kind as EventKind),
+                }))}
+                onChange={(kind) => updateDraft({ kind })}
+              />
             </label>
 
             <label>
               <span>Статус</span>
-              <select value={draft.status} onChange={(event) => updateDraft({ status: event.target.value as EventEditionStatus })}>
-                {Object.keys(eventStatusLabels).map((status) => (
-                  <option value={status} key={status}>
-                    {formatEventStatus(status as EventEditionStatus)}
-                  </option>
-                ))}
-              </select>
+              <SelectBox
+                value={draft.status}
+                ariaLabel="Статус мероприятия"
+                options={Object.keys(eventStatusLabels).map((status) => ({
+                  value: status as EventEditionStatus,
+                  label: formatEventStatus(status as EventEditionStatus),
+                }))}
+                onChange={(status) => updateDraft({ status })}
+              />
             </label>
 
             <label>
@@ -1296,13 +1302,15 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
                   </label>
                   <label>
                     <span>Тип</span>
-                    <select value={item.kind} onChange={(event) => updateSchedule(index, { kind: event.target.value as EventScheduleItemKind })}>
-                      {Object.keys(scheduleKindLabels).map((kind) => (
-                        <option value={kind} key={kind}>
-                          {formatScheduleKind(kind as EventScheduleItemKind)}
-                        </option>
-                      ))}
-                    </select>
+                    <SelectBox
+                      value={item.kind}
+                      ariaLabel="Тип пункта расписания"
+                      options={Object.keys(scheduleKindLabels).map((kind) => ({
+                        value: kind as EventScheduleItemKind,
+                        label: formatScheduleKind(kind as EventScheduleItemKind),
+                      }))}
+                      onChange={(kind) => updateSchedule(index, { kind })}
+                    />
                   </label>
                   <label>
                     <span>Начало</span>
@@ -1380,13 +1388,15 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
                   <div className="event-inline-grid">
                     <label>
                       <span>Тип</span>
-                      <select value={item.type} onChange={(event) => updateMedia(index, { type: event.target.value as EventMediaType })}>
-                        {Object.keys(mediaTypeLabels).map((mediaType) => (
-                          <option value={mediaType} key={mediaType}>
-                            {formatMediaType(mediaType as EventMediaType)}
-                          </option>
-                        ))}
-                      </select>
+                      <SelectBox
+                        value={item.type}
+                        ariaLabel="Тип медиа"
+                        options={Object.keys(mediaTypeLabels).map((mediaType) => ({
+                          value: mediaType as EventMediaType,
+                          label: formatMediaType(mediaType as EventMediaType),
+                        }))}
+                        onChange={(type) => updateMedia(index, { type })}
+                      />
                     </label>
 
                     <label>
@@ -1479,13 +1489,15 @@ export function AdminEventsSection({ accessToken, isActive }: AdminEventsSection
                 <div className="event-inline-grid">
                   <label>
                     <span>Тип блока</span>
-                    <select value={item.blockType} onChange={(event) => updateBlock(index, { blockType: event.target.value as EventContentBlockType })}>
-                      {Object.keys(contentBlockLabels).map((blockType) => (
-                        <option value={blockType} key={blockType}>
-                          {formatContentBlockType(blockType as EventContentBlockType)}
-                        </option>
-                      ))}
-                    </select>
+                    <SelectBox
+                      value={item.blockType}
+                      ariaLabel="Тип блока"
+                      options={Object.keys(contentBlockLabels).map((blockType) => ({
+                        value: blockType as EventContentBlockType,
+                        label: formatContentBlockType(blockType as EventContentBlockType),
+                      }))}
+                      onChange={(blockType) => updateBlock(index, { blockType })}
+                    />
                   </label>
                   <label>
                     <span>Заголовок</span>

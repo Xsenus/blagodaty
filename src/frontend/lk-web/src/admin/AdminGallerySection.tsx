@@ -8,6 +8,7 @@ import {
 import { useToast } from '../ui/ToastProvider';
 import { PreloadedImage } from '../ui/PreloadedImage';
 import type { AdminGalleryAsset, PaginatedResponse } from '../types';
+import { ConfirmDialog, EmptyState, ErrorState, LoadingState, Pagination, SelectBox } from './components/AdminUi';
 
 type AdminGallerySectionProps = {
   accessToken: string | null;
@@ -59,13 +60,14 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(24);
+  const [pageSize, setPageSize] = useState(25);
   const [pageData, setPageData] = useState<PaginatedResponse<AdminGalleryAsset> | null>(null);
   const [drafts, setDrafts] = useState<Record<string, GalleryAssetDraft>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [savingAssetId, setSavingAssetId] = useState<string | null>(null);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+  const [pendingDeleteAsset, setPendingDeleteAsset] = useState<AdminGalleryAsset | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,15 +79,7 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
   }, [accessToken, isActive, page, pageSize, searchTerm]);
 
   const pageItems = pageData?.items ?? [];
-  const paginationNumbers = useMemo(() => {
-    if (!pageData) {
-      return [];
-    }
-
-    const start = Math.max(1, pageData.page - 2);
-    const end = Math.min(pageData.totalPages, start + 4);
-    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-  }, [pageData]);
+  const pageSizeOptions = useMemo(() => [10, 25, 50, 100].map((size) => ({ value: size, label: String(size) })), []);
 
   async function loadGallery() {
     if (!accessToken) {
@@ -234,11 +228,6 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
       return;
     }
 
-    const confirmed = window.confirm(`Удалить файл «${asset.name}» из галереи?`);
-    if (!confirmed) {
-      return;
-    }
-
     setDeletingAssetId(asset.id);
     setError(null);
 
@@ -258,6 +247,7 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
       toast.error('Удаление не выполнено', nextError);
     } finally {
       setDeletingAssetId(null);
+      setPendingDeleteAsset(null);
     }
   }
 
@@ -315,17 +305,15 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
         <div className="gallery-filter-actions">
           <label>
             <span>Размер страницы</span>
-            <select
+            <SelectBox
               value={pageSize}
-              onChange={(event) => {
-                setPageSize(Number(event.target.value));
+              options={pageSizeOptions}
+              ariaLabel="Размер страницы"
+              onChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
                 setPage(1);
               }}
-            >
-              <option value={12}>12</option>
-              <option value={24}>24</option>
-              <option value={48}>48</option>
-            </select>
+            />
           </label>
 
           <button type="submit" className="secondary-button">
@@ -347,10 +335,10 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
         </div>
       </form>
 
-      {error ? <p className="form-error">{error}</p> : null}
+      {error ? <ErrorState message={error} /> : null}
 
       {isLoading ? (
-        <p className="form-muted">Загружаем файлы галереи…</p>
+        <LoadingState title="Загружаем медиатеку" description="Проверяем файлы и метаданные." />
       ) : pageItems.length ? (
         <>
           <div className="gallery-grid">
@@ -452,7 +440,7 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
                     <button
                       type="button"
                       className="secondary-link danger-link"
-                      onClick={() => void handleDelete(asset)}
+                      onClick={() => setPendingDeleteAsset(asset)}
                       disabled={deletingAssetId === asset.id}
                     >
                       {deletingAssetId === asset.id ? 'Удаляем…' : 'Удалить'}
@@ -464,54 +452,42 @@ export function AdminGallerySection({ accessToken, isActive }: AdminGallerySecti
           </div>
 
           {pageData ? (
-            <div className="pagination-bar">
-              <div className="pagination-summary">
-                <span>Всего файлов</span>
-                <strong>{pageData.totalItems}</strong>
-              </div>
-
-              <div className="pagination-actions">
-                <button
-                  type="button"
-                  className="pagination-page"
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                  disabled={pageData.page <= 1}
-                >
-                  Назад
-                </button>
-
-                <div className="pagination-pages">
-                  {paginationNumbers.map((pageNumber) => (
-                    <button
-                      key={pageNumber}
-                      type="button"
-                      className={`pagination-page${pageData.page === pageNumber ? ' active' : ''}`}
-                      onClick={() => setPage(pageNumber)}
-                    >
-                      {pageNumber}
-                    </button>
-                  ))}
-                </div>
-
-                <button
-                  type="button"
-                  className="pagination-page"
-                  onClick={() => setPage((current) => Math.min(pageData.totalPages, current + 1))}
-                  disabled={pageData.page >= pageData.totalPages}
-                >
-                  Дальше
-                </button>
-              </div>
-            </div>
+            <Pagination
+              page={pageData.page}
+              pageSize={pageData.pageSize}
+              totalItems={pageData.totalItems}
+              totalPages={pageData.totalPages}
+              isLoading={isLoading}
+              onPageChange={setPage}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSize(nextPageSize);
+                setPage(1);
+              }}
+            />
           ) : null}
         </>
       ) : (
-        <div className="glass-card admin-empty-state">
-          <p className="mini-eyebrow">Пока пусто</p>
-          <h3>Галерея ещё не заполнена</h3>
-          <p className="form-muted">Загрузите первые файлы на сервер, чтобы получить прямые ссылки для сайта и мероприятий.</p>
-        </div>
+        <EmptyState
+          title="Галерея ещё не заполнена"
+          description="Загрузите первые файлы на сервер, чтобы получить прямые ссылки для сайта и мероприятий."
+        />
       )}
+      <ConfirmDialog
+        open={Boolean(pendingDeleteAsset)}
+        title="Удалить файл?"
+        description={pendingDeleteAsset ? `«${pendingDeleteAsset.name}» будет удален из медиатеки.` : undefined}
+        confirmLabel={deletingAssetId ? 'Удаляем…' : 'Удалить'}
+        onClose={() => {
+          if (!deletingAssetId) {
+            setPendingDeleteAsset(null);
+          }
+        }}
+        onConfirm={() => {
+          if (pendingDeleteAsset && !deletingAssetId) {
+            void handleDelete(pendingDeleteAsset);
+          }
+        }}
+      />
     </div>
   );
 }

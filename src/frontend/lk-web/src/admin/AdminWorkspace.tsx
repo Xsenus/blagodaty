@@ -964,12 +964,17 @@ function RegistrationDetails({
       <FormSection title="Админ-действия" description="Статус сохраняется отдельной кнопкой внизу панели.">
         <label>
           <span>Статус заявки</span>
-          <select value={statusDraft} onChange={(event) => onStatusDraftChange(event.target.value as RegistrationStatus)}>
-            <option value="Draft">Черновик</option>
-            <option value="Submitted">Отправлено</option>
-            <option value="Confirmed">Подтверждено</option>
-            <option value="Cancelled">Отменено</option>
-          </select>
+          <SelectBox
+            value={statusDraft}
+            ariaLabel="Статус заявки"
+            options={[
+              { value: 'Draft', label: 'Черновик' },
+              { value: 'Submitted', label: 'Отправлено' },
+              { value: 'Confirmed', label: 'Подтверждено' },
+              { value: 'Cancelled', label: 'Отменено' },
+            ]}
+            onChange={onStatusDraftChange}
+          />
         </label>
       </FormSection>
       <FormSection title="Основное">
@@ -1246,12 +1251,20 @@ function UsersSection({ accessToken }: { accessToken: string | null }) {
         <label><span>Поиск</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Имя, email, город, церковь" /></label>
         <label>
           <span>Роль</span>
-          <select value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value as 'all' | AppRole); setPage(1); }}>
-            <option value="all">Все роли</option>
-            <option value="Member">Участники</option>
-            <option value="CampManager">Координаторы</option>
-            <option value="Admin">Администраторы</option>
-          </select>
+          <SelectBox
+            value={roleFilter}
+            ariaLabel="Роль"
+            options={[
+              { value: 'all', label: 'Все роли' },
+              { value: 'Member', label: 'Участники' },
+              { value: 'CampManager', label: 'Координаторы' },
+              { value: 'Admin', label: 'Администраторы' },
+            ]}
+            onChange={(nextRole) => {
+              setRoleFilter(nextRole);
+              setPage(1);
+            }}
+          />
         </label>
         <button className="admin-reset-icon-button" type="button" aria-label="Сбросить фильтры" title="Сбросить фильтры" onClick={() => { setSearch(''); setRoleFilter('all'); setPage(1); }}>↺</button>
       </DataToolbar>
