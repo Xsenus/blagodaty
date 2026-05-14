@@ -4,8 +4,11 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { AuthProvider } from './auth/AuthProvider';
+import { enforceCanonicalHost } from './lib/config';
 import { ToastProvider } from './ui/ToastProvider';
 import './styles.css';
+
+enforceCanonicalHost();
 
 const queryClient = new QueryClient();
 

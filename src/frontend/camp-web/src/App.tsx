@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicEvent, getPublicEvents, getPublicSiteSettings } from './lib/api';
+import { lkBaseUrl } from './lib/config';
 import { RegistrationModal } from './components/RegistrationModal';
 import { NearbyActivitiesMap } from './components/NearbyActivitiesMap';
 import type {
@@ -558,7 +559,15 @@ function getSafeReturnUrl() {
       'lk.blagodaty.online',
     ]);
 
-    return allowedHosts.has(returnUrl.host) ? returnUrl.toString() : null;
+    if (!allowedHosts.has(returnUrl.host)) {
+      return null;
+    }
+
+    if (returnUrl.hostname === 'lk.blagodaty.online') {
+      returnUrl.hostname = new URL(lkBaseUrl).hostname;
+    }
+
+    return returnUrl.toString();
   } catch {
     return null;
   }
