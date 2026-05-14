@@ -203,6 +203,135 @@ select:focus-visible {
   width: min(1180px, 100%);
 }
 
+.auth-flip-layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(430px, 0.92fr) minmax(360px, 0.72fr);
+  width: min(980px, 100%);
+  min-height: 620px;
+  border-radius: 28px;
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 250, 243, 0.82)),
+    linear-gradient(135deg, rgba(242, 214, 162, 0.22), rgba(186, 216, 229, 0.16));
+  box-shadow: var(--shadow-popover);
+  overflow: hidden;
+  perspective: 1600px;
+}
+
+.auth-form-card {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  align-content: center;
+  min-height: 620px;
+  border: 0;
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: none;
+}
+
+.auth-flip-card {
+  position: relative;
+  min-height: 620px;
+  transform-style: preserve-3d;
+  transform-origin: left center;
+  transition: transform 640ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-flip-layout.is-register .auth-flip-card {
+  transform: rotateY(-180deg);
+}
+
+.auth-flip-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 18px;
+  padding: 44px;
+  color: #fff;
+  text-align: center;
+  backface-visibility: hidden;
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.26), transparent 27%),
+    linear-gradient(145deg, rgba(241, 196, 126, 0.96), rgba(214, 144, 94, 0.96) 52%, rgba(82, 126, 119, 0.92));
+}
+
+.auth-flip-back {
+  transform: rotateY(180deg);
+  background:
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.24), transparent 27%),
+    linear-gradient(145deg, rgba(95, 140, 130, 0.94), rgba(214, 144, 94, 0.94) 58%, rgba(240, 204, 143, 0.96));
+}
+
+.auth-flip-face::before {
+  content: "";
+  position: absolute;
+  inset: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 24px;
+  pointer-events: none;
+}
+
+.auth-flip-face .mini-eyebrow,
+.auth-flip-face h1,
+.auth-flip-face p {
+  position: relative;
+  z-index: 1;
+  color: #fff;
+}
+
+.auth-flip-face h1 {
+  max-width: 9ch;
+  font-size: clamp(2.4rem, 4.8vw, 4.2rem);
+  line-height: 0.96;
+}
+
+.auth-flip-face p {
+  max-width: 24rem;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.auth-flip-icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 2.2rem;
+  box-shadow: 0 20px 44px rgba(39, 54, 48, 0.18);
+}
+
+.auth-flip-action {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.64);
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: 0 14px 28px rgba(39, 54, 48, 0.14);
+}
+
+.auth-flip-action:hover,
+.auth-flip-action:focus-visible {
+  background: rgba(255, 255, 255, 0.24);
+}
+
 .intro-card,
 .auth-card {
   padding: 34px;
@@ -308,6 +437,24 @@ select:focus-visible {
 
 .auth-provider-list .secondary-button {
   width: 100%;
+  justify-content: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  padding-inline: 14px;
+  text-align: left;
+}
+
+.auth-provider-list .secondary-button::before {
+  content: "↗";
+  display: grid;
+  flex: 0 0 28px;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(229, 173, 114, 0.18);
+  color: var(--text-accent);
+  font-weight: 900;
 }
 
 .stack-form label {
@@ -2612,6 +2759,7 @@ button:disabled {
   .event-tab-strip,
   .form-grid,
   .auth-layout,
+  .auth-flip-layout,
   .role-grid,
   .role-editor,
   .event-editor-grid,
@@ -2653,6 +2801,35 @@ button:disabled {
 
   .admin-page .event-list-column {
     position: static;
+  }
+
+  .auth-flip-layout {
+    min-height: 0;
+  }
+
+  .auth-form-card,
+  .auth-flip-card {
+    min-height: auto;
+  }
+
+  .auth-flip-card {
+    order: -1;
+    transform: none !important;
+  }
+
+  .auth-flip-face {
+    position: relative;
+    min-height: 260px;
+    padding: 34px 24px;
+  }
+
+  .auth-flip-layout.is-login .auth-flip-back,
+  .auth-flip-layout.is-register .auth-flip-front {
+    display: none;
+  }
+
+  .auth-flip-back {
+    transform: none;
   }
 }
 

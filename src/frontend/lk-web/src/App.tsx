@@ -1342,35 +1342,8 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   return (
     <div className="screen-shell auth-screen">
-      <div className="orb orb-one" aria-hidden="true" />
-      <div className="orb orb-two" aria-hidden="true" />
-
-      <div className="auth-layout">
-        <section className="glass-card intro-card">
-          <p className="mini-eyebrow">Blagodaty LK</p>
-          <h1>Регистрация и управление поездкой в одном кабинете</h1>
-          <p>
-            Здесь мы собираем заявки на Алтай, храним профиль участника и готовим удобное
-            пространство для будущих уведомлений от команды лагеря.
-          </p>
-
-          <div className="feature-list">
-            <article>
-              <strong>Профиль участника</strong>
-              <span>Контакты, церковь, город и важные данные в одном месте.</span>
-            </article>
-            <article>
-              <strong>Анкета на camp</strong>
-              <span>Черновик, отправка заявки и понятный статус участия.</span>
-            </article>
-            <article>
-              <strong>Дальнейшее развитие</strong>
-              <span>Следом сюда добавятся оргсообщения, документы и администраторский контур.</span>
-            </article>
-          </div>
-        </section>
-
-        <section className="glass-card auth-card">
+      <div className={`auth-flip-layout ${mode === 'register' ? 'is-register' : 'is-login'}`}>
+        <section className="glass-card auth-card auth-form-card">
           <div className="auth-switch">
             <NavLink to={loginPath} className={({ isActive }) => (isActive ? 'active' : '')}>
               Вход
@@ -1495,6 +1468,27 @@ function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           ) : null}
 
           {isLoadingProviders ? <p className="form-muted">Проверяем доступные способы входа...</p> : null}
+        </section>
+
+        <section className="auth-flip-card" aria-live="polite">
+          <div className="auth-flip-face auth-flip-front">
+            <span className="auth-flip-icon" aria-hidden="true">✦</span>
+            <p className="mini-eyebrow">Blagodaty LK</p>
+            <h1>Впервые здесь?</h1>
+            <p>Создайте кабинет, чтобы заполнить профиль, подать заявку на camp и видеть статусы участия.</p>
+            <NavLink className="auth-flip-action" to={registerPath}>
+              Зарегистрироваться
+            </NavLink>
+          </div>
+          <div className="auth-flip-face auth-flip-back">
+            <span className="auth-flip-icon" aria-hidden="true">⌂</span>
+            <p className="mini-eyebrow">Blagodaty LK</p>
+            <h1>Уже есть кабинет?</h1>
+            <p>Войдите, чтобы продолжить работу с заявками, профилем и уведомлениями лагеря.</p>
+            <NavLink className="auth-flip-action" to={loginPath}>
+              Войти
+            </NavLink>
+          </div>
         </section>
       </div>
     </div>
