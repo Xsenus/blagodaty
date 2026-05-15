@@ -27,6 +27,7 @@ const galleryAssetModules = import.meta.glob('./assets/camp/gallery/*.{jpg,jpeg,
   query: '?url',
   import: 'default',
 }) as Record<string, string>;
+const loadedImageSources = new Set<string>();
 const EXCLUDED_GALLERY_ASSET_IDS = new Set([
   'altai-lake-01',
   'altai-lake-02',
@@ -215,7 +216,7 @@ type CrossfadeImageProps = {
 function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = false }: CrossfadeImageProps) {
   const [displayedSrc, setDisplayedSrc] = useState(src);
   const [previousSrc, setPreviousSrc] = useState<string | null>(null);
-  const [isCurrentLoaded, setIsCurrentLoaded] = useState(false);
+  const [isCurrentLoaded, setIsCurrentLoaded] = useState(() => loadedImageSources.has(src));
 
   useEffect(() => {
     if (src === displayedSrc) {
@@ -224,8 +225,21 @@ function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = fa
 
     setPreviousSrc(displayedSrc);
     setDisplayedSrc(src);
-    setIsCurrentLoaded(false);
+    setIsCurrentLoaded(loadedImageSources.has(src));
   }, [displayedSrc, src]);
+
+  useEffect(() => {
+    if (isCurrentLoaded || !displayedSrc) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      loadedImageSources.add(displayedSrc);
+      setIsCurrentLoaded(true);
+    }, 10000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [displayedSrc, isCurrentLoaded]);
 
   const imageAlt = decorative ? '' : alt;
   const wrapperClassName = [
@@ -238,7 +252,7 @@ function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = fa
 
   return (
     <span className={wrapperClassName} aria-hidden={decorative || undefined}>
-      {!isCurrentLoaded ? <ChurchPreloader compact visualOnly label="Загружаем фото" className="image-preloader" /> : null}
+      {!isCurrentLoaded ? <span className="image-skeleton" aria-hidden="true" /> : null}
       {previousSrc ? (
         <img className="image-crossfade-layer image-crossfade-previous" src={previousSrc} alt="" aria-hidden="true" decoding="async" />
       ) : null}
@@ -249,8 +263,14 @@ function CrossfadeImage({ src, alt, className, loading = 'lazy', decorative = fa
         key={displayedSrc}
         loading={loading}
         decoding="async"
-        onLoad={() => setIsCurrentLoaded(true)}
-        onError={() => setIsCurrentLoaded(true)}
+        onLoad={() => {
+          loadedImageSources.add(displayedSrc);
+          setIsCurrentLoaded(true);
+        }}
+        onError={() => {
+          loadedImageSources.add(displayedSrc);
+          setIsCurrentLoaded(true);
+        }}
         onAnimationEnd={previousSrc ? () => setPreviousSrc(null) : undefined}
       />
     </span>
@@ -638,6 +658,7 @@ export default function App() {
   const [placeImageRotation, setPlaceImageRotation] = useState<GalleryRotationState>(() => createGalleryRotationState([]));
   const [isBackToTopVisible, setIsBackToTopVisible] = useState(false);
   const [isFloatingRegistrationVisible, setIsFloatingRegistrationVisible] = useState(false);
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const eventsQuery = useQuery({
     queryKey: ['public-events'],
@@ -727,13 +748,29 @@ export default function App() {
       return;
     }
 
+    if (loadedImageSources.has(heroImage)) {
+      setHeroImageLoaded(true);
+      return;
+    }
+
     setHeroImageLoaded(false);
+    const timeoutId = window.setTimeout(() => {
+      loadedImageSources.add(heroImage);
+      setHeroImageLoaded(true);
+    }, 10000);
     const image = new Image();
-    image.onload = () => setHeroImageLoaded(true);
-    image.onerror = () => setHeroImageLoaded(true);
+    image.onload = () => {
+      loadedImageSources.add(heroImage);
+      setHeroImageLoaded(true);
+    };
+    image.onerror = () => {
+      loadedImageSources.add(heroImage);
+      setHeroImageLoaded(true);
+    };
     image.src = heroImage;
 
     return () => {
+      window.clearTimeout(timeoutId);
       image.onload = null;
       image.onerror = null;
     };
@@ -924,7 +961,7 @@ export default function App() {
 
   return (
     <div className="camp-page">
-      <header className="camp-header container">
+      <header className={`camp-header container${isMobileMenuOpen ? ' is-menu-open' : ''}`}>
         <a className="brand-lockup" href="#top" aria-label="Blagodaty Camp">
           <span className="brand-mark">B</span>
           <span>
@@ -933,7 +970,17 @@ export default function App() {
           </span>
         </a>
 
-        <nav className="site-nav">
+        <button
+          className="mobile-menu-toggle"
+          type="button"
+          aria-controls="camp-site-nav"
+          aria-expanded={isMobileMenuOpen}
+          onClick={() => setMobileMenuOpen((value) => !value)}
+        >
+          Меню
+        </button>
+
+        <nav className="site-nav" id="camp-site-nav" onClick={() => setMobileMenuOpen(false)}>
           <a href="#facts">О событии</a>
           <a href="#place">Место</a>
           <a href="#activities">Активности</a>
@@ -952,7 +999,15 @@ export default function App() {
             </div>
           ) : null}
 
-          <button className="button button-primary" type="button" data-registration-cta="true" onClick={() => openRegistration(selectedEventSummary?.slug)}>
+          <button
+            className="button button-primary"
+            type="button"
+            data-registration-cta="true"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              openRegistration(selectedEventSummary?.slug);
+            }}
+          >
             Зарегистрироваться
           </button>
         </div>
@@ -961,7 +1016,11 @@ export default function App() {
       <main className="camp-main" id="top">
         <section
           className={`hero-panel${isHeroImageLoaded ? ' is-image-loaded' : ' is-image-loading'}`}
-          style={{ backgroundImage: `linear-gradient(90deg, rgba(18, 29, 35, 0.78), rgba(18, 29, 35, 0.22)), url("${heroImage}")` }}
+          style={{
+            backgroundImage: isHeroImageLoaded
+              ? `linear-gradient(90deg, rgba(18, 29, 35, 0.78), rgba(18, 29, 35, 0.22)), url("${heroImage}")`
+              : 'linear-gradient(135deg, rgba(18, 29, 35, 0.88), rgba(49, 95, 83, 0.62))',
+          }}
         >
           {!isHeroImageLoaded ? <ChurchPreloader compact visualOnly label="Загружаем главное фото" className="hero-image-preloader" /> : null}
           <div className="container hero-inner">

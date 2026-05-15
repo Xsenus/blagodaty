@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -460,6 +460,21 @@ export function NearbyActivitiesMap() {
   const markersRef = useRef<Record<string, L.Marker>>({});
   const hasHandledInitialMarkerRef = useRef(false);
   const [activeActivityId, setActiveActivityId] = useState('ekoail');
+  const [isCompactMap, setCompactMap] = useState(false);
+  const activeActivity = useMemo(
+    () => nearbyActivities.find((activity) => activity.id === activeActivityId) ?? nearbyActivities[0],
+    [activeActivityId],
+  );
+
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 640px)');
+    const handleChange = () => setCompactMap(query.matches);
+
+    handleChange();
+    query.addEventListener('change', handleChange);
+
+    return () => query.removeEventListener('change', handleChange);
+  }, []);
 
   useEffect(() => {
     if (!mapElementRef.current || mapRef.current) {
@@ -519,7 +534,11 @@ export function NearbyActivitiesMap() {
       return;
     }
 
-    marker.openPopup();
+    if (isCompactMap) {
+      marker.closePopup();
+    } else {
+      marker.openPopup();
+    }
     if (!hasHandledInitialMarkerRef.current) {
       hasHandledInitialMarkerRef.current = true;
       return;
@@ -528,7 +547,7 @@ export function NearbyActivitiesMap() {
     mapRef.current.flyTo(marker.getLatLng(), activeActivityId === 'ekoail' ? 11 : 9, {
       duration: 0.55,
     });
-  }, [activeActivityId]);
+  }, [activeActivityId, isCompactMap]);
 
   return (
     <section className="activities-section container" id="activities">
@@ -551,6 +570,29 @@ export function NearbyActivitiesMap() {
       <div className="activities-layout">
         <div className="activities-map-panel">
           <div className="activities-map" ref={mapElementRef} aria-label="Карта активностей рядом с кэмпом" />
+          {activeActivity ? (
+            <article className={`activity-mobile-detail activity-${activeActivity.category}`}>
+              <div className="activity-mobile-photos">
+                {getActivityImages(activeActivity).map((url, imageIndex) => (
+                  <img src={url} alt={`${activeActivity.title}: фото ${imageIndex + 1}`} loading="lazy" key={url} />
+                ))}
+              </div>
+              <div className="activity-mobile-body">
+                <span className="activity-popup-kicker">
+                  {categoryLabels[activeActivity.category]} • {formatDistance(activeActivity)} от кэмпа
+                </span>
+                <strong>{activeActivity.title}</strong>
+                <p>{activeActivity.summary}</p>
+                <div className="activity-popup-meta">
+                  <span>{activeActivity.price}</span>
+                  <span>{activeActivity.duration}</span>
+                </div>
+                <a className="activity-source-link" href={activeActivity.sourceUrl} target="_blank" rel="noreferrer">
+                  {activeActivity.sourceLabel}
+                </a>
+              </div>
+            </article>
+          ) : null}
         </div>
 
         <div className="activities-list" aria-label="Список активностей рядом с кэмпом">
